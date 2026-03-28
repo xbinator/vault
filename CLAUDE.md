@@ -54,14 +54,6 @@ import { isTauri } from './platform'
 
 ## 文件组织规范
 
-### 类型定义文件
-- 所有类型定义文件放在 `types/` 目录
-- 自动生成的类型文件（如 `components.d.ts`）添加到 `.gitignore`
-
-### 工具函数
-- 平台相关的工具函数放在 `src/utils/platform.ts`
-- API 抽象层放在 `src/utils/fileAPI.ts`
-
 ## 代码质量要求
 
 ### ESLint 和 TypeScript
