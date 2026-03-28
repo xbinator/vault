@@ -122,12 +122,15 @@ const treeItems = computed(() => {
   cursor: pointer;
   border-radius: 8px;
   transition: background-color 0.2s ease, color 0.2s ease;
-}
 
-.anchor-item:hover,
-.anchor-item--active {
-  color: #0969da;
-  background: rgb(9 105 218 / 8%);
+  &:hover {
+    color: #0969da;
+    background: rgb(9 105 218 / 8%);
+  }
+
+  &.active {
+    color: #0969da;
+  }
 }
 
 .anchor-item__toggle {

@@ -10,17 +10,20 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed } from 'vue';
 import { marked, Tokens } from 'marked';
 import AnchorContent, { AnchorItem } from './components/AnchorContent.vue';
 
 interface Props {
   content?: string;
+  // 当前选中的锚点id
+  activeId?: string;
 }
 
-const props = defineProps<Props>();
-
-const activeId = ref<string>('');
+const props = withDefaults(defineProps<Props>(), {
+  content: '',
+  activeId: ''
+});
 
 const emit = defineEmits(['change']);
 
@@ -39,8 +42,6 @@ const items = computed(() => {
 });
 
 function handleAnchorClick(item: AnchorItem) {
-  activeId.value = item.id;
-
   emit('change', item);
 }
 </script>

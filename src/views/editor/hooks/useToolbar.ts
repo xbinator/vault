@@ -20,7 +20,6 @@ export function useToolbar(sourceFile: Ref<Partial<File>>) {
       divider: true,
       onClick: async () => {
         const file = await native.openFile();
-        console.log('🚀 ~ onClick: ~ file:', file);
         if (!file.path) return;
 
         native.setWindowTitle(`${file.name}.${file.ext}`);
