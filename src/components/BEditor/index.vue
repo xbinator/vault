@@ -1,8 +1,8 @@
 <template>
   <div class="b-editor-layout">
-    <BEditorSidebar v-if="showSidebar" :content="editorContent" class="b-editor-sidebar" @change="handleChangeAnchor" />
+    <BEditorSidebar v-if="showSidebar" :content="editorContent" :active-id="activeAnchorId" class="b-editor-sidebar" @change="handleChangeAnchor" />
 
-    <BScrollbar class="b-editor-scrollbar" @click="handleScrollbarClick">
+    <BScrollbar class="b-editor-scrollbar" @click="handleScrollbarClick" @scroll="handleEditorScroll">
       <div class="b-editor-container">
         <textarea ref="textarea" v-model="editorTitle" class="b-editor-title" placeholder="请输入标题"></textarea>
 
@@ -13,7 +13,7 @@
 </template>
 
 <script setup lang="ts">
-import type { JSONContent, MarkdownParseHelpers, MarkdownParseResult, MarkdownToken } from '@tiptap/core';
+import type { JSONContent, MarkdownParseHelpers, MarkdownParseResult, MarkdownToken, Editor } from '@tiptap/core';
 import { ref, watch } from 'vue';
 import _Code from '@tiptap/extension-code';
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
@@ -28,7 +28,7 @@ import { TableRow } from '@tiptap/extension-table-row';
 import { Markdown } from '@tiptap/markdown';
 import StarterKit from '@tiptap/starter-kit';
 import { useEditor, EditorContent, VueNodeViewRenderer } from '@tiptap/vue-3';
-import { useWindowSize, useTextareaAutosize } from '@vueuse/core';
+import { useWindowSize, useTextareaAutosize, useThrottleFn } from '@vueuse/core';
 import { common, createLowlight } from 'lowlight';
 import _CodeBlock from './components/CodeBlock.vue';
 
@@ -38,6 +38,7 @@ const MIN_WIDTH_FOR_SIDEBAR = 1360; // 800 + 280 * 2
 
 const { width } = useWindowSize();
 const showSidebar = ref(true);
+const activeAnchorId = ref<string>('');
 
 watch(width, (newWidth) => (showSidebar.value = newWidth >= MIN_WIDTH_FOR_SIDEBAR), { immediate: true });
 
@@ -60,6 +61,10 @@ const Code = _Code.extend({ excludes: '' });
 const CodeBlock = CodeBlockLowlight.extend({ addNodeView: () => VueNodeViewRenderer(_CodeBlock) }).configure({ lowlight });
 
 let headingIndex = 0;
+
+function resetHeadingIndex(): void {
+  headingIndex = 0;
+}
 
 const Heading = BaseHeading.extend({
   addAttributes() {
@@ -88,6 +93,15 @@ const Heading = BaseHeading.extend({
     const text = typeof token.text === 'string' ? token.text.trim() : '';
 
     return helpers.createNode('heading', { level: token.depth || 1, id }, text ? [helpers.createTextNode(text)] : []);
+  },
+  addKeyboardShortcuts() {
+    return this.parent?.() ?? {};
+  },
+  onCreate() {
+    const { editor } = this;
+    editor.on('beforeCreate', () => {
+      resetHeadingIndex();
+    });
   }
 }).configure({ levels: [1, 2, 3, 4, 5, 6] });
 
@@ -190,6 +204,28 @@ const editorExtensions = [
   ...TableExtensions
 ];
 
+function assignHeadingIds(editor: Editor): void {
+  const { state, view } = editor;
+  const { tr } = state;
+  let index = 0;
+  let needsUpdate = false;
+
+  state.doc.descendants((node, pos) => {
+    if (node.type.name === 'heading') {
+      const expectedId = `heading-${index}`;
+      if (node.attrs.id !== expectedId) {
+        needsUpdate = true;
+        tr.setNodeMarkup(pos, undefined, { ...node.attrs, id: expectedId });
+      }
+      index++;
+    }
+  });
+
+  if (needsUpdate) {
+    view.dispatch(tr);
+  }
+}
+
 function setEditorContent(text: string, emitUpdate = true) {
   // eslint-disable-next-line no-use-before-define
   const instance = editorInstance.value;
@@ -223,6 +259,7 @@ const editorInstance = useEditor({
   },
 
   onUpdate: ({ editor }) => {
+    assignHeadingIds(editor);
     editorContent.value = editor.getMarkdown();
   }
 });
@@ -237,10 +274,41 @@ function handleScrollbarClick(event: MouseEvent): void {
 }
 
 function handleChangeAnchor(record: { id: string; level: number; text: string }) {
+  activeAnchorId.value = record.id;
   const element = document.getElementById(record.id);
   if (element) {
     element.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
+}
+
+const updateActiveAnchor = useThrottleFn(() => {
+  const headings = document.querySelectorAll(
+    '.b-editor-content h1, .b-editor-content h2, .b-editor-content h3, .b-editor-content h4, .b-editor-content h5, .b-editor-content h6'
+  );
+
+  if (!headings.length) return;
+
+  let currentId = '';
+  const container = document.querySelector('.b-editor-scrollbar .scrollbar__wrap');
+  if (!container) return;
+
+  const containerRect = container.getBoundingClientRect();
+  const threshold = containerRect.top + 100;
+
+  headings.forEach((heading) => {
+    const rect = heading.getBoundingClientRect();
+    if (rect.top <= threshold) {
+      currentId = heading.id;
+    }
+  });
+
+  if (currentId && currentId !== activeAnchorId.value) {
+    activeAnchorId.value = currentId;
+  }
+}, 100);
+
+function handleEditorScroll() {
+  updateActiveAnchor();
 }
 
 watch(
