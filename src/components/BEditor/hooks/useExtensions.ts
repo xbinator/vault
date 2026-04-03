@@ -15,7 +15,7 @@ import StarterKit from '@tiptap/starter-kit';
 import { VueNodeViewRenderer } from '@tiptap/vue-3';
 import { common, createLowlight } from 'lowlight';
 import CodeBlockView from '../components/CodeBlock.vue';
-import { Search } from '../extensions/Search';
+import { Search, type SearchScrollContext } from '../extensions/Search';
 
 const lowlight = createLowlight(common);
 
@@ -23,6 +23,10 @@ interface UseBEditorExtensionsResult {
   assignHeadingIds: (editor: Editor) => void;
   editorExtensions: AnyExtension[];
   resetHeadingIndex: () => void;
+}
+
+interface UseExtensionsOptions {
+  onSearchMatchFocus?: (context: SearchScrollContext) => void;
 }
 
 function createParagraphNode(content: JSONContent[] = []): JSONContent {
@@ -42,7 +46,7 @@ function parseInlineOrText(tokens: MarkdownToken[] | undefined, text: string | u
   return text ? [helpers.createTextNode(text)] : [];
 }
 
-export function useExtensions(editorInstanceId: Ref<string>): UseBEditorExtensionsResult {
+export function useExtensions(editorInstanceId: Ref<string>, options: UseExtensionsOptions = {}): UseBEditorExtensionsResult {
   let headingIndex = 0;
 
   function resetHeadingIndex(): void {
@@ -214,7 +218,9 @@ export function useExtensions(editorInstanceId: Ref<string>): UseBEditorExtensio
     TableRow,
     TableHeader,
     TableCell,
-    Search
+    Search.configure({
+      onMatchFocus: options.onSearchMatchFocus ?? null
+    })
   ];
 
   function assignHeadingIds(editor: Editor): void {
