@@ -114,6 +114,16 @@ defineExpose({ undo, redo, canUndo, canRedo });
       pointer-events: none;
       content: attr(data-placeholder);
     }
+
+    .search-match {
+      background: rgb(250 204 21 / 28%);
+      border-radius: 2px;
+    }
+
+    .search-match-current {
+      background: rgb(59 130 246 / 24%);
+      box-shadow: 0 0 0 1px rgb(59 130 246 / 22%);
+    }
   }
 
   h1,
