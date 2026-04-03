@@ -10,8 +10,6 @@
       @add-field="handleFrontMatterFieldAdd"
     />
 
-    <HoverIndicator :is-visible="hoverIndicator.isVisible" :label="hoverIndicator.label" :top="hoverIndicator.top" :type="hoverIndicator.type" />
-
     <EditorContent :key="editorId" :editor="props.editor ?? undefined" class="b-editor-content" />
   </div>
 </template>
@@ -21,21 +19,10 @@ import type { FrontMatterData } from '../hooks/useFrontMatter';
 import type { Editor } from '@tiptap/vue-3';
 import { EditorContent } from '@tiptap/vue-3';
 import FrontMatterCard from './FrontMatterCard.vue';
-import HoverIndicator from './HoverIndicator.vue';
-
-type HoverBlockType = 'heading' | 'paragraph';
-
-interface HoverIndicatorState {
-  isVisible: boolean;
-  label: string;
-  top: string;
-  type: HoverBlockType;
-}
 
 interface Props {
   editor?: Editor | null;
   editorId?: string;
-  hoverIndicator: HoverIndicatorState;
   shouldShowFrontMatterCard?: boolean;
 }
 

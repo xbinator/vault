@@ -11,7 +11,7 @@
     />
 
     <BScrollbar class="b-editor-scrollbar" @scroll="handleEditorScroll">
-      <div ref="containerRef" :class="['b-editor-container']" @mouseleave="onContainerMouseLeave" @mousemove="onContainerMouseMove">
+      <div ref="containerRef" :class="['b-editor-container']">
         <textarea ref="titleTextareaRef" v-model="editorTitle" class="b-editor-title" placeholder="请输入标题" @blur="handleTitleBlur"></textarea>
 
         <RichEditorPane
@@ -20,7 +20,6 @@
           v-model:front-matter-data="frontMatterModel"
           :editor="editorInstance"
           :editor-id="props.editorId"
-          :hover-indicator="hoverIndicator"
           :should-show-front-matter-card="shouldShowFrontMatterCard"
         />
 
@@ -40,7 +39,6 @@ import SourceEditorPane from './components/SourceEditorPane.vue';
 import { useAnchors } from './hooks/useAnchors';
 import { useEditorController } from './hooks/useEditorController';
 import { useFrontMatter } from './hooks/useFrontMatter';
-import { useHoverIndicator } from './hooks/useHoverIndicator';
 import { useRichEditor } from './hooks/useRichEditor';
 
 // 视图宽度 + 侧边栏宽度 + 视图间距
@@ -49,7 +47,6 @@ const editorInstanceCounter = ref(0);
 
 const { width } = useWindowSize();
 const layoutRef = ref<HTMLElement | null>(null);
-const containerRef = ref<HTMLElement | null>(null);
 const titleTextareaRef = ref<HTMLTextAreaElement | null>(null);
 
 interface Props {
@@ -84,7 +81,6 @@ function handleTitleBlur(): void {
   emit('titleBlur', editorTitle.value);
 }
 const { activeAnchorId, handleChangeAnchor, handleEditorScroll } = useAnchors(layoutRef);
-const { hoverIndicator, onContainerMouseLeave, onContainerMouseMove } = useHoverIndicator(containerRef);
 
 const { bodyContent, frontMatterData, hasFrontMatter, updateFrontMatter, reconstructContent } = useFrontMatter(editorContent);
 
