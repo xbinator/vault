@@ -1,11 +1,17 @@
 <template>
-  <BDropdownButton :show-icon="false" :options="options" :overlay-width="220">
+  <BDropdownButton :show-icon="false" :options="options" :overlay-width="240">
     <div>{{ title }}</div>
 
     <template #menu="{ record }">
       <span class="toolbar-menu-item-label">{{ (record as ToolbarOption).label }}</span>
       <span v-if="(record as ToolbarOption).shortcut" class="toolbar-menu-item-shortcut">
-        {{ formatShortcut((record as ToolbarOption).shortcut as string) }}
+        <span
+          v-for="(part, index) in getShortcutParts((record as ToolbarOption).shortcut as string)"
+          :key="`${part}-${index}`"
+          class="toolbar-menu-item-shortcut-key"
+        >
+          {{ part }}
+        </span>
       </span>
     </template>
   </BDropdownButton>
@@ -19,6 +25,8 @@ import { isMac } from '@/utils/is';
 
 interface ToolbarOption extends DropdownOptionItem {
   shortcut?: string;
+  // 是否启用快捷键
+  enableShortcut?: boolean;
 }
 
 export interface Props {
@@ -41,6 +49,23 @@ function formatShortcut(shortcut: string): string {
   return shortcut;
 }
 
+function getShortcutParts(shortcut: string): string[] {
+  const parts = shortcut
+    .split('+')
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0);
+
+  if (!isMacOS.value) return parts;
+
+  return parts.map((part) => {
+    if (/^ctrl$/i.test(part)) return '⌘';
+    if (/^meta$/i.test(part)) return '⌘';
+    if (/^shift$/i.test(part)) return '⇧';
+    if (/^alt$/i.test(part)) return '⌥';
+    return formatShortcut(part);
+  });
+}
+
 function getKeyName(shortcut: string): string {
   return shortcut.replace(/\+/g, '_').replace(/\s+/g, '').toLowerCase();
 }
@@ -53,7 +78,8 @@ function setupShortcuts() {
   props.options?.forEach((option) => {
     if (option.type === 'divider') return;
 
-    if (!(option.shortcut && option.onClick && !option.disabled)) return;
+    const shouldBindShortcut = option.enableShortcut !== false;
+    if (!(shouldBindShortcut && option.shortcut && option.onClick && !option.disabled)) return;
 
     const keyCombo = getKeyName(option.shortcut);
 
@@ -109,8 +135,23 @@ watch(
 }
 
 .toolbar-menu-item-shortcut {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
   margin-left: 24px;
   font-size: 12px;
   color: rgb(0 0 0 / 45%);
+}
+
+.toolbar-menu-item-shortcut-key {
+  height: 18px;
+  padding: 0 6px;
+  font-variant-numeric: tabular-nums;
+  line-height: 18px;
+  color: rgb(0 0 0 / 65%);
+  white-space: nowrap;
+  background: rgb(0 0 0 / 2%);
+  border: 1px solid rgb(0 0 0 / 12%);
+  border-radius: 4px;
 }
 </style>
