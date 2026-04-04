@@ -6,7 +6,9 @@
       <span v-if="props.showSelectedCheck" class="toolbar-menu-item-check">
         <Icon v-if="(record as ToolbarOption).selected" icon="lucide:check" />
       </span>
-      <span class="toolbar-menu-item-label">{{ (record as ToolbarOption).label }}</span>
+      <span class="toolbar-menu-item-label" :class="{ 'is-active': (record as ToolbarOption).active }">
+        {{ (record as ToolbarOption).label }}
+      </span>
       <span v-if="(record as ToolbarOption).shortcut" class="toolbar-menu-item-shortcut">
         <span
           v-for="(part, index) in getShortcutParts((record as ToolbarOption).shortcut as string)"
@@ -30,6 +32,9 @@ import { isMac } from '@/utils/is';
 export interface ToolbarOption extends DropdownOptionItem {
   // 是否选中当前项
   selected?: boolean;
+  // 激活状态
+  active?: boolean;
+  // 快捷键
   shortcut?: string;
   // 是否启用快捷键
   enableShortcut?: boolean;
@@ -170,6 +175,10 @@ watch(
 
 .toolbar-menu-item-label {
   flex: 1;
+
+  &.is-active {
+    color: #1890ff;
+  }
 }
 
 .toolbar-menu-item-shortcut {

@@ -8,7 +8,7 @@
 import { onMounted, onUnmounted, ref } from 'vue';
 
 interface Props {
-  text: string;
+  text?: string;
 }
 withDefaults(defineProps<Props>(), { text: '' });
 

@@ -160,6 +160,7 @@ export function useFileActive(fileState: Ref<EditorFile>, options: UseFileActive
         ...savedRecentFiles.value.map((file) => ({
           value: file.id,
           label: getRecentFileLabel(file),
+          active: file.id === fileState.value.id,
           onClick: async () => {
             const stored = await indexedDB.getRecentFile(file.id);
             if (!stored) return;

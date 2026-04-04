@@ -1,70 +1,147 @@
-<template>
-  <div class="b-dropdown-menu" :style="{ width: typeof width === 'number' ? `${width}px` : width }" @contextmenu.prevent>
-    <template v-for="(item, index) in options" :key="index">
-      <div v-if="item.type === 'divider'" class="b-dropdown-menu-item-divider"></div>
-      <div
-        v-else
-        class="b-dropdown-menu-item"
-        :class="[item.class, rowClass, { disabled: item.disabled, danger: item.danger }, item.color]"
-        @click="handleClickMenu(item)"
-      >
-        <BDropdown v-if="item.children?.length" placement="rightTop" :align="{ targetOffset: [-9, 0] }" :disabled="item.disabled">
-          <div class="b-dropdown-menu-item-content">
-            <slot name="menu" v-bind="{ record: item }">
-              <BTruncateText :text="item.label" />
-            </slot>
-
-            <Icon class="b-dropdown-menu-item-arrow" icon="lucide:chevron-right" />
-          </div>
-
-          <template #overlay>
-            <Menu :options="(item.children as T[])" :row-class="rowClass" :width="width" />
-          </template>
-        </BDropdown>
-
-        <slot v-else name="menu" v-bind="{ record: item }">
-          <BTruncateText :text="item.label" />
-        </slot>
-      </div>
-    </template>
-  </div>
-</template>
-
-<script setup lang="ts" generic="T extends DropdownOption">
+<script lang="tsx">
 import type { DropdownOption, DropdownOptionItem } from './type';
+import type { PropType, VNodeChild } from 'vue';
+import { computed, defineComponent } from 'vue';
 import { Icon } from '@iconify/vue';
+import { Dropdown } from 'ant-design-vue';
 import BTruncateText from '../BTruncateText/index.vue';
 
-interface Props {
-  value?: string | number | Array<string | number>;
-  /** 下拉选项列表 */
-  options: T[];
-  /** 下拉菜单项的类名 */
-  rowClass?: string;
-  /** 内容宽度 */
-  width?: string | number;
+const submenuAlign = {
+  targetOffset: [-9, 0] as [number, number]
+};
+
+interface MenuProps {
+  value: string | number | Array<string | number>;
+  options: DropdownOption[];
+  rowClass: string;
+  width: string | number;
 }
 
-withDefaults(defineProps<Props>(), { value: () => [], rowClass: '', width: 'auto' });
+const Menu = defineComponent({
+  name: 'BDropdownMenu',
+  props: {
+    value: {
+      type: [String, Number, Array] as PropType<MenuProps['value']>,
+      default: () => []
+    },
+    options: {
+      type: Array as PropType<MenuProps['options']>,
+      required: true
+    },
+    rowClass: {
+      type: String,
+      default: ''
+    },
+    width: {
+      type: [String, Number] as PropType<MenuProps['width']>,
+      default: 'auto'
+    }
+  },
+  emits: {
+    'update:value': (value: string | number): boolean => typeof value === 'string' || typeof value === 'number',
+    change: (record: DropdownOptionItem): boolean => typeof record === 'object' && record !== null
+  },
+  setup(props, { emit, slots }) {
+    const active = computed<string | number | Array<string | number>>({
+      get: (): string | number | Array<string | number> => props.value,
+      set: (value: string | number | Array<string | number>): void => {
+        if (!Array.isArray(value)) {
+          emit('update:value', value);
+        }
+      }
+    });
 
-const emit = defineEmits<{
-  (e: 'update:value', value: string | number): void;
-  (e: 'change', value: DropdownOptionItem): void;
-}>();
+    const menuWidth = computed<string>(() => (typeof props.width === 'number' ? `${props.width}px` : props.width));
 
-const active = defineModel<string | number | Array<string | number>>('value', { default: () => [] });
+    function renderMenuContent(record: DropdownOptionItem): VNodeChild {
+      return slots.menu?.({ record }) ?? <BTruncateText text={record.label} />;
+    }
 
-function handleClickMenu(record: DropdownOptionItem) {
-  if (record.disabled) return;
+    function handleClickMenu(record: DropdownOptionItem): void {
+      if (record.disabled) return;
 
-  if (!Array.isArray(active.value) && record.value !== active.value) {
-    active.value = record.value;
+      if (!Array.isArray(active.value) && record.value !== active.value) {
+        active.value = record.value;
+      }
+
+      record.onClick?.();
+      emit('change', record);
+    }
+
+    function renderMenuItem(item: DropdownOptionItem, index: number, content: VNodeChild): VNodeChild {
+      const itemClass = [
+        item.class,
+        props.rowClass,
+        {
+          disabled: item.disabled,
+          danger: item.danger
+        },
+        item.color
+      ];
+
+      return (
+        <div key={`item-${index}`} class={['b-dropdown-menu-item', itemClass]} onClick={() => handleClickMenu(item)}>
+          {content}
+        </div>
+      );
+    }
+
+    function renderSubmenu(item: DropdownOptionItem, index: number, children: DropdownOption[]): VNodeChild {
+      return renderMenuItem(
+        item,
+        index,
+        <Dropdown
+          placement={'rightTop' as 'top'}
+          align={submenuAlign}
+          disabled={item.disabled}
+          overlayClassName="b-dropdown-overlay"
+          v-slots={{
+            overlay: (): VNodeChild => (
+              <Menu
+                value={props.value}
+                options={children}
+                rowClass={props.rowClass}
+                width={props.width}
+                onUpdate:value={(value: string | number): void => emit('update:value', value)}
+                onChange={(record: DropdownOptionItem): void => emit('change', record)}
+                v-slots={{
+                  menu: ({ record }: { record: DropdownOptionItem }): VNodeChild => renderMenuContent(record)
+                }}
+              />
+            )
+          }}
+        >
+          <div class="b-dropdown-menu-item-content">
+            {renderMenuContent(item)}
+            <Icon class="b-dropdown-menu-item-arrow" icon="lucide:chevron-right" />
+          </div>
+        </Dropdown>
+      );
+    }
+
+    function renderOption(item: DropdownOption, index: number): VNodeChild {
+      if (item.type === 'divider') {
+        return <div key={`divider-${index}`} class="b-dropdown-menu-item-divider"></div>;
+      }
+
+      const { children } = item;
+
+      if (children && children.length > 0) {
+        return renderSubmenu(item, index, children);
+      }
+
+      return renderMenuItem(item, index, renderMenuContent(item));
+    }
+
+    return (): VNodeChild => (
+      <div class="b-dropdown-menu" style={{ width: menuWidth.value }} onContextmenu={(event: MouseEvent): void => event.preventDefault()}>
+        {props.options.map((item, index) => renderOption(item, index))}
+      </div>
+    );
   }
+});
 
-  record.onClick?.();
-
-  emit('change', record);
-}
+export default Menu;
 </script>
 
 <style scoped>
