@@ -1,16 +1,22 @@
 import type { EditorFile } from '../types';
 import type { Ref } from 'vue';
-import { computed, ref } from 'vue';
+import { computed } from 'vue';
 import { marked } from 'marked';
 import BEditor from '@/components/BEditor/index.vue';
 import type { Props as ToolbarProps } from '@/components/Toolbar.vue';
 import { useClipboard } from '@/hooks/useClipboard';
 
-export function useEditActive(fileState: Ref<EditorFile>, editorRef: Ref<InstanceType<typeof BEditor> | null>) {
-  const { clipboard } = useClipboard();
+interface UseEditActiveOptions {
+  /** 查找栏是否可见 */
+  visible: { find: boolean };
+  /** 编辑器实例 */
+  editorInstance: Ref<InstanceType<typeof BEditor> | null>;
+}
 
-  const showFind = ref(false);
-  const findKeyword = ref('');
+export function useEditActive(fileState: Ref<EditorFile>, options: UseEditActiveOptions) {
+  const { editorInstance, visible } = options;
+
+  const { clipboard } = useClipboard();
 
   async function toHtml(markdown: string): Promise<string> {
     const rendered = marked.parse(markdown);
@@ -30,15 +36,6 @@ export function useEditActive(fileState: Ref<EditorFile>, editorRef: Ref<Instanc
     return documentNode.body.textContent?.trim() ?? '';
   }
 
-  function openFind(): void {
-    showFind.value = true;
-  }
-
-  function closeFind(): void {
-    showFind.value = false;
-    findKeyword.value = '';
-  }
-
   const toolbarEditOptions = computed<ToolbarProps['options']>(() => {
     const { content } = fileState.value;
     const canCopy = Boolean(content.trim());
@@ -48,23 +45,25 @@ export function useEditActive(fileState: Ref<EditorFile>, editorRef: Ref<Instanc
         label: '撤销',
         shortcut: 'Ctrl+Z',
         enableShortcut: false,
-        disabled: !editorRef.value?.canUndo(),
-        onClick: () => editorRef.value?.undo()
+        disabled: !editorInstance.value?.canUndo(),
+        onClick: () => editorInstance.value?.undo()
       },
       {
         value: 'redo',
         label: '重做',
         shortcut: 'Ctrl+Shift+Z',
         enableShortcut: false,
-        disabled: !editorRef.value?.canRedo(),
-        onClick: () => editorRef.value?.redo()
+        disabled: !editorInstance.value?.canRedo(),
+        onClick: () => editorInstance.value?.redo()
       },
       {
         value: 'find',
         label: '查找',
         shortcut: 'Ctrl+F',
         disabled: !canCopy,
-        onClick: openFind
+        onClick: () => {
+          visible.find = true;
+        }
       },
       { type: 'divider' },
       {
@@ -95,5 +94,7 @@ export function useEditActive(fileState: Ref<EditorFile>, editorRef: Ref<Instanc
       }
     ];
   });
-  return { toolbarEditOptions, showFind, findKeyword, openFind, closeFind };
+  return {
+    toolbarEditOptions
+  };
 }
