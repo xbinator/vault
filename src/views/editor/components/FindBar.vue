@@ -1,7 +1,7 @@
 <template>
-  <div v-show="visible" class="header-right">
+  <div v-if="visible" class="header-right">
     <div class="find-bar" :class="{ 'is-empty': isNoMatchFound }">
-      <AInput v-model:value="keyword" v-focus class="find-input" placeholder="在文档中查找" @press-enter="findNext" @keydown.esc="closeFind" />
+      <input v-model="keyword" v-focus class="find-input" placeholder="在文档中查找" @keyup.enter="findNext" @keydown.esc="closeFind" />
       <span class="find-result">{{ findResultText }}</span>
       <button v-for="action in navigationActions" :key="action.icon" type="button" class="find-action" :disabled="action.disabled" @click="action.onClick">
         <Icon :icon="action.icon" />
@@ -15,7 +15,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, toRef, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { Icon } from '@iconify/vue';
 import type BEditor from '@/components/BEditor/index.vue';
 import { vFocus } from '@/directives/focus';
@@ -47,24 +47,13 @@ interface NavigationAction {
 
 // ─── State ───────────────────────────────────────────────────────────────────
 
-interface FindBarState {
-  keyword: string;
-  matchIndex: number;
-  show: boolean;
-}
-
-const state = reactive<FindBarState>({
-  keyword: '',
-  matchIndex: 0,
-  show: false
-});
-
 const visible = defineModel<boolean>('visible', { default: false });
-const keyword = toRef(state, 'keyword');
+const keyword = ref('');
+const matchIndex = ref(0);
 
 // ─── Search Logic ─────────────────────────────────────────────────────────────
 
-const trimmedKeyword = computed(() => state.keyword.trim());
+const trimmedKeyword = computed(() => keyword.value.trim());
 
 function collectMatches(text: string, searchKeyword: string): FindResult[] {
   if (!searchKeyword) return [];
@@ -93,23 +82,23 @@ const isNoMatchFound = computed(() => !hasMatches.value && Boolean(trimmedKeywor
 const findResultText = computed(() => {
   if (!trimmedKeyword.value) return '';
   if (!hasMatches.value) return '0/0';
-  return `${state.matchIndex + 1}/${matchCount.value}`;
+  return `${matchIndex.value + 1}/${matchCount.value}`;
 });
 
 // ─── Navigation ───────────────────────────────────────────────────────────────
 
 function resetSearch(): void {
-  state.matchIndex = 0;
+  matchIndex.value = 0;
 }
 
 function moveToNextMatch(): void {
   if (!hasMatches.value) return;
-  state.matchIndex = (state.matchIndex + 1) % matchCount.value;
+  matchIndex.value = (matchIndex.value + 1) % matchCount.value;
 }
 
 function moveToPreviousMatch(): void {
   if (!hasMatches.value) return;
-  state.matchIndex = state.matchIndex <= 0 ? matchCount.value - 1 : state.matchIndex - 1;
+  matchIndex.value = matchIndex.value <= 0 ? matchCount.value - 1 : matchIndex.value - 1;
 }
 
 function findNext(): void {
@@ -129,8 +118,8 @@ const navigationActions = computed<NavigationAction[]>(() => [
 ]);
 
 function closeFind(): void {
-  state.show = false;
-  state.keyword = '';
+  visible.value = false;
+  keyword.value = '';
   resetSearch();
   props.editorInstance?.clearSearch();
 }
@@ -150,8 +139,8 @@ watch(
   () => props.content,
   () => {
     // 内容变更后，若当前索引越界则修正到末尾
-    if (state.matchIndex >= matchCount.value && matchCount.value > 0) {
-      state.matchIndex = matchCount.value - 1;
+    if (matchIndex.value >= matchCount.value && matchCount.value > 0) {
+      matchIndex.value = matchCount.value - 1;
     }
   }
 );
@@ -186,26 +175,19 @@ watch(
 .find-input {
   flex: 1;
   min-width: 0;
-}
-
-.find-bar :deep(.ant-input) {
   height: 24px;
   padding: 0;
   font-size: 12px;
   line-height: 24px;
   color: rgb(32 33 36 / 92%);
+  outline: none;
   background: transparent;
   border: none;
   border-radius: 0;
   box-shadow: none;
 }
 
-.find-bar :deep(.ant-input:focus) {
-  border: none;
-  box-shadow: none;
-}
-
-.find-bar :deep(.ant-input::placeholder) {
+.find-input::placeholder {
   color: rgb(0 0 0 / 35%);
 }
 

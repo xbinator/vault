@@ -1,11 +1,21 @@
-import type { CommandProps } from '@tiptap/core';
+import type { CommandProps, Editor } from '@tiptap/core';
 import { Extension } from '@tiptap/core';
 import { Plugin, PluginKey, TextSelection } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
 
-interface SearchMatch {
+export interface SearchMatch {
   from: number;
   to: number;
+}
+
+export interface SearchScrollContext {
+  editor: Editor;
+  match: SearchMatch;
+  targetElement: HTMLElement | null;
+}
+
+interface SearchOptions {
+  onMatchFocus: ((context: SearchScrollContext) => void) | null;
 }
 
 interface SearchState {
@@ -98,23 +108,41 @@ function getSearchState(editor: CommandProps['editor']): SearchState {
   return searchPluginKey.getState(editor.state) ?? createSearchState(editor.state.doc);
 }
 
-function scrollMatchIntoView(editor: CommandProps['editor'], match: SearchMatch): void {
-  requestAnimationFrame(() => {
-    const domAtPos = editor.view.domAtPos(match.from);
-    const targetNode = domAtPos.node.nodeType === Node.TEXT_NODE ? domAtPos.node.parentElement : domAtPos.node;
+function getMatchElement(editor: Editor, match: SearchMatch): HTMLElement | null {
+  const domAtPos = editor.view.domAtPos(match.from);
+  const targetNode = domAtPos.node.nodeType === Node.TEXT_NODE ? domAtPos.node.parentElement : domAtPos.node;
 
-    if (!(targetNode instanceof HTMLElement)) {
+  return targetNode instanceof HTMLElement ? targetNode : null;
+}
+
+function scrollMatchIntoView(
+  editor: Editor,
+  match: SearchMatch,
+  onMatchFocus: SearchOptions['onMatchFocus']
+): void {
+  requestAnimationFrame(() => {
+    const targetElement = getMatchElement(editor, match);
+    if (!targetElement) {
       return;
     }
 
-    targetNode.scrollIntoView({
+    if (onMatchFocus) {
+      onMatchFocus({ editor, match, targetElement });
+      return;
+    }
+
+    targetElement.scrollIntoView({
       block: 'center',
       inline: 'nearest'
     });
   });
 }
 
-function dispatchSearchState({ dispatch, editor, state }: SearchCommandContext, nextSearchState: SearchState): void {
+function dispatchSearchState(
+  { dispatch, editor, state }: SearchCommandContext,
+  nextSearchState: SearchState,
+  onMatchFocus: SearchOptions['onMatchFocus']
+): void {
   if (!dispatch) {
     return;
   }
@@ -133,7 +161,7 @@ function dispatchSearchState({ dispatch, editor, state }: SearchCommandContext, 
   dispatch(transaction);
 
   if (editor && currentMatch) {
-    scrollMatchIntoView(editor, currentMatch);
+    scrollMatchIntoView(editor, currentMatch, onMatchFocus);
   }
 }
 
@@ -148,16 +176,24 @@ declare module '@tiptap/core' {
   }
 }
 
-export const Search = Extension.create({
+export const Search = Extension.create<SearchOptions>({
   name: 'search',
 
+  addOptions() {
+    return {
+      onMatchFocus: null
+    };
+  },
+
   addCommands() {
+    const onMatchFocus = this.options.onMatchFocus;
+
     return {
       setSearchTerm:
         (term: string) =>
         ({ dispatch, editor, state }) => {
           const nextState = createSearchState(state.doc, term.trim(), 0);
-          dispatchSearchState({ dispatch, editor, state }, nextState);
+          dispatchSearchState({ dispatch, editor, state }, nextState, onMatchFocus);
           return true;
         },
       findNext:
@@ -169,7 +205,7 @@ export const Search = Extension.create({
           }
 
           const nextState = createSearchState(state.doc, searchState.term, (searchState.currentIndex + 1) % searchState.matches.length);
-          dispatchSearchState({ dispatch, editor, state }, nextState);
+          dispatchSearchState({ dispatch, editor, state }, nextState, onMatchFocus);
           return true;
         },
       findPrevious:
@@ -182,7 +218,7 @@ export const Search = Extension.create({
 
           const currentIndex = searchState.currentIndex <= 0 ? searchState.matches.length - 1 : searchState.currentIndex - 1;
           const nextState = createSearchState(state.doc, searchState.term, currentIndex);
-          dispatchSearchState({ dispatch, editor, state }, nextState);
+          dispatchSearchState({ dispatch, editor, state }, nextState, onMatchFocus);
           return true;
         },
       clearSearch:
