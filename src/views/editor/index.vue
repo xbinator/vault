@@ -9,7 +9,11 @@
         <Toolbar :title="'视图'" show-selected-check :options="toolbarViewOptions" />
       </div>
 
-      <FindBar v-model:visible="visible.find" :content="fileState.content" :editor-instance="editorInstance" />
+      <div class="header-right">
+        <SearchRecent v-model:visible="visible.recentSearch" :files="recentFiles" :active-id="fileState.id" @select="handleSelectRecentFile" />
+
+        <FindBar v-model:visible="visible.find" :content="fileState.content" :editor-instance="editorInstance" />
+      </div>
     </div>
 
     <div class="editor-content">
@@ -32,6 +36,7 @@ import { reactive, ref } from 'vue';
 import BEditor from '@/components/BEditor/index.vue';
 import Toolbar from '@/components/Toolbar.vue';
 import FindBar from './components/FindBar.vue';
+import SearchRecent from './components/SearchRecent.vue';
 import { useAutoSave } from './hooks/useAutoSave';
 import { useEditActive } from './hooks/useEditActive';
 import { useFileActive } from './hooks/useFileActive';
@@ -40,11 +45,15 @@ import { useViewActive } from './hooks/useViewActive';
 const fileState = ref<EditorFile>({ id: '', path: '', content: '', name: '', ext: 'md' });
 const editorInstance = ref<InstanceType<typeof BEditor> | null>(null);
 
-const visible = reactive({ find: false });
+const visible = reactive({ find: false, recentSearch: false });
 
 const { pause, resume } = useAutoSave(fileState);
 
-const { toolbarFileOptions } = useFileActive(fileState, { pause, resume });
+const { toolbarFileOptions, recentFiles, openRecentFile } = useFileActive(fileState, { pause, resume, visible });
+
+async function handleSelectRecentFile(id: string): Promise<void> {
+  await openRecentFile(id);
+}
 
 const { toolbarEditOptions } = useEditActive(fileState, { editorInstance, visible });
 
@@ -59,7 +68,6 @@ const { viewState, toolbarViewOptions } = useViewActive();
   background: #f5f5f5;
 }
 
-/* 顶部工具栏 */
 .editor-header {
   display: flex;
   flex-shrink: 0;
@@ -73,6 +81,12 @@ const { viewState, toolbarViewOptions } = useViewActive();
 .header-left {
   display: flex;
   gap: 10px;
+  align-items: center;
+}
+
+.header-right {
+  display: flex;
+  gap: 12px;
   align-items: center;
 }
 
