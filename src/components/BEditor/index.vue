@@ -132,7 +132,35 @@ function canRedo(): boolean {
   return editorController.value.canRedo();
 }
 
-defineExpose({ setContent, undo, redo, canUndo, canRedo });
+function setSearchTerm(term: string): void {
+  if (!isRichMode.value) return;
+
+  const commands = editorInstance.value?.commands;
+  commands?.setSearchTerm?.(term);
+}
+
+function findNext() {
+  if (!isRichMode.value) return;
+
+  const commands = editorInstance.value?.commands;
+  commands?.findNext?.();
+}
+
+function findPrevious() {
+  if (!isRichMode.value) return;
+
+  const commands = editorInstance.value?.commands;
+  commands?.findPrevious?.();
+}
+
+function clearSearch() {
+  if (!isRichMode.value) return;
+
+  const commands = editorInstance.value?.commands;
+  commands?.clearSearch?.();
+}
+
+defineExpose({ setContent, undo, redo, canUndo, canRedo, setSearchTerm, findNext, findPrevious, clearSearch });
 
 // @ts-ignore
 useTextareaAutosize({ element: titleTextareaRef, input: editorTitle });

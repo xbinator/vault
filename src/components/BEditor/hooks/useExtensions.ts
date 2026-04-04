@@ -15,6 +15,7 @@ import StarterKit from '@tiptap/starter-kit';
 import { VueNodeViewRenderer } from '@tiptap/vue-3';
 import { common, createLowlight } from 'lowlight';
 import CodeBlockView from '../components/CodeBlock.vue';
+import { Search } from '../extensions/Search';
 
 const lowlight = createLowlight(common);
 
@@ -212,7 +213,8 @@ export function useExtensions(editorInstanceId: Ref<string>): UseBEditorExtensio
     MarkdownTable.configure({ resizable: false }),
     TableRow,
     TableHeader,
-    TableCell
+    TableCell,
+    Search
   ];
 
   function assignHeadingIds(editor: Editor): void {

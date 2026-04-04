@@ -9,15 +9,13 @@
         <Toolbar :title="'视图'" show-selected-check :options="toolbarViewOptions" />
       </div>
 
-      <div v-if="showFind" class="header-right">
-        <AInput v-model:value="findKeyword" v-focus placeholder="查找" @keydown.esc="closeFind" />
-      </div>
+      <FindBar v-model:visible="visible.find" :content="fileState.content" :editor-instance="editorInstance" />
     </div>
 
     <div class="editor-content">
       <BEditor
         :key="fileState.id"
-        ref="editor"
+        ref="editorInstance"
         v-model:value="fileState.content"
         v-model:title="fileState.name"
         :editor-id="fileState?.id"
@@ -31,25 +29,27 @@
 
 <script setup lang="ts">
 import type { EditorFile } from './types';
-import { ref } from 'vue';
+import { reactive, ref } from 'vue';
 import BEditor from '@/components/BEditor/index.vue';
 import Toolbar from '@/components/Toolbar.vue';
-import { vFocus } from '@/directives/focus';
 import { native } from '@/utils/native';
 import { indexedDB } from '@/utils/storage';
+import FindBar from './components/FindBar.vue';
 import { useAutoSave } from './hooks/useAutoSave';
 import { useEditActive } from './hooks/useEditActive';
 import { useFileActive } from './hooks/useFileActive';
 import { useViewActive } from './hooks/useViewActive';
 
 const fileState = ref<EditorFile>({ id: '', path: '', content: '', name: '', ext: 'md' });
-const editor = ref<InstanceType<typeof BEditor> | null>(null);
+const editorInstance = ref<InstanceType<typeof BEditor> | null>(null);
+
+const visible = reactive({ find: false });
 
 const { pause, resume } = useAutoSave(fileState);
 
 const { toolbarFileOptions, loadRecentFiles } = useFileActive(fileState, { pause, resume });
 
-const { toolbarEditOptions, showFind, findKeyword, closeFind } = useEditActive(fileState, editor);
+const { toolbarEditOptions } = useEditActive(fileState, { editorInstance, visible });
 
 const { viewState, toolbarViewOptions } = useViewActive();
 
@@ -86,15 +86,6 @@ function handleTitleBlur(title: string): void {
   display: flex;
   gap: 10px;
   align-items: center;
-}
-
-.header-right {
-  display: flex;
-  align-items: center;
-}
-
-.find-input {
-  width: 220px;
 }
 
 .editor-content {
