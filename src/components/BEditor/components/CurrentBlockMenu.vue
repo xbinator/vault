@@ -73,6 +73,8 @@ interface MenuDivider {
 
 type MenuItem = MenuAction | MenuDivider;
 
+const hiddenMenuItemValues = new Set(['insert-paragraph', 'insert-heading', 'insert-code-block']);
+
 const props = withDefaults(defineProps<Props>(), {
   editor: null
 });
@@ -83,6 +85,8 @@ const isFocused = ref(false);
 const isHoveringMenu = ref(false);
 const currentBlock = ref<BlockPosition | null>(null);
 const hoveredBlockPos = ref<number | null>(null);
+const triggerOffsetLeft = 0;
+const triggerSize = 28;
 const position = ref({ left: 8, top: 0 });
 
 const hiddenBlockTypes = new Set(['codeBlock', 'table', 'tableRow', 'tableCell', 'tableHeader']);
@@ -228,6 +232,35 @@ function getHoveredBlockPos(editor: Editor, target: EventTarget | null): number 
   }
 }
 
+function isPointerWithinCurrentBlockInteractionZone(event: MouseEvent, editor: Editor): boolean {
+  const block = currentBlock.value;
+  if (!block) {
+    return false;
+  }
+
+  const nodeElement = editor.view.nodeDOM(block.pos);
+  if (!(nodeElement instanceof HTMLElement)) {
+    return false;
+  }
+
+  const nodeRect = nodeElement.getBoundingClientRect();
+  const menuRect = rootRef.value?.getBoundingClientRect();
+  const fallbackTriggerRect = {
+    left: nodeRect.left - 34,
+    right: nodeRect.left - 6,
+    top: nodeRect.top + nodeRect.height / 2 - 14,
+    bottom: nodeRect.top + nodeRect.height / 2 + 14
+  };
+  const anchorRect = menuRect ?? fallbackTriggerRect;
+  const padding = 8;
+  const left = Math.min(anchorRect.left, nodeRect.left) - padding;
+  const right = nodeRect.left + padding;
+  const top = Math.min(anchorRect.top, nodeRect.top) - padding;
+  const bottom = Math.max(anchorRect.bottom, nodeRect.bottom) + padding;
+
+  return event.clientX >= left && event.clientX <= right && event.clientY >= top && event.clientY <= bottom;
+}
+
 function updatePosition(): void {
   const { editor } = props;
   const block = currentBlock.value;
@@ -244,9 +277,19 @@ function updatePosition(): void {
 
   const rootRect = rootElement.getBoundingClientRect();
   const nodeRect = nodeElement.getBoundingClientRect();
+  const computedStyle = window.getComputedStyle(nodeElement);
+  const parsedLineHeight = Number.parseFloat(computedStyle.lineHeight);
+  const parsedFontSize = Number.parseFloat(computedStyle.fontSize);
+  let effectiveLineHeight = triggerSize;
+  if (Number.isFinite(parsedLineHeight)) {
+    effectiveLineHeight = parsedLineHeight;
+  } else if (Number.isFinite(parsedFontSize)) {
+    effectiveLineHeight = parsedFontSize * 1.2;
+  }
+  const triggerTopOffset = Math.max(0, (effectiveLineHeight - triggerSize) / 2);
   position.value = {
-    left: Math.max(8, nodeRect.left - rootRect.left - 34),
-    top: Math.max(0, nodeRect.top - rootRect.top + nodeRect.height / 2 - 14)
+    left: triggerOffsetLeft,
+    top: Math.max(0, nodeRect.top - rootRect.top + triggerTopOffset)
   };
 }
 
@@ -343,45 +386,12 @@ function duplicateCurrentBlock(): void {
   open.value = false;
 }
 
-function moveCurrentBlock(direction: 'up' | 'down'): void {
-  const { editor } = props;
-  const block = currentBlock.value;
-  if (!editor || !block) {
-    return;
-  }
-
-  const parent = block.depth === 0 ? editor.state.doc : editor.state.doc.resolve(block.pos + 1).node(block.depth - 1);
-  const siblingIndex = direction === 'up' ? block.index - 1 : block.index + 1;
-
-  if (siblingIndex < 0 || siblingIndex >= parent.childCount) {
-    return;
-  }
-
-  const sibling = parent.child(siblingIndex);
-  const node = editor.state.doc.nodeAt(block.pos);
-  if (!node) {
-    return;
-  }
-
-  const insertPos = direction === 'up' ? block.pos - sibling.nodeSize : block.pos + sibling.nodeSize;
-  const transaction = editor.state.tr.delete(block.pos, block.pos + block.nodeSize).insert(insertPos, node);
-  const selectionPos = Math.min(insertPos + 1, transaction.doc.content.size);
-
-  editor.view.dispatch(transaction.setSelection(TextSelection.near(transaction.doc.resolve(selectionPos))).scrollIntoView());
-  syncCurrentBlock();
-  open.value = false;
-}
-
 const menuItems = computed<MenuItem[]>(() => {
   const { editor } = props;
   const block = currentBlock.value;
   if (!editor || !block) {
     return [];
   }
-
-  const parent = block.depth === 0 ? editor.state.doc : editor.state.doc.resolve(block.pos + 1).node(block.depth - 1);
-  const canMoveUp = block.index > 0;
-  const canMoveDown = block.index < parent.childCount - 1;
 
   return [
     {
@@ -451,22 +461,6 @@ const menuItems = computed<MenuItem[]>(() => {
     {
       type: 'divider',
       value: 'divider-block-actions'
-    },
-    {
-      type: 'item',
-      value: 'move-up',
-      label: '上移当前块',
-      icon: 'lucide:arrow-up',
-      disabled: !canMoveUp,
-      onClick: () => moveCurrentBlock('up')
-    },
-    {
-      type: 'item',
-      value: 'move-down',
-      label: '下移当前块',
-      icon: 'lucide:arrow-down',
-      disabled: !canMoveDown,
-      onClick: () => moveCurrentBlock('down')
     },
     {
       type: 'item',
@@ -563,8 +557,9 @@ function bindEditor(editor: Editor | null | undefined): (() => void) | undefined
   const handleMouseMove = (event: MouseEvent): void => {
     if (open.value) return;
 
-    const inEditor = editorDom instanceof HTMLElement && editorDom.contains(event.target as Node);
-    const inMenu = rootRef.value?.contains(event.target as Node);
+    const targetNode = event.target instanceof Node ? event.target : null;
+    const inEditor = Boolean(targetNode && editorDom instanceof HTMLElement && editorDom.contains(targetNode));
+    const inMenu = Boolean(targetNode && rootRef.value?.contains(targetNode));
 
     if (inMenu) {
       // 在菜单内，保持当前 block 不变
@@ -573,8 +568,26 @@ function bindEditor(editor: Editor | null | undefined): (() => void) | undefined
 
     if (inEditor) {
       // 在编辑器内，正常更新
-      hoveredBlockPos.value = getHoveredBlockPos(editor, event.target);
+      const nextHoveredBlockPos = getHoveredBlockPos(editor, event.target);
+      if (nextHoveredBlockPos !== null) {
+        hoveredBlockPos.value = nextHoveredBlockPos;
+        syncCurrentBlock();
+        return;
+      }
+
+      if (isPointerWithinCurrentBlockInteractionZone(event, editor)) {
+        return;
+      }
+
+      hoveredBlockPos.value = null;
+      if (!isHoveringMenu.value) {
+        currentBlock.value = null;
+      }
       syncCurrentBlock();
+      return;
+    }
+
+    if (isPointerWithinCurrentBlockInteractionZone(event, editor)) {
       return;
     }
 
