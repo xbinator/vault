@@ -10,7 +10,7 @@
       @change="handleChangeAnchor"
     />
 
-    <BScrollbar class="b-editor-scrollbar" @scroll="handleEditorScroll">
+    <BScrollbar ref="scrollbarRef" class="b-editor-scrollbar" @scroll="handleEditorScroll">
       <div ref="containerRef" :class="['b-editor-container']">
         <textarea ref="titleTextareaRef" v-model="editorTitle" class="b-editor-title" placeholder="请输入标题" @blur="handleTitleBlur"></textarea>
 
@@ -30,6 +30,8 @@
 </template>
 
 <script setup lang="ts">
+import BScrollbar from '../BScrollbar/index.vue';
+import type { SearchScrollContext } from './extensions/Search';
 import type { FrontMatterData } from './hooks/useFrontMatter';
 import type { BEditorViewMode } from './types';
 import { computed, ref, toRef } from 'vue';
@@ -47,6 +49,7 @@ const editorInstanceCounter = ref(0);
 
 const { width } = useWindowSize();
 const layoutRef = ref<HTMLElement | null>(null);
+const scrollbarRef = ref<InstanceType<typeof BScrollbar> | null>(null);
 const titleTextareaRef = ref<HTMLTextAreaElement | null>(null);
 
 interface Props {
@@ -101,11 +104,38 @@ const frontMatterModel = computed<FrontMatterData>({
   }
 });
 
+function scrollSearchMatchIntoView({ targetElement }: SearchScrollContext): void {
+  if (!(targetElement instanceof HTMLElement)) {
+    return;
+  }
+
+  const wrapElement = scrollbarRef.value?.getWrapElement();
+  if (!wrapElement) {
+    targetElement.scrollIntoView({
+      block: 'center',
+      inline: 'nearest'
+    });
+    return;
+  }
+
+  const wrapRect = wrapElement.getBoundingClientRect();
+  const targetRect = targetElement.getBoundingClientRect();
+  const centeredTop = wrapElement.scrollTop + (targetRect.top - wrapRect.top) - (wrapElement.clientHeight - targetRect.height) / 2;
+  const maxScrollTop = Math.max(0, wrapElement.scrollHeight - wrapElement.clientHeight);
+  const nextTop = Math.min(Math.max(centeredTop, 0), maxScrollTop);
+
+  scrollbarRef.value?.scrollTo({
+    top: nextTop,
+    behavior: 'auto'
+  });
+}
+
 const { editorInstance, setContent: setRichEditorContent } = useRichEditor({
   bodyContent,
   editable: toRef(props, 'editable'),
   editorInstanceId,
-  onContentChange: syncToExternal
+  onContentChange: syncToExternal,
+  onSearchMatchFocus: scrollSearchMatchIntoView
 });
 
 const editorController = useEditorController({ isRichMode, richEditorPaneRef, sourceEditorPaneRef });

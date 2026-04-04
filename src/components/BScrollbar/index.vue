@@ -248,6 +248,20 @@ onMounted(async () => {
 onUnmounted(() => {
   if (ro && view.value) ro.unobserve(view.value);
 });
+
+function getWrapElement(): HTMLDivElement | null {
+  return wrap.value ?? null;
+}
+
+function scrollTo(options: ScrollToOptions): void {
+  wrap.value?.scrollTo(options);
+}
+
+defineExpose({
+  getWrapElement,
+  scrollTo,
+  update
+});
 </script>
 
 <style lang="less">

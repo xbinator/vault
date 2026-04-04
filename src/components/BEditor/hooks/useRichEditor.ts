@@ -1,4 +1,5 @@
 import type { Ref } from 'vue';
+import type { SearchScrollContext } from '../extensions/Search';
 import { ref, watch } from 'vue';
 import { useEditor, type Editor } from '@tiptap/vue-3';
 import { useContent } from './useContent';
@@ -9,6 +10,7 @@ interface UseRichEditorParams {
   editable: Ref<boolean>;
   editorInstanceId: Ref<string>;
   onContentChange: () => void;
+  onSearchMatchFocus?: (context: SearchScrollContext) => void;
 }
 
 interface UseRichEditorResult {
@@ -17,8 +19,14 @@ interface UseRichEditorResult {
   setContent: (text: string) => void;
 }
 
-export function useRichEditor({ bodyContent, editable, editorInstanceId, onContentChange }: UseRichEditorParams): UseRichEditorResult {
-  const { editorExtensions, resetHeadingIndex, assignHeadingIds } = useExtensions(editorInstanceId);
+export function useRichEditor({
+  bodyContent,
+  editable,
+  editorInstanceId,
+  onContentChange,
+  onSearchMatchFocus
+}: UseRichEditorParams): UseRichEditorResult {
+  const { editorExtensions, resetHeadingIndex, assignHeadingIds } = useExtensions(editorInstanceId, { onSearchMatchFocus });
   const editorInstanceRef = ref<Editor>();
 
   const { setEditorContent, onPaste, onEditorUpdate } = useContent({
