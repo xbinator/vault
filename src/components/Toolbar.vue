@@ -26,7 +26,7 @@
 import type { DropdownOptionItem, DropdownOptionDivider } from './BDropdown/type';
 import { computed, watch } from 'vue';
 import { Icon } from '@iconify/vue';
-import { useMagicKeys, whenever, useEventListener } from '@vueuse/core';
+import { useShortcuts } from '@/hooks/useShortcuts';
 import { isMac } from '@/utils/is';
 
 export interface ToolbarOption extends DropdownOptionItem {
@@ -96,59 +96,28 @@ function getShortcutParts(shortcut: string): string[] {
   return macParts;
 }
 
-function getKeyName(shortcut: string): string {
-  return shortcut.replace(/\+/g, '_').replace(/\s+/g, '').toLowerCase();
-}
-
-const keys = useMagicKeys();
+const { registerShortcuts } = useShortcuts();
 
 function setupShortcuts() {
-  const stopFns: (() => void)[] = [];
+  const shortcuts = [];
 
-  props.options?.forEach((option) => {
-    if (option.type === 'divider') return;
+  for (let i = 0; i < props.options.length; i++) {
+    const option = props.options[i];
 
-    const shouldBindShortcut = option.enableShortcut !== false;
-    if (!(shouldBindShortcut && option.shortcut && option.onClick && !option.disabled)) return;
-
-    const keyCombo = getKeyName(option.shortcut);
-
-    const stopFn = whenever(keys[keyCombo], () => option.onClick?.());
-    stopFns.push(stopFn);
-
-    const stopPreventDefault = useEventListener(
-      'keydown',
-      (e) => {
-        const shortcut = option.shortcut?.toLowerCase();
-        if (!shortcut) return;
-
-        const ctrl = e.ctrlKey || e.metaKey;
-        const shift = e.shiftKey;
-        const alt = e.altKey;
-
-        const hasCtrl = shortcut.includes('ctrl') || shortcut.includes('meta');
-        const hasShift = shortcut.includes('shift');
-        const hasAlt = shortcut.includes('alt');
-
-        const key = shortcut.split('+').pop()?.trim();
-
-        if (ctrl === hasCtrl && shift === hasShift && alt === hasAlt && e.key.toLowerCase() === key) {
-          e.preventDefault();
-        }
-      },
-      { capture: true }
-    );
-    stopFns.push(stopPreventDefault);
-
-    if (isMacOS.value && option.shortcut.toLowerCase().includes('ctrl')) {
-      const macKeyCombo = getKeyName(option.shortcut.replace(/ctrl/gi, 'meta'));
-
-      const stopFnMac = whenever(keys[macKeyCombo], () => option.onClick?.());
-      stopFns.push(stopFnMac);
+    if (option.type === 'divider') {
+      continue;
     }
-  });
 
-  return () => stopFns.forEach((stop) => stop());
+    const toolbarOption = option as ToolbarOption;
+    const shouldBindShortcut = toolbarOption.enableShortcut !== false;
+    const isEnabled = toolbarOption.disabled !== true;
+
+    if (shouldBindShortcut && !!toolbarOption.shortcut && !!toolbarOption.onClick && isEnabled) {
+      shortcuts.push({ key: toolbarOption.shortcut!, handler: () => toolbarOption.onClick!(), enabled: true, preventDefault: true });
+    }
+  }
+
+  return registerShortcuts(shortcuts);
 }
 
 let cleanup: (() => void) | undefined;
@@ -175,6 +144,9 @@ watch(
 
 .toolbar-menu-item-label {
   flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 
   &.is-active {
     color: #1890ff;
