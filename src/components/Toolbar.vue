@@ -22,28 +22,21 @@
 
 <script setup lang="ts">
 import type { DropdownOptionItem, DropdownOptionDivider } from './BDropdown/type';
-import { computed, watch } from 'vue';
+import { watch } from 'vue';
 import { Icon } from '@iconify/vue';
 import { useShortcuts } from '@/hooks/useShortcuts';
-import { isMac } from '@/utils/is';
+import { getShortcutParts } from '@/utils/shortcut';
 
 export interface ToolbarOption extends DropdownOptionItem {
-  // 是否选中当前项
   selected?: boolean;
-  // 激活状态
   active?: boolean;
-  // 快捷键
   shortcut?: string;
-  // 是否启用快捷键
   enableShortcut?: boolean;
 }
 
 export interface Props {
-  // 工具栏标题
   title?: string;
-  // 是否显示选中对勾
   showSelectedCheck?: boolean;
-  // 工具栏选项
   options?: (ToolbarOption | DropdownOptionDivider)[];
 }
 
@@ -52,47 +45,6 @@ const props = withDefaults(defineProps<Props>(), {
   showSelectedCheck: false,
   options: () => []
 });
-
-const isMacOS = computed(() => isMac());
-
-function formatShortcut(shortcut: string): string {
-  if (isMacOS.value) {
-    return shortcut.replace(/Ctrl/g, '⌘').replace(/Shift/g, '⇧').replace(/Alt/g, '⌥');
-  }
-  return shortcut;
-}
-
-function getShortcutParts(shortcut: string): string[] {
-  const parts = shortcut
-    .split('+')
-    .map((part) => part.trim())
-    .filter((part) => part.length > 0);
-
-  if (!isMacOS.value) return parts;
-
-  const macParts: string[] = [];
-  const isFunctionKey = /^f\d+$/i.test(parts[parts.length - 1] || '');
-
-  if (isFunctionKey) {
-    macParts.push('fn');
-  }
-
-  parts.forEach((part) => {
-    if (/^ctrl$/i.test(part)) {
-      macParts.push('⌘');
-    } else if (/^meta$/i.test(part)) {
-      macParts.push('⌘');
-    } else if (/^shift$/i.test(part)) {
-      macParts.push('⇧');
-    } else if (/^alt$/i.test(part)) {
-      macParts.push('⌥');
-    } else {
-      macParts.push(formatShortcut(part));
-    }
-  });
-
-  return macParts;
-}
 
 const { registerShortcuts } = useShortcuts();
 
