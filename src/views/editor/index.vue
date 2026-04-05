@@ -7,6 +7,8 @@
         <Toolbar :title="'编辑'" :options="toolbarEditOptions" />
 
         <Toolbar :title="'视图'" show-selected-check :options="toolbarViewOptions" />
+
+        <Toolbar :title="'帮助'" :options="toolbarHelpOptions" />
       </div>
 
       <div class="header-right">
@@ -27,6 +29,8 @@
     </div>
 
     <SearchRecent v-model:visible="visible.recentSearch" :files="recentFiles" :active-id="fileState.id" @select="handleSelectRecentFile" />
+
+    <ShortcutsDialog v-model:visible="visible.shortcuts" />
   </div>
 </template>
 
@@ -37,15 +41,17 @@ import BEditor from '@/components/BEditor/index.vue';
 import Toolbar from '@/components/Toolbar.vue';
 import FindBar from './components/FindBar.vue';
 import SearchRecent from './components/SearchRecent.vue';
+import ShortcutsDialog from './components/ShortcutsDialog.vue';
 import { useAutoSave } from './hooks/useAutoSave';
 import { useEditActive } from './hooks/useEditActive';
 import { useFileActive } from './hooks/useFileActive';
+import { useHelp } from './hooks/useHelp';
 import { useViewActive } from './hooks/useViewActive';
 
 const fileState = ref<EditorFile>({ id: '', path: '', content: '', name: '', ext: 'md' });
 const editorInstance = ref<InstanceType<typeof BEditor> | null>(null);
 
-const visible = reactive({ find: false, recentSearch: false });
+const visible = reactive({ find: false, recentSearch: false, shortcuts: false });
 
 const { pause, resume } = useAutoSave(fileState);
 
@@ -58,6 +64,12 @@ async function handleSelectRecentFile(id: string): Promise<void> {
 const { toolbarEditOptions } = useEditActive(fileState, { editorInstance, visible });
 
 const { viewState, toolbarViewOptions } = useViewActive();
+
+const { toolbarHelpOptions } = useHelp({
+  onShowShortcuts: () => {
+    visible.shortcuts = true;
+  }
+});
 </script>
 
 <style scoped>
