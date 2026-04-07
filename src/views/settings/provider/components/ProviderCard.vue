@@ -6,7 +6,9 @@
         <Icon v-else-if="provider.isCustom" icon="lucide:bot" width="28" height="28" />
         <BModelIcon v-else :provider="provider.id" :size="28" />
       </div>
-      <ASwitch :checked="provider.isEnabled" size="small" @change="(checked) => handleToggle(checked as boolean)" />
+      <div @click.stop>
+        <ASwitch :checked="provider.isEnabled" size="small" @change="(checked) => handleToggle(checked as boolean)" />
+      </div>
     </div>
     <div class="card-body">
       <div class="provider-name">{{ provider.name }}</div>
@@ -32,9 +34,7 @@ interface Props {
 
 const props = withDefaults(defineProps<Props>(), {});
 
-const emit = defineEmits<{
-  (e: 'toggle', id: string, enabled: boolean): void;
-}>();
+const emit = defineEmits<{ (e: 'toggle', id: string, enabled: boolean): void }>();
 
 function handleToggle(checked: boolean | string): void {
   emit('toggle', props.provider.id, checked as boolean);

@@ -37,7 +37,9 @@ export function useProviders() {
    */
   function ensureProvidersLoaded(): Promise<void> {
     if (loadPromise) return loadPromise;
+
     loadPromise = loadProviders().finally(() => (loadPromise = null));
+
     return loadPromise;
   }
 
@@ -107,7 +109,9 @@ export function useProviders() {
    */
   async function saveCustomProvider(payload: CustomProviderPayload): Promise<Provider | null> {
     const nextProvider = await providerStorage.createOrUpdateCustomProvider(payload);
+
     await loadProviders();
+
     return nextProvider;
   }
 
@@ -139,6 +143,13 @@ export function useProviders() {
     toggleProvider,
     saveProviderConfig,
     saveProviderModels,
-    saveCustomProvider
+    saveCustomProvider,
+    deleteCustomProvider: async (id: string): Promise<boolean> => {
+      const result = await providerStorage.deleteCustomProvider(id);
+      if (result) {
+        await loadProviders();
+      }
+      return result;
+    }
   };
 }

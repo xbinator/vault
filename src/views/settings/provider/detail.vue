@@ -3,15 +3,27 @@
     <ProviderSidebar />
 
     <div class="detail-container">
-      <DetailHeader :title="headerTitle" :is-enabled="provider?.isEnabled ?? false" @back="handleBack" @toggle="handleToggle" />
+      <div class="detail-header">
+        <div class="flex flex-wrap gap-3 items-center cursor-pointer" @click="handleBack">
+          <Icon icon="lucide:arrow-left" class="back-icon" />
+          <h2 class="page-title">{{ headerTitle }}</h2>
+        </div>
+        <div class="flex flex-wrap gap-3 items-center">
+          <div v-if="provider?.isCustom" class="edit-btn" @click="handleEdit">
+            <Icon icon="lucide:settings" width="14" height="14" />
+          </div>
 
-      <div class="detail-content">
+          <ASwitch :checked="provider?.isEnabled ?? false" size="small" @change="(checked) => handleToggle(checked as boolean)" />
+        </div>
+      </div>
+
+      <div class="flex-1 p-4 overflow-y-auto">
         <div v-if="!provider" class="loading-state">
           <Icon icon="lucide:loader-2" class="loading-icon" />
           <p>加载中...</p>
         </div>
 
-        <div v-else class="provider-info">
+        <div v-else class="flex flex-col gap-6">
           <ProviderInfo :provider="provider" />
 
           <ApiConfig v-model:value="provider" @test="handleTestConnection" />
@@ -20,6 +32,8 @@
         </div>
       </div>
     </div>
+
+    <ProviderModal v-model:open="modalVisible" :provider="provider" @success="handleModalSuccess" />
   </div>
 </template>
 
@@ -31,9 +45,9 @@ import { Icon } from '@iconify/vue';
 import { message } from 'ant-design-vue';
 import { debounce } from 'lodash-es';
 import ApiConfig from './components/ApiConfig.vue';
-import DetailHeader from './components/DetailHeader.vue';
 import ModelList from './components/ModelList.vue';
 import ProviderInfo from './components/ProviderInfo.vue';
+import ProviderModal from './components/ProviderModal.vue';
 import ProviderSidebar from './components/ProviderSidebar.vue';
 import { useProviders } from './hooks/useProviders';
 
@@ -47,18 +61,20 @@ const { getProviderById, loadProviders, toggleProvider, saveProviderConfig, save
 const provider = ref<Provider | null>(null);
 const models = ref<Model[]>([]);
 const isLoadingProvider = ref(false);
+const modalVisible = ref<boolean>(false);
 
 const headerTitle = computed(() => (provider.value ? `${provider.value.name} 配置` : '配置'));
 
 async function loadProvider(): Promise<void> {
   isLoadingProvider.value = true;
-  try {
-    await loadProviders();
-    provider.value = await getProviderById(providerId.value);
-    models.value = provider.value?.models ? provider.value.models.map((model: Model) => ({ ...model, tags: model.tags ? [...model.tags] : [] })) : [];
-  } finally {
-    isLoadingProvider.value = false;
-  }
+
+  await loadProviders();
+
+  provider.value = await getProviderById(providerId.value);
+
+  models.value = provider.value?.models ? provider.value.models.map((model: Model) => ({ ...model })) : [];
+
+  isLoadingProvider.value = false;
 }
 
 const persistProviderConfig = debounce(async () => {
@@ -81,6 +97,15 @@ watch(
 
 function handleBack(): void {
   router.push('/settings/provider');
+}
+
+function handleEdit(): void {
+  modalVisible.value = true;
+}
+
+function handleModalSuccess(updatedProvider: Provider): void {
+  provider.value = updatedProvider;
+  modalVisible.value = false;
 }
 
 async function handleToggle(enabled: boolean): Promise<void> {
@@ -132,9 +157,63 @@ async function handleToggleModel(modelId: string, enabled: boolean): Promise<voi
   border-radius: 8px;
 }
 
-.detail-content {
-  flex: 1;
-  overflow-y: auto;
+.detail-header {
+  display: flex;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--border-primary);
+}
+
+.back-icon {
+  width: 20px;
+  height: 20px;
+  color: var(--text-primary);
+}
+
+.edit-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.edit-btn:hover {
+  color: var(--text-primary);
+  background: var(--bg-secondary);
+}
+
+.delete-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.delete-btn:hover {
+  color: #ff4d4f;
+  background: var(--bg-secondary);
+}
+
+.page-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
 }
 
 .loading-state {
@@ -160,11 +239,5 @@ async function handleToggleModel(modelId: string, enabled: boolean): Promise<voi
   to {
     transform: rotate(360deg);
   }
-}
-
-.provider-info {
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
 }
 </style>

@@ -1,5 +1,5 @@
 <template>
-  <BModal v-model:open="visible" :width="560" :title="isEditMode ? '编辑自定义服务商' : '新建自定义服务商'">
+  <BModal v-model:open="visible" :width="560" :title="isEditMode ? '编辑服务商' : '新建服务商'">
     <AForm layout="vertical">
       <div class="dataItem-section">
         <div class="section-title">基本信息</div>
@@ -40,6 +40,7 @@
     </AForm>
 
     <template #footer>
+      <!--  -->
       <BButton type="secondary" @click="handleCancel">取消</BButton>
       <BButton :loading="saving" @click="handleSubmit">保存</BButton>
     </template>
@@ -52,9 +53,7 @@ import type { Rule } from 'ant-design-vue/es/form';
 import { computed, reactive, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { message, Form } from 'ant-design-vue';
-import BButton from '@/components/BButton/index.vue';
-import BModal from '@/components/BModal/index.vue';
-import BModelIcon from '@/components/BModelIcon/index.vue';
+import { asyncTo } from '@/utils/asyncTo';
 import type { ProviderRequestFormat } from '@/utils/storage';
 import { useProviders } from '../hooks/useProviders';
 
@@ -115,6 +114,8 @@ const rules = reactive<Record<string, Rule[]>>({
 
 const { resetFields, validate, validateInfos } = Form.useForm(dataItem, rules);
 
+const onValidate = () => asyncTo(validate());
+
 const selectedFormatLabel = computed(() => {
   const option = requestFormatOptions.find((opt) => opt.value === dataItem.type);
   return option?.label || '';
@@ -129,38 +130,34 @@ function handleCancel(): void {
 }
 
 async function handleSubmit(): Promise<void> {
-  try {
-    await validate();
-  } catch {
-    return;
-  }
+  const [valid] = await onValidate();
+  if (valid) return;
 
   const id = isEditMode.value ? props.provider!.id : dataItem.id.trim().toLowerCase();
 
   saving.value = true;
-  try {
-    const provider = await saveCustomProvider({
-      id,
-      name: dataItem.name.trim(),
-      description: '自定义服务商',
-      logo: dataItem.logo.trim(),
-      type: dataItem.type,
-      baseUrl: dataItem.baseUrl.trim(),
-      apiKey: dataItem.apiKey.trim()
-    });
 
-    if (!provider) {
-      message.error(isEditMode.value ? '编辑服务商失败' : '创建服务商失败');
-      return;
-    }
+  const provider = await saveCustomProvider({
+    id,
+    name: dataItem.name.trim(),
+    description: '自定义服务商',
+    logo: dataItem.logo.trim(),
+    type: dataItem.type,
+    baseUrl: dataItem.baseUrl.trim(),
+    apiKey: dataItem.apiKey.trim()
+  });
 
-    visible.value = false;
-    message.success(isEditMode.value ? '服务商已更新' : '服务商已创建');
-    emit('success', provider);
-    await router.push(`/settings/provider/${provider.id}`);
-  } finally {
-    saving.value = false;
+  if (!provider) {
+    message.error(isEditMode.value ? '编辑服务商失败' : '创建服务商失败');
+    return;
   }
+
+  visible.value = false;
+  message.success(isEditMode.value ? '服务商已更新' : '服务商已创建');
+  emit('success', provider);
+  await router.push(`/settings/provider/${provider.id}`);
+
+  saving.value = false;
 }
 
 watch(

@@ -1,0 +1,161 @@
+<template>
+  <BModal v-model:open="visible" :width="560" :title="isEditMode ? '编辑 AI 模型' : '创建 AI 模型'">
+    <BScrollbar max-height="60vh" inset>
+      <AForm layout="vertical">
+        <div class="dataItem-section">
+          <AFormItem label="模型 ID" required v-bind="validateInfos.id">
+            <AInput v-model:value="dataItem.id" :disabled="isEditMode" placeholder="例如: gpt-4o" @blur="handleModelIdBlur" />
+          </AFormItem>
+
+          <AFormItem label="模型名称" required v-bind="validateInfos.name">
+            <AInput v-model:value="dataItem.name" placeholder="请输入模型名称" />
+          </AFormItem>
+
+          <AFormItem label="模型类型" v-bind="validateInfos.type">
+            <BSelect v-model:value="dataItem.type" :options="modelTypeOptions" placeholder="请选择模型类型" />
+          </AFormItem>
+        </div>
+      </AForm>
+    </BScrollbar>
+
+    <template #footer>
+      <BButton type="secondary" @click="handleCancel">取消</BButton>
+      <BButton :loading="saving" @click="handleSubmit">保存</BButton>
+    </template>
+  </BModal>
+</template>
+
+<script setup lang="ts">
+import type { Rule } from 'ant-design-vue/es/form';
+import { computed, reactive, ref, watch } from 'vue';
+import { message, Form } from 'ant-design-vue';
+import { asyncTo } from '@/utils/asyncTo';
+import type { ProviderModel } from '@/utils/storage/providers/types';
+
+interface Props {
+  model?: ProviderModel | null;
+}
+
+const props = withDefaults(defineProps<Props>(), { model: null });
+
+const emit = defineEmits<{ success: [model: ProviderModel] }>();
+
+const visible = defineModel<boolean>('open', { default: false });
+
+const saving = ref<boolean>(false);
+
+const modelTypeOptions = [
+  { label: '对话模型', value: 'chat' },
+  { label: '图片模型', value: 'image' },
+  { label: '视频模型', value: 'video' },
+  { label: '多模态模型', value: 'multimodal' }
+];
+
+const dataItem = reactive<ProviderModel>({ id: '', name: '', type: 'chat', isEnabled: true });
+
+const isEditMode = computed(() => Boolean(props.model));
+
+const rules = reactive<Record<string, Rule[]>>({
+  id: [
+    { required: true, message: '请输入模型 ID' },
+    {
+      pattern: /^[a-z0-9][a-z0-9-_.]*$/,
+      message: '模型 ID 仅支持小写字母、数字、中划线、下划线和点'
+    }
+  ],
+  name: [{ required: true, message: '请输入模型名称' }],
+  type: [{ required: true, message: '请选择模型类型' }]
+});
+
+const { resetFields, validate, validateInfos } = Form.useForm(dataItem, rules);
+
+const onValidate = () => asyncTo(validate());
+function handleModelIdBlur(): void {
+  dataItem.id = dataItem.id.trim().toLowerCase();
+}
+
+function handleCancel(): void {
+  visible.value = false;
+}
+
+async function handleSubmit(): Promise<void> {
+  const [valid] = await onValidate();
+  if (valid) return;
+
+  const id = isEditMode.value ? props.model!.id : dataItem.id.trim().toLowerCase();
+
+  saving.value = true;
+
+  const model: ProviderModel = { id, name: dataItem.name.trim(), type: dataItem.type, isEnabled: true };
+
+  visible.value = false;
+
+  message.success(isEditMode.value ? '模型已更新' : '模型已创建');
+
+  emit('success', model);
+
+  saving.value = false;
+}
+
+watch(
+  () => visible.value,
+  (open) => {
+    if (open) {
+      if (props.model) {
+        Object.assign(dataItem, {
+          id: props.model.id,
+          name: props.model.name,
+          type: props.model.type || 'chat'
+        });
+      } else {
+        resetFields();
+      }
+    }
+  }
+);
+</script>
+
+<style scoped lang="less">
+.dataItem-section {
+  margin-bottom: 16px;
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+}
+
+.section-title {
+  margin-bottom: 12px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.option-description {
+  margin-top: 6px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text-tertiary);
+}
+
+.form-scroll-container {
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.context-window-slider {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  width: 100%;
+
+  :deep(.ant-slider) {
+    flex: 1;
+    margin: 0;
+  }
+}
+
+.context-window-input {
+  flex-shrink: 0;
+  width: 120px;
+}
+</style>

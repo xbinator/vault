@@ -3,7 +3,19 @@
     <ProviderSidebar />
 
     <div class="provider-content">
-      <ProviderHeader v-model:search-text="searchText" :enabled-count="enabledCount" />
+      <div class="provider-header">
+        <div class="header-left">
+          <h2 class="content-title">AI 服务商</h2>
+          <span class="enabled-count">已启用 {{ enabledCount }} 个服务商</span>
+        </div>
+        <div class="header-right">
+          <AInput v-model:value="searchText" placeholder="搜索服务商" allow-clear class="search-input">
+            <template #prefix>
+              <Icon icon="lucide:search" />
+            </template>
+          </AInput>
+        </div>
+      </div>
 
       <div class="provider-scroll">
         <div class="provider-grid">
@@ -26,7 +38,6 @@ import { useRoute } from 'vue-router';
 import { Icon } from '@iconify/vue';
 import { message } from 'ant-design-vue';
 import ProviderCard from './components/ProviderCard.vue';
-import ProviderHeader from './components/ProviderHeader.vue';
 import ProviderSidebar from './components/ProviderSidebar.vue';
 import { useProviders } from './hooks/useProviders';
 
@@ -60,6 +71,7 @@ const filteredProviders = computed(() => {
 
 async function handleToggleProvider(id: string, enabled: boolean): Promise<void> {
   await toggleProvider(id, enabled);
+
   message.success(enabled ? '已启用服务商' : '已禁用服务商');
 }
 </script>
@@ -77,6 +89,58 @@ async function handleToggleProvider(id: string, enabled: boolean): Promise<void>
   flex: 1;
   flex-direction: column;
   min-width: 0;
+}
+
+.provider-header {
+  display: flex;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.header-left {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+}
+
+.header-right {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+}
+
+.content-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.enabled-count {
+  padding: 3px 10px;
+  font-size: 12px;
+  color: var(--color-primary);
+  background: var(--color-primary-bg);
+  border-radius: 10px;
+}
+
+.search-input {
+  width: 200px;
+}
+
+:deep(.ant-input-affix-wrapper) {
+  background: var(--bg-secondary);
+  border-color: var(--border-primary);
+}
+
+:deep(.ant-input) {
+  background: transparent;
 }
 
 .provider-scroll {
