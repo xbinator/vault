@@ -9,7 +9,7 @@
       <div class="provider-meta">
         <h3 class="provider-name">{{ provider.name }}</h3>
         <p class="provider-desc">{{ provider.description }}</p>
-        <span class="model-count">{{ 0 }} 个模型</span>
+        <span class="model-count">{{ provider.models?.length || 0 }} 个模型</span>
       </div>
     </div>
   </div>

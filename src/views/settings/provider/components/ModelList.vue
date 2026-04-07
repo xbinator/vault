@@ -3,26 +3,15 @@
     <div class="section-header">
       <h3 class="section-title">模型列表</h3>
       <div class="section-actions">
-        <Input v-model:value="searchText" placeholder="搜索模型" class="search-input" />
-        <Button type="default" @click="$emit('refresh')">
-          <template #icon>
-            <Icon icon="lucide:refresh-cw" />
-          </template>
-          获取模型列表
-        </Button>
+        <AInput v-model:value="searchText" placeholder="搜索模型" class="search-input" />
+        <BButton @click="handleCreateModel"> 创建 AI 模型 </BButton>
       </div>
     </div>
 
+    <ModelModal v-model:open="modalVisible" :model="currentModel" @success="handleModelSuccess" />
+
     <div class="model-categories">
-      <Button
-        v-for="category in categories"
-        :key="category.key"
-        :type="activeCategory === category.key ? 'primary' : 'default'"
-        class="category-btn"
-        @click="activeCategory = category.key"
-      >
-        {{ category.label }}
-      </Button>
+      <ASegmented v-model:value="activeCategory" :options="categoryOptions" class="w-full" />
     </div>
 
     <div class="model-grid">
@@ -30,11 +19,9 @@
         <div class="model-info">
           <h4 class="model-name">{{ model.name }}</h4>
           <p class="model-id">{{ model.id }}</p>
-          <div class="model-tags">
-            <span v-for="tag in model.tags" :key="tag" class="model-tag">{{ tag }}</span>
-          </div>
         </div>
         <div class="model-actions">
+          <BButton type="text" size="small" style="margin-right: 8px" @click="handleEditModel(model)"> 编辑 </BButton>
           <ASwitch :checked="model.isEnabled" size="small" @change="(checked) => $emit('toggle', model.id, checked as boolean)" />
         </div>
       </div>
@@ -48,10 +35,11 @@
 </template>
 
 <script setup lang="ts">
-import type { Model } from '../types';
 import { ref, computed } from 'vue';
 import { Icon } from '@iconify/vue';
-import { Button, Input } from 'ant-design-vue';
+import BButton from '@/components/BButton/index.vue';
+import type { ProviderModel } from '@/utils/storage/providers/types';
+import ModelModal from './ModelModal.vue';
 
 interface Category {
   key: string;
@@ -59,39 +47,67 @@ interface Category {
 }
 
 interface Props {
-  models: Model[];
+  models: ProviderModel[];
   categories?: Category[];
 }
 
 const props = withDefaults(defineProps<Props>(), {
   categories: () => [
-    { key: 'all', label: '全部' },
-    { key: 'chat', label: '对话' },
-    { key: 'image', label: '图片' },
-    { key: 'video', label: '视频' }
+    { key: 'all', label: '全 部' },
+    { key: 'chat', label: '对 话' },
+    { key: 'image', label: '图 片' },
+    { key: 'video', label: '视 频' }
   ]
 });
 
-defineEmits<{
+const emit = defineEmits<{
   (e: 'refresh'): void;
   (e: 'toggle', modelId: string, enabled: boolean): void;
+  (e: 'modelCreated', model: ProviderModel): void;
+  (e: 'modelUpdated', model: ProviderModel): void;
 }>();
 
 const searchText = ref('');
 const activeCategory = ref('all');
+const modalVisible = ref(false);
+const currentModel = ref<ProviderModel | null>(null);
+
+const categoryOptions = computed(() => {
+  return props.categories.map((category) => ({
+    label: category.label,
+    value: category.key
+  }));
+});
 
 const filteredModels = computed(() => {
   let result = props.models;
 
   if (searchText.value) {
     const search = searchText.value.toLowerCase();
-    result = result.filter(
-      (model) => model.name.toLowerCase().includes(search) || model.id.toLowerCase().includes(search)
-    );
+    result = result.filter((model) => model.name.toLowerCase().includes(search) || model.id.toLowerCase().includes(search));
   }
 
   return result;
 });
+
+function handleCreateModel(): void {
+  currentModel.value = null;
+  modalVisible.value = true;
+}
+
+function handleEditModel(model: ProviderModel): void {
+  currentModel.value = model;
+  modalVisible.value = true;
+}
+
+function handleModelSuccess(model: ProviderModel): void {
+  if (currentModel.value) {
+    emit('modelUpdated', model);
+  } else {
+    emit('modelCreated', model);
+  }
+  emit('refresh');
+}
 </script>
 
 <style scoped lang="less">
