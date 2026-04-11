@@ -13,9 +13,9 @@
     </template>
     <template #header-right>
       <div class="header-right">
-        <div class="settings-btn" @click="handleOpenSettings">
-          <Icon icon="lucide:settings" />
-        </div>
+        <BButton type="secondary" size="small" square @click="handleOpenSettings">
+          <Icon icon="lucide:settings" width="16" height="16" />
+        </BButton>
       </div>
     </template>
 
@@ -100,29 +100,10 @@ const { toolbarHelpOptions } = useHelp({
   align-items: center;
 }
 
-.settings-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  font-size: 14px;
-  color: var(--text-secondary);
-  cursor: pointer;
-  border-radius: 6px;
-  transition: all 0.2s;
-}
-
-.settings-btn:hover {
-  color: var(--text-primary);
-  background: var(--bg-hover);
-}
-
 :deep(.editor-content) {
   position: relative;
   margin: 0 6px 6px;
   overflow: hidden;
-  background: var(--bg-primary);
   border-radius: 8px;
 }
 </style>
