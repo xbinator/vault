@@ -133,7 +133,36 @@ const electronAPI: ElectronAPI = {
    * 流式文本生成
    * @param payload AI 创建参数与请求参数
    */
-  aiStream: (createOptions, request) => ipcRenderer.invoke('ai:stream', createOptions, request)
+  aiStream: (createOptions, request) => ipcRenderer.invoke('ai:stream', createOptions, request),
+
+  // ==================== AI 流式事件监听 ====================
+  onAiStreamChunk: (callback) => {
+    const handler = (_event: Electron.IpcRendererEvent, chunk: string) => callback(chunk);
+
+    ipcRenderer.on('ai:stream:chunk', handler);
+    return () => {
+      ipcRenderer.removeListener('ai:stream:chunk', handler);
+    };
+  },
+
+  onAiStreamComplete: (callback) => {
+    const handler = () => callback();
+
+    ipcRenderer.on('ai:stream:complete', handler);
+    return () => {
+      ipcRenderer.removeListener('ai:stream:complete', handler);
+    };
+  },
+
+  onAiStreamError: (callback) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const handler = (_event: Electron.IpcRendererEvent, error: any) => callback(error);
+
+    ipcRenderer.on('ai:stream:error', handler);
+    return () => {
+      ipcRenderer.removeListener('ai:stream:error', handler);
+    };
+  }
 };
 
 contextBridge.exposeInMainWorld('electronAPI', electronAPI);

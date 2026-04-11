@@ -1,12 +1,11 @@
-import type { AICreateOptions, AIRequestOptions } from 'types/ai';
-import type { AIGenerateResult } from 'types/electron-api';
+import type { AICreateOptions, AIRequestOptions, AIInvokeResult } from 'types/ai';
 import { ipcMain } from 'electron';
 import { getWindowFromWebContents } from '../../window.mjs';
 import { aiService } from './service.mjs';
 
 export function registerAIHandlers(): void {
   ipcMain.handle('ai:invoke', async (_event, createOptions: AICreateOptions, request: AIRequestOptions) => {
-    return (await aiService.generateText(createOptions, request)) satisfies AIGenerateResult;
+    return (await aiService.generateText(createOptions, request)) satisfies AIInvokeResult;
   });
 
   ipcMain.handle('ai:stream', async (event, createOptions: AICreateOptions, request: AIRequestOptions) => {
@@ -19,15 +18,15 @@ export function registerAIHandlers(): void {
     try {
       const result = await aiService.streamText(createOptions, request);
 
-      for await (const chunk of result.textStream) {
-        win.webContents.send('ai:chunk', chunk);
+      for await (const chunk of result.stream) {
+        win.webContents.send('ai:stream:chunk', chunk);
       }
 
-      win.webContents.send('ai:complete');
+      win.webContents.send('ai:stream:complete');
     } catch (error) {
       // 在 aiService.streamText 抛出的错误已经被 normalizeError 转换成了 AIServiceError 格式（包含 code 和 message）
       // 我们直接将这个错误对象发送给前端，以便前端可以根据 code 进行差异化处理
-      win.webContents.send('ai:error', error);
+      win.webContents.send('ai:stream:error', error);
     }
   });
 }

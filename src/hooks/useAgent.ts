@@ -1,3 +1,4 @@
+/* eslint-disable no-use-before-define */
 import type { AIServiceError, AIRequestOptions, AICreateOptions } from 'types/ai';
 import { computed, toValue, type MaybeRefOrGetter } from 'vue';
 import { getElectronAPI } from '@/shared/platform/electron-api';
@@ -15,7 +16,7 @@ export interface UseStreamOptions {
   /** 流式数据回调 */
   onChunk?: (chunk: string) => void;
   /** 完成回调 */
-  onComplete?: (text: string) => void;
+  onComplete?: () => void;
 }
 
 /**
@@ -56,5 +57,46 @@ export function useAgent(options: UseStreamOptions) {
     return asyncTo(electronAPI.aiInvoke(provider, payload));
   };
 
-  return { agent: { invoke: onInvoke } };
+  const onStream = async (payload: AIRequestOptions): Promise<void> => {
+    const [error, provider] = await resolveProvider();
+
+    if (error) {
+      options.onError?.(error as AIServiceError);
+      return;
+    }
+
+    const cleanupChunk = electronAPI.onAiStreamChunk((chunk) => {
+      options.onChunk?.(chunk);
+    });
+
+    const cleanupComplete = electronAPI.onAiStreamComplete(() => {
+      options.onComplete?.();
+
+      cleanupAll();
+    });
+
+    const cleanupError = electronAPI.onAiStreamError((err) => {
+      options.onError?.(err);
+      options.onComplete?.();
+
+      cleanupAll();
+    });
+
+    function cleanupAll() {
+      cleanupChunk();
+      cleanupComplete();
+      cleanupError();
+    }
+
+    try {
+      await electronAPI.aiStream(provider, payload);
+    } catch (err) {
+      options.onError?.({ message: String((err as Error | AIServiceError)?.message || '未知错误') } as AIServiceError);
+      options.onComplete?.();
+
+      cleanupAll();
+    }
+  };
+
+  return { agent: { invoke: onInvoke, stream: onStream } };
 }

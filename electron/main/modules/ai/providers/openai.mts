@@ -26,7 +26,7 @@ export class OpenAIProvider implements AIProvider {
 
     const { statusCode, errorCode, normalizedMessage } = details;
 
-    if (statusCode === 404 || errorCode === 'model_not_found' || /model not found|no such model|does not exist/i.test(normalizedMessage)) {
+    if (errorCode === 'model_not_found' || /model not found|no such model|does not exist/i.test(normalizedMessage)) {
       return createAIServiceError(AI_ERROR_CODE.MODEL_NOT_FOUND, '模型不存在或当前服务商未提供该模型');
     }
 

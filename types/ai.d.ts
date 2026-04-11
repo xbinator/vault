@@ -1,3 +1,5 @@
+import { StreamTextResult } from 'ai';
+
 /**
  * 提供商请求格式类型
  * - openai: OpenAI 兼容格式
@@ -103,4 +105,20 @@ export interface AICustomProvider {
   apiKey?: string;
   /** 自定义 API 基础地址 */
   baseUrl?: string;
+}
+
+export interface AIInvokeResult {
+  text: string;
+  usage?: {
+    // 输入令牌数
+    inputTokens: number;
+    // 输出令牌数
+    outputTokens: number;
+    // 总令牌数
+    totalTokens: number;
+  };
+}
+
+export interface AIStreamResult {
+  stream: StreamTextResult['textStream'];
 }

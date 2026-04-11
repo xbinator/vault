@@ -26,7 +26,7 @@ export class GoogleProvider implements AIProvider {
 
     const { statusCode, normalizedMessage, providerStatus } = details;
 
-    if (providerStatus === 'not_found' || statusCode === 404 || /model not found|publisher model/i.test(normalizedMessage)) {
+    if (providerStatus === 'not_found' || /model not found|publisher model/i.test(normalizedMessage)) {
       return createAIServiceError(AI_ERROR_CODE.MODEL_NOT_FOUND, '模型不存在或当前 Google AI 配置无法访问该模型');
     }
 

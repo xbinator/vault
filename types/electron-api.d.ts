@@ -1,4 +1,4 @@
-import type { AICreateOptions, AIRequestOptions } from './ai';
+import type { AICreateOptions, AIRequestOptions, AIServiceError, AIInvokeResult } from './ai';
 
 /**
  * Electron API 类型定义
@@ -32,10 +32,6 @@ export interface DbExecuteResult {
   lastInsertRowid: number;
 }
 
-export interface AIGenerateResult {
-  text: string;
-}
-
 export interface ElectronAPI {
   // 文件对话框操作
   openFile: (options?: ElectronOpenFileOptions) => Promise<ElectronFileResult>;
@@ -65,8 +61,13 @@ export interface ElectronAPI {
   openExternal: (url: string) => Promise<void>;
 
   // AI 服务操作
-  aiInvoke: (createOptions: AICreateOptions, request: AIRequestOptions) => Promise<AIGenerateResult>;
+  aiInvoke: (createOptions: AICreateOptions, request: AIRequestOptions) => Promise<AIInvokeResult>;
   aiStream: (createOptions: AICreateOptions, request: AIRequestOptions) => Promise<void>;
+
+  // AI 流式事件监听
+  onAiStreamChunk: (callback: (chunk: string) => void) => () => void;
+  onAiStreamComplete: (callback: () => void) => () => void;
+  onAiStreamError: (callback: (error: AIServiceError) => void) => () => void;
 }
 
 declare global {
