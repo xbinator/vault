@@ -1,9 +1,17 @@
 <template>
   <div class="b-layout">
     <div class="b-layout-header">
-      <div class="b-layout-header__content">
+      <!--
+        为 macOS 的原生红绿灯按钮留出空间。
+        在 macOS 下：
+        - 普通模式或最大化时，系统会在左上角显示红绿灯，我们需要留出 60px 的宽度避免内容重叠。
+        - 全屏模式时，系统原生红绿灯会隐藏，此时取消占位，让内容紧贴左侧边缘。
+      -->
+      <div v-if="platform === 'mac' && !isFullScreen" class="b-layout-header__mac-spacer"></div>
+
+      <div class="b-layout-header__content" :class="{ 'is-mac': platform === 'mac' }">
         <slot name="header-left"></slot>
-        <div class="b-layout-header__drag"></div>
+        <div class="b-layout-header__center"></div>
         <slot name="header-right"></slot>
       </div>
 
@@ -48,26 +56,33 @@ withDefaults(defineProps<Props>(), {
 const api = getElectronAPI();
 const platform = computed(() => (isMac() ? 'mac' : 'win'));
 const isMaximized = ref(false);
-// 验证窗口是否最大化
-async function validateMaximized() {
-  isMaximized.value = (await api?.windowIsMaximized()) ?? false;
+const isFullScreen = ref(false);
+
+// 验证窗口状态
+function validateWindowState() {
+  // 最大化窗口
+  api?.windowIsMaximized?.().then((value) => (isMaximized.value = value));
+  // 全屏窗口
+  api?.windowIsFullScreen?.().then((value) => (isFullScreen.value = value));
 }
+
 // 最小化窗口
 function handleMinimize() {
   api?.windowMinimize();
 }
 // 最大化窗口
-async function handleMaximize() {
-  await api?.windowMaximize();
-  await validateMaximized();
+function handleMaximize() {
+  api?.windowMaximize();
+
+  validateWindowState();
 }
 // 关闭窗口
 function handleClose() {
   api?.windowClose();
 }
 
-validateMaximized();
-useEventListener(window, 'resize', validateMaximized);
+validateWindowState();
+useEventListener(window, 'resize', validateWindowState);
 </script>
 
 <style lang="less">
@@ -87,6 +102,14 @@ useEventListener(window, 'resize', validateMaximized);
   align-items: center;
   width: 100%;
   height: 36px;
+  -webkit-app-region: drag;
+}
+
+.b-layout-header__mac-spacer {
+  flex-shrink: 0;
+  width: 60px;
+  height: 100%;
+  -webkit-app-region: drag;
 }
 
 .b-layout-header__content {
@@ -94,10 +117,20 @@ useEventListener(window, 'resize', validateMaximized);
   flex: 1;
   align-items: center;
   height: 100%;
+
+  &.is-mac {
+    padding: 0 12px;
+  }
+
+  button {
+    -webkit-app-region: no-drag;
+  }
 }
 
-.b-layout-header__drag {
+.b-layout-header__center {
+  display: flex;
   flex: 1;
+  align-items: center;
   width: 0;
   height: 100%;
   -webkit-app-region: drag;
