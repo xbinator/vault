@@ -26,7 +26,7 @@ export class AnthropicProvider implements AIProvider {
 
     const { statusCode, normalizedMessage, errorType } = details;
 
-    if (statusCode === 404 || /model.*not found|not found.*model/i.test(normalizedMessage)) {
+    if (/model.*not found|not found.*model/i.test(normalizedMessage)) {
       return createAIServiceError(AI_ERROR_CODE.MODEL_NOT_FOUND, '模型不存在或当前账号无法访问该模型');
     }
 
