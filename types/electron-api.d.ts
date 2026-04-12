@@ -63,6 +63,7 @@ export interface ElectronAPI {
   // AI 服务操作
   aiInvoke: (createOptions: AICreateOptions, request: AIRequestOptions) => Promise<AsyncResult<AIInvokeResult, AIServiceError>>;
   aiStream: (createOptions: AICreateOptions, request: AIRequestOptions) => Promise<void>;
+  aiStreamAbort: (requestId: string) => Promise<void>;
 
   // AI 流式事件监听
   onAiStreamChunk: (callback: (chunk: string) => void) => () => void;

@@ -22,6 +22,8 @@ export interface AICreateOptions {
 }
 
 export interface AIRequestOptions {
+  // 请求唯一标识，用于中止等操作
+  requestId?: string;
   // 模型 ID
   modelId: string;
   // 提示词

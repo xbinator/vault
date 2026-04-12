@@ -6,6 +6,20 @@ import { AIProviderRegistry } from './providers/_index.mjs';
 class AIService {
   public aiProvider: AIProviderRegistry = new AIProviderRegistry();
 
+  private abortControllers = new Map<string, AbortController>();
+
+  abortStream(requestId: string) {
+    if (!this.abortControllers.has(requestId)) return;
+
+    this.abortControllers.get(requestId)?.abort();
+    this.abortControllers.delete(requestId);
+    log.info(`[AIService] Stream aborted manually for requestId: ${requestId}`);
+  }
+
+  removeController(requestId: string) {
+    this.abortControllers.delete(requestId);
+  }
+
   private createModel(createOptions: AICreateOptions, modelId: string) {
     return this.aiProvider.create(createOptions, modelId);
   }
@@ -33,12 +47,19 @@ class AIService {
   async streamText(createOptions: AICreateOptions, request: AIRequestOptions): Promise<[AIServiceError] | [undefined, AIStreamResult]> {
     try {
       const model = this.createModel(createOptions, request.modelId);
-      const { prompt, system, temperature } = request;
+      const { prompt, system, temperature, requestId } = request;
 
-      log.info(`[AIService] streamText: Provider=${createOptions.providerType}, Model=${request.modelId}`);
+      let abortSignal: AbortSignal | undefined;
+      if (requestId) {
+        const controller = new AbortController();
+        this.abortControllers.set(requestId, controller);
+        abortSignal = controller.signal;
+      }
+
+      log.info(`[AIService] streamText: Provider=${createOptions.providerType}, Model=${request.modelId}, RequestId=${requestId}`);
       log.info(`[AIService] streamText payload:`, { prompt, system, temperature });
 
-      const result = streamText({ model, prompt, system, temperature });
+      const result = streamText({ model, prompt, system, temperature, abortSignal });
 
       return [undefined, { stream: result.textStream }];
     } catch (error: unknown) {

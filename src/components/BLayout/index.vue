@@ -92,17 +92,18 @@ useEventListener(window, 'resize', validateWindowState);
   height: 100%;
 }
 
-.b-layout__content {
-  flex: 1;
-  height: 0;
-}
-
 .b-layout-header {
   display: flex;
+  flex-shrink: 0;
   align-items: center;
   width: 100%;
   height: 36px;
   -webkit-app-region: drag;
+}
+
+.b-layout__content {
+  flex: 1;
+  height: 0;
 }
 
 .b-layout-header__mac-spacer {
