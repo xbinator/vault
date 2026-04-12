@@ -104,6 +104,7 @@ function handleClick(event: MouseEvent) {
     .b-button__icon {
       width: 14px;
       height: 14px;
+      margin-right: 4px;
     }
   }
 
@@ -158,7 +159,6 @@ function handleClick(event: MouseEvent) {
 
     &:hover:not(.b-button--disabled, .b-button--loading) {
       background-color: var(--color-primary-bg);
-      border-color: var(--color-primary);
     }
 
     &:active:not(.b-button--disabled, .b-button--loading) {

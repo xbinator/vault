@@ -1,6 +1,6 @@
 /* eslint-disable no-use-before-define */
 import type { AIServiceError, AIRequestOptions, AICreateOptions } from 'types/ai';
-import { computed, toValue, type MaybeRefOrGetter } from 'vue';
+import { computed, toValue, ref, type MaybeRefOrGetter } from 'vue';
 import { getElectronAPI } from '@/shared/platform/electron-api';
 import { providerStorage } from '@/shared/storage';
 
@@ -48,6 +48,8 @@ export function useAgent(options: UseStreamOptions) {
     return [undefined, { providerId: id, providerName: name, apiKey, baseUrl, providerType: type }];
   }
 
+  const currentRequestId = ref<string | null>(null);
+
   const onInvoke = async (payload: AIRequestOptions): AsyncResult<{ text: string }, { message: string }> => {
     const [error, provider] = await resolveProvider();
 
@@ -63,6 +65,9 @@ export function useAgent(options: UseStreamOptions) {
       options.onError?.(error as AIServiceError);
       return;
     }
+
+    const requestId = crypto.randomUUID();
+    currentRequestId.value = requestId;
 
     const cleanupChunk = electronAPI.onAiStreamChunk((chunk) => {
       options.onChunk?.(chunk);
@@ -85,10 +90,12 @@ export function useAgent(options: UseStreamOptions) {
       cleanupChunk();
       cleanupComplete();
       cleanupError();
+      // 只有当前请求 ID 与当前请求 ID 一致时才重置为 null
+      currentRequestId.value === requestId && (currentRequestId.value = null);
     }
 
     try {
-      await electronAPI.aiStream(provider, payload);
+      await electronAPI.aiStream(provider, { ...payload, requestId });
     } catch (err) {
       options.onError?.({ message: String((err as Error | AIServiceError)?.message || '未知错误') } as AIServiceError);
       options.onComplete?.();
@@ -97,5 +104,13 @@ export function useAgent(options: UseStreamOptions) {
     }
   };
 
-  return { agent: { invoke: onInvoke, stream: onStream } };
+  const onAbort = () => {
+    if (!currentRequestId.value) return;
+
+    electronAPI.aiStreamAbort(currentRequestId.value);
+    currentRequestId.value = null;
+    options.onComplete?.();
+  };
+
+  return { agent: { invoke: onInvoke, stream: onStream, abort: onAbort } };
 }

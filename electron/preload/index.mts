@@ -135,6 +135,12 @@ const electronAPI: ElectronAPI = {
    */
   aiStream: (createOptions, request) => ipcRenderer.invoke('ai:stream', createOptions, request),
 
+  /**
+   * 中止流式文本生成
+   * @param requestId 请求唯一标识
+   */
+  aiStreamAbort: (requestId) => ipcRenderer.invoke('ai:stream:abort', requestId),
+
   // ==================== AI 流式事件监听 ====================
   onAiStreamChunk: (callback) => {
     const handler = (_event: Electron.IpcRendererEvent, chunk: string) => callback(chunk);

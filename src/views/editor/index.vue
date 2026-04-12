@@ -13,21 +13,34 @@
     </template>
     <template #header-right>
       <div class="header-right">
+        <!-- 辅助工具侧边栏切换按钮 -->
+        <BButton type="secondary" size="small" square @click="toggleSidebar">
+          <Icon icon="lucide:panel-right" width="16" height="16" />
+        </BButton>
+
         <BButton type="secondary" size="small" square @click="handleOpenSettings">
           <Icon icon="lucide:settings" width="16" height="16" />
         </BButton>
       </div>
     </template>
 
-    <BEditor
-      :key="fileState.id"
-      ref="editorInstance"
-      v-model:value="fileState.content"
-      v-model:title="fileState.name"
-      :editor-id="fileState?.id"
-      :view-mode="viewState.mode"
-      :show-outline="viewState.showOutline"
-    />
+    <div class="editor-main-container">
+      <div class="editor-content-wrapper">
+        <BEditor
+          :key="fileState.id"
+          ref="editorInstance"
+          v-model:value="fileState.content"
+          v-model:title="fileState.name"
+          :editor-id="fileState?.id"
+          :view-mode="viewState.mode"
+          :show-outline="viewState.showOutline"
+        />
+      </div>
+
+      <!-- 辅助工具侧边栏 -->
+      <!-- <AuxiliarySidebar v-show="sidebarVisible" /> -->
+    </div>
+
     <!-- 查找栏 -->
     <FindBar v-model:visible="visible.find" :content="fileState.content" :editor-instance="editorInstance" />
 
@@ -44,6 +57,7 @@ import { useRouter } from 'vue-router';
 import { Icon } from '@iconify/vue';
 import BEditor from '@/components/BEditor/index.vue';
 import type { BEditorPublicInstance } from '@/components/BEditor/types';
+import AuxiliarySidebar from './components/AuxiliarySidebar.vue';
 import FindBar from './components/FindBar.vue';
 import SearchRecent from './components/SearchRecent.vue';
 import ShortcutsHelp from './components/ShortcutsHelp.vue';
@@ -58,6 +72,11 @@ const editorInstance = ref<BEditorPublicInstance | null>(null);
 const router = useRouter();
 
 const visible = reactive({ find: false, recentSearch: false, shortcuts: false });
+const sidebarVisible = ref(false);
+
+function toggleSidebar(): void {
+  sidebarVisible.value = !sidebarVisible.value;
+}
 
 function handleOpenSettings(): void {
   router.push('/settings');
@@ -101,7 +120,23 @@ const { toolbarHelpOptions } = useHelp({
 }
 
 :deep(.editor-content) {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.editor-main-container {
+  display: flex;
+  flex: 1;
+  height: 100%;
+  overflow: hidden;
+}
+
+.editor-content-wrapper {
   position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
   margin: 0 6px 6px;
   overflow: hidden;
   border-radius: 8px;

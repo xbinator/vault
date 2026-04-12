@@ -1,32 +1,29 @@
 <template>
   <div v-if="editor && visible" ref="wrapperRef" class="ai-input-wrapper" :style="wrapperStyle">
-    <!-- 预览确认区 -->
-    <div v-if="previewText || loading" class="ai-preview">
+    <!-- AI 生成预览区 -->
+    <div v-if="previewText || loading" class="ai-preview" @click="applyGeneratedContent">
       <div class="ai-preview-text">
         <BMessage :content="previewText" :max-height="200" type="text" status="streaming" :loading="loading" />
       </div>
       <div class="ai-preview-hint">
-        <div v-if="loading" class="flex items-center gap-2">
-          <Icon icon="svg-spinners:ring-resize" class="ai-loading-icon" />
-          <span>正在编写中...</span>
+        <div v-if="loading" class="flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <Icon icon="svg-spinners:ring-resize" class="ai-loading-icon" />
+            <span>正在编写中...</span>
+          </div>
+          <BButton type="secondary" size="small" @click.stop="stopStreaming">停 止</BButton>
         </div>
-        <div v-else class="flex items-center">
-          <div>内容由 AI 生成</div>
-          <!-- <Icon icon="lucide:check" class="ai-apply-icon" />
-          <span>点击应用</span> -->
+        <div v-else class="flex items-center justify-between">
+          <div>点击应用 AI 生成内容</div>
+          <div class="flex items-center gap-2">
+            <BButton type="secondary" size="small" @click.stop="closePanel">取 消</BButton>
+            <BButton type="primary" size="small" @click.stop="applyGeneratedContent">应 用</BButton>
+          </div>
         </div>
       </div>
     </div>
 
-    <AInput
-      v-else
-      ref="inputRef"
-      v-model:value="inputValue"
-      size="large"
-      placeholder="输入指令，按 Enter 发送..."
-      :disabled="loading"
-      @keydown="handleKeydown"
-    />
+    <AInput v-else ref="inputRef" v-model:value="inputValue" size="large" placeholder="输入指令，按 Enter 发送..." :disabled="loading" @keydown="onKeydown" />
   </div>
 </template>
 
@@ -34,12 +31,13 @@
 import type { SelectionRange } from '../types';
 import type { Editor } from '@tiptap/vue-3';
 import type { CSSProperties } from 'vue';
-import { computed, nextTick, ref, watch } from 'vue';
+import { onBeforeUnmount, computed, nextTick, ref, watch } from 'vue';
 import { Icon } from '@iconify/vue';
 import { TextSelection } from '@tiptap/pm/state';
 import { onClickOutside, useEventListener } from '@vueuse/core';
 import { message } from 'ant-design-vue';
 import { useAgent } from '@/hooks/useAgent';
+import { useShortcuts } from '@/hooks/useShortcuts';
 import type { ServiceModelUpdatedDetail } from '@/shared/storage/service-models/events';
 import { SERVICE_MODEL_UPDATED_EVENT } from '@/shared/storage/service-models/events';
 import type { AvailableServiceModelConfig } from '@/stores/service-model';
@@ -82,40 +80,24 @@ const { agent } = useAgent({
   }
 });
 
-// ---- Model Config ----
+const { registerShortcut } = useShortcuts();
 
-async function loadModelConfig(): Promise<void> {
-  modelConfig.value = await serviceModelStore.getAvailableServiceConfig('polish');
-}
-
-function handleServiceModelUpdated(event: Event): void {
-  const { detail } = event as CustomEvent<ServiceModelUpdatedDetail>;
-  if (detail.serviceType !== 'polish') return;
-  loadModelConfig();
-}
-
-useEventListener(window, SERVICE_MODEL_UPDATED_EVENT, handleServiceModelUpdated);
-
-loadModelConfig();
-
-// ---- Scroll ----
-
-function scrollToCenterIfObscured(): void {
-  if (!wrapperRef.value) return;
-
-  const rect = wrapperRef.value.getBoundingClientRect();
-  const viewportHeight = window.innerHeight;
-
-  // 如果悬浮框在可视区域内，不需要滚动
-  if (rect.bottom <= viewportHeight - 400) return;
-
-  // 退化到 window 或原生 Element 的 scrollIntoView
-  wrapperRef.value.scrollIntoView({ behavior: 'smooth', block: 'center' });
-}
+let unregisterEscape: (() => void) | null = null;
 
 // ---- Position ----
 
-function updatePosition(): void {
+function scrollIntoViewIfObscured(): void {
+  if (!wrapperRef.value) return;
+
+  const rect = wrapperRef.value.getBoundingClientRect();
+  const isObscured = rect.bottom > window.innerHeight - 400;
+
+  if (isObscured) {
+    wrapperRef.value.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+}
+
+function syncFloatPosition(): void {
   if (!props.editor) return;
 
   const { from, to } = props.selectionRange!;
@@ -123,18 +105,18 @@ function updatePosition(): void {
 
   const editorDom = props.editor.view.dom as HTMLElement;
   const editorRect = editorDom.getBoundingClientRect();
-  const end = props.editor.view.coordsAtPos(to);
-  const lineHeight = end.bottom - end.top;
-  const top = end.top - editorRect.top + editorDom.offsetTop;
+  const endCoords = props.editor.view.coordsAtPos(to);
+  const lineHeight = endCoords.bottom - endCoords.top;
+  const top = endCoords.top - editorRect.top + editorDom.offsetTop;
 
   wrapperStyle.value = { top: `${top + lineHeight + 6}px` };
 
-  nextTick(scrollToCenterIfObscured);
+  nextTick(scrollIntoViewIfObscured);
 }
 
 // ---- Selection ----
 
-function restoreSelection(): void {
+function restoreEditorSelection(): void {
   if (!props.editor) return;
 
   const { from, to } = props.selectionRange!;
@@ -144,26 +126,73 @@ function restoreSelection(): void {
   view.dispatch(state.tr.setSelection(TextSelection.create(state.doc, from, to)));
 }
 
-// ---- AI Submit ----
+function collapseToSelectionStart(): void {
+  if (!props.editor) return;
 
-function buildPrompt(selectedText: string, userInput: string): string {
-  const template = modelConfig.value?.customPrompt ?? '';
-  return template.replace(/\{\{SELECTED_TEXT\}\}/g, selectedText).replace(/\{\{USER_INPUT\}\}/g, userInput);
+  const { from } = props.selectionRange!;
+  props.editor.chain().focus().setTextSelection(from).run();
 }
 
-function reset(): void {
+// ---- State ----
+
+function resetState(): void {
   inputValue.value = '';
   previewText.value = '';
   loading.value = false;
 }
 
-function close(): void {
-  reset();
-  visible.value = false;
-  props.editor?.commands.focus();
+function stopStreaming(): void {
+  if (loading.value) {
+    agent.abort();
+  }
 }
 
-async function handleSubmit(): Promise<void> {
+function closePanel(): void {
+  stopStreaming();
+  resetState();
+  visible.value = false;
+  collapseToSelectionStart();
+}
+
+// ---- Model Config ----
+
+async function fetchModelConfig(): Promise<void> {
+  modelConfig.value = await serviceModelStore.getAvailableServiceConfig('polish');
+}
+
+function onServiceModelUpdated(event: Event): void {
+  const { detail } = event as CustomEvent<ServiceModelUpdatedDetail>;
+  if (detail.serviceType !== 'polish') return;
+  fetchModelConfig();
+}
+
+useEventListener(window, SERVICE_MODEL_UPDATED_EVENT, onServiceModelUpdated);
+
+fetchModelConfig();
+
+// ---- Visible Watch ----
+
+watch(visible, (isVisible) => {
+  if (isVisible) {
+    fetchModelConfig();
+    nextTick(syncFloatPosition);
+    nextTick(() => inputRef.value?.focus({ preventScroll: true }));
+    unregisterEscape = registerShortcut({ key: 'escape', handler: closePanel });
+  } else {
+    resetState();
+    unregisterEscape?.();
+    unregisterEscape = null;
+  }
+});
+
+// ---- AI ----
+
+function buildAIPrompt(selectedText: string, userInput: string): string {
+  const template = modelConfig.value?.customPrompt ?? '';
+  return template.replace(/\{\{SELECTED_TEXT\}\}/g, selectedText).replace(/\{\{USER_INPUT\}\}/g, userInput);
+}
+
+async function sendInstruction(): Promise<void> {
   const value = inputValue.value.trim();
   if (!value || !props.editor || loading.value) return;
 
@@ -177,48 +206,46 @@ async function handleSubmit(): Promise<void> {
   if (from === to) return;
 
   const selectedText = text || props.editor.state.doc.textBetween(from, to, '');
-
-  const prompt = buildPrompt(selectedText, value);
+  const prompt = buildAIPrompt(selectedText, value);
 
   loading.value = true;
   agent.stream({ modelId: config.modelId, prompt });
 }
 
-function handleApply(): void {
+function applyGeneratedContent(): void {
   if (!props.editor || !previewText.value) return;
 
   const { from, to } = props.selectionRange!;
-  restoreSelection();
+  restoreEditorSelection();
   props.editor.chain().focus().insertContentAt({ from, to }, previewText.value).run();
 
-  close();
+  closePanel();
 }
 
-function handleKeydown(event: KeyboardEvent): void {
+// ---- Events ----
+
+function onKeydown(event: KeyboardEvent): void {
   if (event.key === 'Enter') {
     event.preventDefault();
-    handleSubmit();
+    sendInstruction();
   }
+
+  // 作为 useShortcuts 全局拦截的兜底
   if (event.key === 'Escape') {
     event.preventDefault();
-    close();
+    closePanel();
   }
 }
+
+onClickOutside(wrapperRef, () => {
+  if (!loading.value) closePanel();
+});
 
 // ---- Lifecycle ----
 
-onClickOutside(wrapperRef, () => {
-  if (!loading.value) close();
-});
-
-watch(visible, (newValue) => {
-  if (newValue) {
-    loadModelConfig();
-    nextTick(updatePosition);
-    nextTick(() => inputRef.value?.focus({ preventScroll: true }));
-  } else {
-    reset();
-  }
+onBeforeUnmount(() => {
+  unregisterEscape?.();
+  unregisterEscape = null;
 });
 </script>
 
@@ -268,5 +295,21 @@ watch(visible, (newValue) => {
 .ai-apply-icon {
   flex-shrink: 0;
   font-size: 12px;
+}
+
+.ai-cancel-btn {
+  padding: 2px 8px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  background: transparent;
+  border: 1px solid var(--border-secondary);
+  border-radius: 4px;
+  transition: all 0.2s;
+
+  &:hover {
+    color: var(--text-primary);
+    border-color: var(--border-primary);
+  }
 }
 </style>
