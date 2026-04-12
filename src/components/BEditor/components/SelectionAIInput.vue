@@ -1,10 +1,12 @@
 <template>
   <div v-if="editor && visible" ref="wrapperRef" class="ai-input-wrapper" :style="wrapperStyle">
     <!-- 预览确认区 -->
-    <div v-if="previewText || isLoading" class="ai-preview">
-      <div class="ai-preview-text">{{ previewText }}</div>
+    <div v-if="previewText || loading" class="ai-preview">
+      <div class="ai-preview-text">
+        <BMessage :content="previewText" :max-height="200" type="text" status="streaming" :loading="loading" />
+      </div>
       <div class="ai-preview-hint">
-        <div v-if="isLoading" class="flex items-center gap-2">
+        <div v-if="loading" class="flex items-center gap-2">
           <Icon icon="svg-spinners:ring-resize" class="ai-loading-icon" />
           <span>正在编写中...</span>
         </div>
@@ -22,7 +24,7 @@
       v-model:value="inputValue"
       size="large"
       placeholder="输入指令，按 Enter 发送..."
-      :disabled="isLoading"
+      :disabled="loading"
       @keydown="handleKeydown"
     />
   </div>
@@ -57,7 +59,7 @@ const visible = defineModel<boolean>('visible', { default: false });
 
 const inputValue = ref('');
 const previewText = ref('');
-const isLoading = ref(false);
+const loading = ref(false);
 const inputRef = ref<{ focus: (options?: FocusOptions) => void } | null>(null);
 const wrapperRef = ref<HTMLElement | null>(null);
 const wrapperStyle = ref<CSSProperties>({});
@@ -72,10 +74,10 @@ const { agent } = useAgent({
     previewText.value += chunk;
   },
   onComplete() {
-    isLoading.value = false;
+    loading.value = false;
   },
   onError(error) {
-    isLoading.value = false;
+    loading.value = false;
     message.error(error.message);
   }
 });
@@ -96,6 +98,21 @@ useEventListener(window, SERVICE_MODEL_UPDATED_EVENT, handleServiceModelUpdated)
 
 loadModelConfig();
 
+// ---- Scroll ----
+
+function scrollToCenterIfObscured(): void {
+  if (!wrapperRef.value) return;
+
+  const rect = wrapperRef.value.getBoundingClientRect();
+  const viewportHeight = window.innerHeight;
+
+  // 如果悬浮框在可视区域内，不需要滚动
+  if (rect.bottom <= viewportHeight - 400) return;
+
+  // 退化到 window 或原生 Element 的 scrollIntoView
+  wrapperRef.value.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
 // ---- Position ----
 
 function updatePosition(): void {
@@ -111,6 +128,8 @@ function updatePosition(): void {
   const top = end.top - editorRect.top + editorDom.offsetTop;
 
   wrapperStyle.value = { top: `${top + lineHeight + 6}px` };
+
+  nextTick(scrollToCenterIfObscured);
 }
 
 // ---- Selection ----
@@ -135,7 +154,7 @@ function buildPrompt(selectedText: string, userInput: string): string {
 function reset(): void {
   inputValue.value = '';
   previewText.value = '';
-  isLoading.value = false;
+  loading.value = false;
 }
 
 function close(): void {
@@ -146,7 +165,7 @@ function close(): void {
 
 async function handleSubmit(): Promise<void> {
   const value = inputValue.value.trim();
-  if (!value || !props.editor || isLoading.value) return;
+  if (!value || !props.editor || loading.value) return;
 
   const config = modelConfig.value;
   if (!config?.providerId || !config?.modelId) {
@@ -161,7 +180,7 @@ async function handleSubmit(): Promise<void> {
 
   const prompt = buildPrompt(selectedText, value);
 
-  isLoading.value = true;
+  loading.value = true;
   agent.stream({ modelId: config.modelId, prompt });
 }
 
@@ -189,7 +208,7 @@ function handleKeydown(event: KeyboardEvent): void {
 // ---- Lifecycle ----
 
 onClickOutside(wrapperRef, () => {
-  if (!isLoading.value) close();
+  if (!loading.value) close();
 });
 
 watch(visible, (newValue) => {
@@ -229,9 +248,7 @@ watch(visible, (newValue) => {
 }
 
 .ai-preview-text {
-  max-height: 200px;
   padding: 9px 12px;
-  overflow-y: auto;
   font-size: 14px;
   line-height: 1.6;
   color: var(--text-primary);

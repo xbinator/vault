@@ -21,6 +21,7 @@ export default defineConfig(async () => ({
         'src/components/BLayout',
         'src/components/BToolbar',
         'src/components/BSelect',
+        'src/components/BMessage',
         'src/components/BModal',
         'src/components/BModelIcon',
         'src/components/BButton',
