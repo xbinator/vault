@@ -1,6 +1,6 @@
 import type { AICreateOptions, AIRequestOptions } from 'types/ai';
 import { ipcMain } from 'electron';
-import { getWindowFromWebContents } from '../../window.mjs';
+import { getWindowFromWebContents, isDev } from '../../window.mjs';
 import { aiService } from './service.mjs';
 
 export function registerAIHandlers(): void {
@@ -24,9 +24,15 @@ export function registerAIHandlers(): void {
       }
 
       for await (const chunk of result.stream) {
+        if (isDev()) {
+          process.stdout.write(chunk);
+        }
         win.webContents.send('ai:stream:chunk', chunk);
       }
 
+      if (isDev()) {
+        process.stdout.write('\n');
+      }
       win.webContents.send('ai:stream:complete');
     } catch (error) {
       // 在 aiService.streamText 抛出的错误已经被 normalizeError 转换成了 AIServiceError 格式（包含 code 和 message）
