@@ -43,4 +43,8 @@ export class ElectronNative implements Native {
   async setWindowTitle(title: string): Promise<void> {
     await getElectronAPI().setWindowTitle(title);
   }
+
+  updateMenuItem(id: string, properties: { checked?: boolean }): void {
+    getElectronAPI().updateMenuItem(id, properties);
+  }
 }
