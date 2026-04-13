@@ -19,8 +19,20 @@ export function getDistPath(): string {
   return path.join(__dirname, '../../dist/index.html');
 }
 
+export function getIconPath(): string {
+  if (process.platform === 'darwin') {
+    return '';
+  }
+  const iconName = process.platform === 'win32' ? 'app.png' : 'app.png';
+  if (isDev()) {
+    return path.join(__dirname, '../../resources/icons', iconName);
+  }
+  return path.join(process.resourcesPath, 'icons', iconName);
+}
+
 export function createWindow(): BrowserWindow {
-  mainWindow = new BrowserWindow({
+  const iconPath = getIconPath();
+  const windowOptions: Electron.BrowserWindowConstructorOptions = {
     width: 1200,
     height: 800,
     minWidth: 800,
@@ -35,7 +47,13 @@ export function createWindow(): BrowserWindow {
       nodeIntegration: false,
       sandbox: false
     }
-  });
+  };
+
+  if (iconPath) {
+    windowOptions.icon = iconPath;
+  }
+
+  mainWindow = new BrowserWindow(windowOptions);
 
   if (isDev()) {
     mainWindow.loadURL('http://localhost:1420');
