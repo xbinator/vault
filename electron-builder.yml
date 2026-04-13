@@ -22,7 +22,7 @@ mac:
   target:
     - dmg
     - zip
-  icon: resources/icons/app.png
+  icon: resources/icons/app.icns
 windows:
   target:
     - nsis

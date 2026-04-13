@@ -116,6 +116,9 @@ importers:
       better-sqlite3:
         specifier: ^11.7.0
         version: 11.10.0
+      chokidar:
+        specifier: ^5.0.0
+        version: 5.0.0
       dayjs:
         specifier: ^1.11.20
         version: 1.11.20
