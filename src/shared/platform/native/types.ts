@@ -33,4 +33,8 @@ export interface Native {
   onFileChanged(callback: (data: FileChangeEvent) => void): () => void;
 
   setWindowTitle(title: string): Promise<void>;
+
+  onMenuAction?(callback: (action: string) => void): () => void;
+
+  updateMenuItem?(id: string, properties: { checked?: boolean }): void;
 }

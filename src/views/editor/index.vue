@@ -2,15 +2,13 @@
   <BLayout class="editor-layout" content-class="editor-content">
     <template #header-left>
       <div class="header-left">
-        <BToolbar :title="'文件'" :options="toolbarFileOptions" />
-
-        <BToolbar :title="'编辑'" :options="toolbarEditOptions" />
-
-        <BToolbar :title="'视图'" show-selected-check :options="toolbarViewOptions" />
-
-        <BToolbar :title="'帮助'" :options="toolbarHelpOptions" />
-
-        <div class="header-divider"></div>
+        <template v-if="!isMac()">
+          <BToolbar :title="'文件'" :options="toolbarFileOptions" />
+          <BToolbar :title="'编辑'" :options="toolbarEditOptions" />
+          <BToolbar :title="'视图'" show-selected-check :options="toolbarViewOptions" />
+          <BToolbar :title="'帮助'" :options="toolbarHelpOptions" />
+          <div class="header-divider"></div>
+        </template>
 
         <BDropdownButton :options="recentFileOptions" :value="fileState.id" :overlay-width="220">
           <div>{{ fileState.name || '未命名文件' }}{{ isDirty ? ' *' : '' }}</div>
@@ -75,6 +73,7 @@ import type { DropdownOption } from '@/components/BDropdown/type';
 import BEditor from '@/components/BEditor/index.vue';
 import type { BEditorPublicInstance } from '@/components/BEditor/types';
 import BPanelSplitter from '@/components/BPanelSplitter/index.vue';
+import { isMac } from '@/shared/platform/env';
 import AuxiliarySidebar from './components/AuxiliarySidebar.vue';
 import FindBar from './components/FindBar.vue';
 import SearchRecent from './components/SearchRecent.vue';
@@ -84,6 +83,7 @@ import { useDirty } from './hooks/useDirty';
 import { useEditActive } from './hooks/useEditActive';
 import { useFileActive, getRecentFileLabel } from './hooks/useFileActive';
 import { useHelp } from './hooks/useHelp';
+import { useNativeMenu } from './hooks/useNativeMenu';
 import { useViewActive } from './hooks/useViewActive';
 
 const fileState = ref<EditorFile>({ id: '', path: '', content: '', name: '', ext: 'md' });
@@ -136,6 +136,14 @@ const { toolbarHelpOptions } = useHelp({
   onShowShortcuts: () => {
     visible.shortcuts = true;
   }
+});
+
+useNativeMenu({
+  toolbarFileOptions,
+  toolbarEditOptions,
+  toolbarViewOptions,
+  toolbarHelpOptions,
+  visible
 });
 </script>
 

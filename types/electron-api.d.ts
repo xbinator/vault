@@ -87,6 +87,10 @@ export interface ElectronAPI {
     warn: (...args: unknown[]) => void;
     error: (...args: unknown[]) => void;
   };
+
+  // 菜单操作
+  onMenuAction: (callback: (action: string) => void) => () => void;
+  updateMenuItem: (id: string, properties: { checked?: boolean }) => void;
 }
 
 declare global {

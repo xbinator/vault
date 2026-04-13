@@ -190,6 +190,19 @@ const electronAPI: ElectronAPI = {
     info: (...args) => ipcRenderer.send('logger:info', ...args),
     warn: (...args) => ipcRenderer.send('logger:warn', ...args),
     error: (...args) => ipcRenderer.send('logger:error', ...args)
+  },
+
+  // ==================== 菜单操作 ====================
+  onMenuAction: (callback) => {
+    const handler = (_event: Electron.IpcRendererEvent, action: string) => callback(action);
+    ipcRenderer.on('menu:action', handler);
+    return () => {
+      ipcRenderer.removeListener('menu:action', handler);
+    };
+  },
+  
+  updateMenuItem: (id: string, properties: { checked?: boolean }) => {
+    ipcRenderer.send('menu:update-item', id, properties);
   }
 };
 
