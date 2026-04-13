@@ -36,4 +36,3 @@ export { initLogger, log } from './logger/service.mjs';
 export { initDatabase, closeDatabase, dbExecute, dbSelect, getDbPath } from './database/service.mjs';
 
 export { initStore, getStore } from './store/service.mjs';
-export { migrateFromTauri } from './store/migration.mjs';

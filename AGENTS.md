@@ -32,7 +32,6 @@ const data = fetchData() as DataType
 
 ### 保留未使用的导入
 - ✅ **保留**: 可能会在运行时动态导入的模块
-- ✅ **保留**: Tauri 相关的 API 导入（用于条件加载）
 - ✅ **保留**: 类型定义的导入
 
 **示例**:
@@ -42,9 +41,6 @@ const { open } = await import('@tauri-apps/plugin-dialog')
 
 // ✅ 保留 - 类型定义
 import type { DefineComponent } from 'vue'
-
-// ✅ 保留 - Tauri API（条件加载）
-import { isTauri } from './platform'
 ```
 
 ### 代码清理原则
