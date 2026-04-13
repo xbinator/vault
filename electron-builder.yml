@@ -8,6 +8,11 @@ files:
   - dist-electron/**/*
   - "!node_modules/**/*"
   - node_modules/better-sqlite3/**/*
+extraResources:
+  - from: resources/icons
+    to: icons
+    filter:
+      - "**/*"
 asar: true
 asarUnpack:
   - "**/*.node"
@@ -17,14 +22,14 @@ mac:
   target:
     - dmg
     - zip
-  icon: build/icon.icns
+  icon: resources/icons/app.png
 windows:
   target:
     - nsis
     - portable
-  icon: build/icon.ico
+  icon: resources/icons/app.png
 linux:
   target:
     - AppImage
     - deb
-  icon: build/icon.png
+  icon: resources/icons/app.png
