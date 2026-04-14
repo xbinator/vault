@@ -13,6 +13,8 @@ export interface Message {
   images?: string[];
   // 是否正在加载
   loading?: boolean;
+  // 完成状态
+  finished?: boolean;
   // 错误信息
   error?: Error | string;
 }
