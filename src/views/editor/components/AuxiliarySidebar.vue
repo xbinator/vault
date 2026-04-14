@@ -1,9 +1,12 @@
 <template>
-  <BChat class="editor-sidebar" service-type="chat" />
+  <BChat v-model:value="messages" class="editor-sidebar" service-type="chat" />
 </template>
 
 <script setup lang="ts">
-// 逻辑已抽离到 BChat 组件中
+import { ref } from 'vue';
+import { Message } from '@/components/BChat/types';
+
+const messages = ref<Message[]>([]);
 </script>
 
 <style scoped lang="less">
@@ -15,5 +18,9 @@
   overflow: hidden;
   background: var(--bg-primary);
   border-radius: 8px;
+
+  :deep(.b-bubble--left .b-bubble__container) {
+    padding: 12px 0 0;
+  }
 }
 </style>

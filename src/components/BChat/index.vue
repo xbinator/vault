@@ -1,31 +1,27 @@
 <!-- 聊天组件模板 -->
 <template>
   <div class="b-chat">
-    <Container ref="containerRef" :loading="loading" class="b-chat__container">
+    <Container :loading="loading" class="b-chat__container">
       <div class="b-chat__messages">
-        <MessageBubble
-          v-for="msg in messages"
-          :key="msg.id"
-          :message="msg"
-          @copy="handleCopy"
-          @edit="handleEdit"
-          @delete="handleDelete"
-          @regenerate="handleRegenerate"
-        />
+        <MessageBubble v-for="item in messages" :key="item.id" :message="item" @edit="handleEdit" @regenerate="handleRegenerate" />
       </div>
       <slot></slot>
     </Container>
 
     <div class="b-chat__input">
-      <!-- 提示词编辑器组件 -->
-      <BPromptEditor
-        v-model:value="inputValue"
-        placeholder="输入消息..."
-        :max-height="200"
-        :submit-on-enter="true"
-        :disabled="loading"
-        @submit="handleSubmit"
-      />
+      <div class="b-chat__input__container">
+        <!-- 提示词编辑器组件 -->
+        <BPromptEditor
+          v-model:value="inputValue"
+          placeholder="输入消息..."
+          :max-height="200"
+          :submit-on-enter="true"
+          :disabled="loading"
+          variant="borderless"
+          @submit="handleSubmit"
+        />
+        <BButton size="small" square icon="lucide:send-horizontal" :disabled="!inputValue" @click="handleSubmit" />
+      </div>
     </div>
   </div>
 </template>
@@ -34,9 +30,9 @@
 import type { BChatProps as Props, Message } from './types';
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
-import { useClipboard } from '@vueuse/core';
 import { message } from 'ant-design-vue';
 import { nanoid } from 'nanoid';
+import BButton from '@/components/BButton/index.vue';
 import { useAgent } from '@/hooks/useAgent';
 import { useServiceModelStore } from '@/stores/service-model';
 import { Modal } from '@/utils/modal';
@@ -45,55 +41,44 @@ import MessageBubble from './components/MessageBubble.vue';
 
 defineOptions({ name: 'BChat' });
 
-// 定义组件属性
 const props = withDefaults(defineProps<Props>(), {});
 
-// 路由实例
 const router = useRouter();
-// 剪贴板复制功能
-const { copy } = useClipboard();
 
 // 输入框内容
 const inputValue = ref('');
 // 消息列表，支持双向绑定
-const messages = defineModel<Message[]>('messages', { default: () => [] });
+const messages = defineModel<Message[]>('value', { default: () => [] });
 // 加载状态
 const loading = ref(false);
 // 服务模型状态存储
 const serviceModelStore = useServiceModelStore();
-// 容器组件引用，用于滚动控制
-const containerRef = ref<InstanceType<typeof Container>>();
 
 // 初始化Agent，处理AI对话流的各种回调
 const { agent } = useAgent({
   // 接收到流式数据块时的处理
   onChunk: (content: string) => {
     const lastMessage = messages.value[messages.value.length - 1];
-    if (lastMessage && lastMessage.role === 'assistant') {
-      // 追加内容到最后一条助手消息
-      lastMessage.content += content;
-      // 自动滚动到底部
-      containerRef.value?.scrollToBottom();
-    }
+    // 追加内容到最后一条助手消息
+    lastMessage.content += content;
+    lastMessage.loading = false;
   },
   // 对话完成时的处理
   onComplete: () => {
     loading.value = false;
     const lastMessage = messages.value[messages.value.length - 1];
-    if (lastMessage && lastMessage.role === 'assistant') {
-      // 关闭加载状态
-      lastMessage.loading = false;
-    }
+    // 关闭加载状态
+    lastMessage.loading = false;
+    lastMessage.finished = true;
   },
   // 发生错误时的处理
   onError: (error) => {
     message.error(error.message);
     const lastMessage = messages.value[messages.value.length - 1];
-    if (lastMessage && lastMessage.role === 'assistant') {
-      lastMessage.loading = false;
-      // 记录错误信息
-      lastMessage.error = error.message;
-    }
+    lastMessage.loading = false;
+    // 记录错误信息
+    lastMessage.error = error.message;
+    lastMessage.finished = true;
   }
 });
 
@@ -125,11 +110,9 @@ async function getServiceConfig() {
 async function _streamMessage(config: { providerId: string; modelId: string }) {
   loading.value = true;
   // 添加助手占位消息
-  messages.value.push({ id: nanoid(), role: 'assistant', content: '', loading: true });
+  messages.value.push({ id: nanoid(), role: 'assistant', content: '', loading: true, finished: false });
   // 构建传给大模型的上下文历史 (排除刚才加的占位消息)
   const chatMessages = messages.value.slice(0, -1).map((msg) => ({ role: msg.role, content: msg.content }));
-
-  containerRef.value?.scrollToBottom();
 
   await agent.stream({ messages: chatMessages, modelId: config.modelId, providerId: config.providerId });
 }
@@ -154,33 +137,12 @@ async function handleSubmit(): Promise<void> {
 }
 
 /**
- * 处理消息复制
- * @param msg 要复制的消息对象
- */
-function handleCopy(msg: Message) {
-  copy(msg.content);
-
-  message.success('已复制到剪贴板');
-}
-
-/**
  * 处理消息编辑
  * 将消息内容填充到输入框中
  * @param msg 要编辑的消息对象
  */
 function handleEdit(msg: Message) {
   inputValue.value = msg.content;
-}
-
-/**
- * 处理消息删除
- * @param msg 要删除的消息对象
- */
-function handleDelete(msg: Message) {
-  const index = messages.value.findIndex((m) => m.id === msg.id);
-  if (index !== -1) {
-    messages.value.splice(index, 1);
-  }
 }
 
 async function handleRegenerate(msg: Message) {
@@ -192,17 +154,7 @@ async function handleRegenerate(msg: Message) {
   const index = messages.value.findIndex((m) => m.id === msg.id);
   if (index === -1) return;
 
-  // 截断逻辑：如果是助手消息，则回退到上一条用户消息；如果是用户消息，则截断其后的所有消息
-  const targetIndex = msg.role === 'assistant' ? index - 1 : index;
-
-  if (msg.role === 'assistant') {
-    messages.value.splice(index, 1);
-  } else {
-    messages.value.splice(index + 1);
-  }
-
-  const userMsg = messages.value[targetIndex];
-  if (!userMsg || userMsg.role !== 'user') return;
+  messages.value.splice(index);
 
   await _streamMessage(config);
 }
@@ -226,18 +178,48 @@ async function handleRegenerate(msg: Message) {
 .b-chat__messages {
   display: flex;
   flex-direction: column;
-  padding: 16px;
 }
 
 /* 输入区域样式 */
 .b-chat__input {
   padding: 12px;
-  border-top: 1px solid var(--border-color, rgb(0 0 0 / 6%));
-  transition: opacity 0.2s ease;
+  border-top: 1px solid var(--border-primary);
 }
 
-/* 当输入框禁用时，降低透明度 */
-.b-chat__input:has([disabled]) {
-  opacity: 0.6;
+.b-chat__input__container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-end;
+  padding: 8px 12px;
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
+  border-radius: 8px;
+  transition: all 0.2s;
+
+  .b-prompt-variable__textarea {
+    padding: 0;
+  }
+}
+
+.b-chat__input__buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.b-chat__input__right {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.b-chat__input__model-select {
+  width: 100px;
+  font-size: 12px;
+
+  :deep(.ant-select-selection-item) {
+    font-size: 12px;
+  }
 }
 </style>
