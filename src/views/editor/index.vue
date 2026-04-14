@@ -7,19 +7,7 @@
           <BToolbar :title="'编辑'" :options="toolbarEditOptions" />
           <BToolbar :title="'视图'" show-selected-check :options="toolbarViewOptions" />
           <BToolbar :title="'帮助'" :options="toolbarHelpOptions" />
-          <div class="header-divider"></div>
         </template>
-
-        <BDropdownButton :options="recentFileOptions" :value="fileState.id" :overlay-width="220">
-          <div>{{ fileState.name || '未命名文件' }}{{ isDirty ? ' *' : '' }}</div>
-
-          <template #menu="{ record }">
-            <div class="flex items-center justify-between w-full gap-2">
-              <BTruncateText :text="record.label" />
-              <Icon v-if="record.selected" icon="lucide:check" class="flex-shrink-0" />
-            </div>
-          </template>
-        </BDropdownButton>
       </div>
     </template>
     <template #header-right>
@@ -65,15 +53,15 @@
 
 <script setup lang="ts">
 import type { EditorFile } from './types';
-import { computed, reactive, ref } from 'vue';
+import { reactive, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { Icon } from '@iconify/vue';
 import { useStorage } from '@vueuse/core';
-import type { DropdownOption } from '@/components/BDropdown/type';
 import BEditor from '@/components/BEditor/index.vue';
 import type { BEditorPublicInstance } from '@/components/BEditor/types';
 import BPanelSplitter from '@/components/BPanelSplitter/index.vue';
 import { isMac } from '@/shared/platform/env';
+import { useTabsStore } from '@/stores/tabs';
 import AuxiliarySidebar from './components/AuxiliarySidebar.vue';
 import FindBar from './components/FindBar.vue';
 import SearchRecent from './components/SearchRecent.vue';
@@ -81,7 +69,7 @@ import ShortcutsHelp from './components/ShortcutsHelp.vue';
 import { useAutoSave } from './hooks/useAutoSave';
 import { useDirty } from './hooks/useDirty';
 import { useEditActive } from './hooks/useEditActive';
-import { useFileActive, getRecentFileLabel } from './hooks/useFileActive';
+import { useFileActive } from './hooks/useFileActive';
 import { useHelp } from './hooks/useHelp';
 import { useNativeMenu } from './hooks/useNativeMenu';
 import { useViewActive } from './hooks/useViewActive';
@@ -89,8 +77,9 @@ import { useViewActive } from './hooks/useViewActive';
 const fileState = ref<EditorFile>({ id: '', path: '', content: '', name: '', ext: 'md' });
 const editorInstance = ref<BEditorPublicInstance | null>(null);
 const router = useRouter();
+const tabsStore = useTabsStore();
 
-const { isDirty, setOriginalContent } = useDirty(fileState);
+const { setOriginalContent } = useDirty(fileState);
 
 const visible = reactive({ find: false, recentSearch: false, shortcuts: false });
 const sidebarState = useStorage('editor-sidebar-state', { visible: false, width: 300 });
@@ -100,6 +89,8 @@ function toggleSidebar(): void {
 }
 
 function handleOpenSettings(): void {
+  tabsStore.addTab({ id: '/settings', path: '/settings', title: '设置' });
+
   router.push('/settings');
 }
 
@@ -111,18 +102,6 @@ const { toolbarFileOptions, savedRecentFiles, openRecentFile } = useFileActive(f
   setOriginalContent,
   visible
 });
-
-const recentFileOptions = computed<DropdownOption[]>(() =>
-  savedRecentFiles.value.map((file) => ({
-    value: file.id,
-    label: getRecentFileLabel(file),
-    class: 'b-dropdown-menu-item-selected',
-    selected: file.id === fileState.value.id,
-    onClick: async () => {
-      await openRecentFile(file.id);
-    }
-  }))
-);
 
 async function handleSelectRecentFile(id: string): Promise<void> {
   await openRecentFile(id);
@@ -157,13 +136,10 @@ useNativeMenu({
   gap: 10px;
   align-items: center;
   padding: 0 20px;
-}
 
-.header-divider {
-  width: 1px;
-  height: 16px;
-  margin: 0 2px;
-  background-color: var(--border-primary);
+  &:empty {
+    display: none;
+  }
 }
 
 :deep(.b-dropdown-menu-item.is-active) {
