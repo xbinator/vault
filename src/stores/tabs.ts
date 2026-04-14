@@ -1,116 +1,98 @@
-import { computed, ref, watch } from 'vue';
 import { defineStore } from 'pinia';
-import localforage from 'localforage';
-import { getElectronAPI, hasElectronAPI } from '@/shared/platform/electron-api';
-import type { EditorFile } from '@/views/editor/types';
+import { local } from '@/shared/storage/base';
 
-export interface TabItem extends EditorFile {
-  isDirty?: boolean;
+export interface Tab {
+  // 标签页唯一标识
+  id: string;
+  // 当前页面路径（router path / fullPath）
+  path: string;
+  // 标签页显示的标题
+  title: string;
+
+  // 标签页元数据
+  meta?: {
+    // 文件 id
+    fileId?: string;
+  };
 }
 
-const OPENED_TABS_KEY = 'opened_tabs_v1';
-const ACTIVE_TAB_ID_KEY = 'active_tab_id_v1';
+export interface TabsState {
+  // 标签页列表
+  tabs: Tab[];
+  // 当前激活的标签页ID
+  activeId: string | null;
+  dirtyById: Record<string, boolean>;
+}
 
-export const useTabsStore = defineStore('tabs', () => {
-  const tabs = ref<TabItem[]>([]);
-  const activeId = ref<string>('');
+const TABS_STORAGE_KEY = 'app_tabs';
 
-  const activeTab = computed(() => tabs.value.find((t) => t.id === activeId.value));
-
-  const isReady = ref(false);
-
-  // 初始化加载
-  async function init() {
-    let savedTabs: TabItem[] | null = null;
-    let savedActiveId: string | null = null;
-
-    if (hasElectronAPI()) {
-      savedTabs = (await getElectronAPI().storeGet(OPENED_TABS_KEY)) as TabItem[] | null;
-      savedActiveId = (await getElectronAPI().storeGet(ACTIVE_TAB_ID_KEY)) as string | null;
-    } else {
-      savedTabs = await localforage.getItem<TabItem[]>(OPENED_TABS_KEY);
-      savedActiveId = await localforage.getItem<string>(ACTIVE_TAB_ID_KEY);
-    }
-
-    if (savedTabs && savedTabs.length > 0) {
-      tabs.value = savedTabs;
-      activeId.value = savedActiveId && savedTabs.some((t) => t.id === savedActiveId) ? savedActiveId : savedTabs[0].id;
-    }
-    isReady.value = true;
-  }
-
-  // 持久化状态
-  async function persist() {
-    if (!isReady.value) return;
-
-    // 移除不必要的响应式追踪进行序列化
-    const tabsToSave = tabs.value.map((t) => ({ ...t }));
-
-    if (hasElectronAPI()) {
-      await getElectronAPI().storeSet(OPENED_TABS_KEY, tabsToSave);
-      await getElectronAPI().storeSet(ACTIVE_TAB_ID_KEY, activeId.value);
-    } else {
-      await localforage.setItem(OPENED_TABS_KEY, tabsToSave);
-      await localforage.setItem(ACTIVE_TAB_ID_KEY, activeId.value);
-    }
-  }
-
-  watch(tabs, () => persist(), { deep: true });
-  watch(activeId, () => persist());
-
-  function addTab(file: EditorFile) {
-    const existing = tabs.value.find((t) => t.id === file.id);
-    if (existing) {
-      activeId.value = file.id;
-      // 也可以更新 content
-      existing.content = file.content;
-      existing.name = file.name;
-      existing.ext = file.ext;
-      existing.path = file.path;
-    } else {
-      tabs.value.push({ ...file, isDirty: false });
-      activeId.value = file.id;
-    }
-  }
-
-  function closeTab(id: string) {
-    const idx = tabs.value.findIndex((t) => t.id === id);
-    if (idx !== -1) {
-      tabs.value.splice(idx, 1);
-
-      if (tabs.value.length === 0) {
-        activeId.value = '';
-      } else if (activeId.value === id) {
-        // 如果关闭的是当前激活的标签，激活前一个或后一个
-        const nextIdx = Math.min(idx, tabs.value.length - 1);
-        activeId.value = tabs.value[nextIdx].id;
-      }
-    }
-  }
-
-  function updateTab(id: string, updates: Partial<TabItem>) {
-    const tab = tabs.value.find((t) => t.id === id);
-    if (tab) {
-      Object.assign(tab, updates);
-    }
-  }
-
-  function markDirty(id: string, dirty: boolean) {
-    const tab = tabs.value.find((t) => t.id === id);
-    if (tab && tab.isDirty !== dirty) {
-      tab.isDirty = dirty;
-    }
-  }
+export function loadSavedData(): TabsState {
+  const saved = local.getItem<TabsState>(TABS_STORAGE_KEY);
+  if (!saved || !Array.isArray(saved.tabs)) return { tabs: [], activeId: null, dirtyById: {} };
 
   return {
-    tabs,
-    activeId,
-    activeTab,
-    isReady,
-    init,
-    addTab,
-    closeTab,
-    updateTab,
-    markDirty
+    tabs: saved.tabs.map((tab) => ({ id: tab.id, path: tab.path, title: tab.title })),
+    // 当前激活的标签页ID
+    activeId: saved.activeId ?? null,
+    dirtyById: saved.dirtyById ?? {}
   };
+}
+
+export function persistData(state: TabsState): void {
+  local.setItem(TABS_STORAGE_KEY, state);
+}
+
+// 标签页状态管理 Store
+export const useTabsStore = defineStore('tabs', {
+  state: (): TabsState => loadSavedData(),
+
+  getters: {
+    // 获取当前激活的标签页对象
+    activeTab: (state): Tab | null => {
+      return state.tabs.find((tab) => tab.id === state.activeId) || null;
+    }
+  },
+
+  actions: {
+    // 添加标签页
+    addTab(tab: Tab): void {
+      const existingIndex = this.tabs.findIndex((t) => t.id === tab.id);
+
+      if (existingIndex === -1) this.tabs.push(tab);
+      else this.tabs[existingIndex] = { ...this.tabs[existingIndex], ...tab };
+
+      this.activeId = tab.id;
+
+      persistData(this.$state);
+    },
+
+    markDirty(id: string, isDirty = true): void {
+      if (isDirty) this.dirtyById[id] = true;
+      else delete this.dirtyById[id];
+      persistData(this.$state);
+    },
+    // 删除标签页
+    removeTab(id: string): void {
+      const index = this.tabs.findIndex((t) => t.id === id);
+      if (index === -1) return;
+
+      this.tabs.splice(index, 1);
+      delete this.dirtyById[id];
+
+      if (this.activeId === id) {
+        if (this.tabs.length > 0) this.activeId = this.tabs[Math.max(0, index - 1)].id;
+        else this.activeId = null;
+      }
+
+      persistData(this.$state);
+    },
+
+    setActiveTab(id: string): void {
+      if (!this.tabs.some((t) => t.id === id)) return;
+
+      this.activeId = id;
+
+      persistData(this.$state);
+    }
+  }
 });

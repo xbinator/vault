@@ -2,12 +2,14 @@
 import type { EditorFile } from '../types';
 import type { Ref } from 'vue';
 import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
+import { useRoute } from 'vue-router';
 import { customAlphabet } from 'nanoid';
 import type { ToolbarOptions } from '@/components/BToolbar/types';
 import { native } from '@/shared/platform';
 import { isElectron, isWeb } from '@/shared/platform/env';
 import { recentFilesStorage, type StoredFile } from '@/shared/storage';
 import { useSettingStore } from '@/stores/setting';
+import { useTabsStore } from '@/stores/tabs';
 import { Modal } from '@/utils/modal';
 import { EditorShortcuts } from '../constants/shortcuts';
 
@@ -40,6 +42,8 @@ function parseFileName(filePath: string): { name: string; ext: string } {
 
 export function useFileActive(fileState: Ref<EditorFile>, options: UseFileActiveOptions) {
   const settingStore = useSettingStore();
+  const route = useRoute();
+  const tabsStore = useTabsStore();
 
   const canSave = computed(() => Boolean(fileState.value.path));
   const recentFiles = ref<EditorFile[]>([]);
@@ -62,12 +66,18 @@ export function useFileActive(fileState: Ref<EditorFile>, options: UseFileActive
   // 文件状态切换
   // ------------------------------------------------------------------ //
 
-  /** 切换当前激活文件，同步 watcher / storage / 窗口标题 */
+  /** 切换当前激活文件，同步 watcher / storage / 窗口标题，并注册到多标签页 */
   function setFileState(file: EditorFile): void {
     options.pause();
     file.path ? native.watchFile(file.path) : native.unwatchFile();
     fileState.value = file;
-    if (file.id) recentFilesStorage.setCurrentFile(file.id);
+
+    if (file.id) {
+      recentFilesStorage.setCurrentFile(file.id);
+      // 用户打开/切换文件时，同步注册到多标签页
+      tabsStore.addTab({ id: file.id, path: route.fullPath, title: file.name || '未命名文件', meta: { fileId: file.id } });
+    }
+
     settingStore.setWindowTitle(`${file.name || '未命名'}.${file.ext || 'md'}`);
     nextTick(() => options.resume());
   }

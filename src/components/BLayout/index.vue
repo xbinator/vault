@@ -11,7 +11,9 @@
 
       <div class="b-layout-header__content" :class="{ 'is-mac': platform === 'mac' }">
         <slot name="header-left"></slot>
-        <div class="b-layout-header__center"></div>
+        <div class="b-layout-header__center">
+          <HeaderTabs />
+        </div>
         <slot name="header-right"></slot>
       </div>
 
@@ -46,6 +48,7 @@ import { Icon } from '@iconify/vue';
 import { useEventListener } from '@vueuse/core';
 import { getElectronAPI } from '@/shared/platform/electron-api';
 import { isMac } from '@/shared/platform/env';
+import HeaderTabs from './components/HeaderTabs.vue';
 
 export interface Props {
   contentClass?: string;
