@@ -4,7 +4,7 @@
       v-for="tab in tabsStore.tabs"
       :key="tab.id"
       class="header-tab"
-      :class="{ 'is-active': tabsStore.activeId === tab.id }"
+      :class="{ 'is-active': isActiveTab(tab.id) }"
       :title="tab.path || tab.title || 'Untitled'"
       @click="handleClickTab(tab.id, tab.path)"
     >
@@ -18,7 +18,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Icon } from '@iconify/vue';
 import { useTabsStore } from '@/stores/tabs';
@@ -28,22 +28,32 @@ const scrollContainer = ref<HTMLElement | null>(null);
 const route = useRoute();
 const router = useRouter();
 
-async function handleClickTab(id: string, path: string): Promise<void> {
-  tabsStore.setActiveTab(id);
+// 从路由参数中获取当前激活的标签页 ID
+const currentFileId = computed(() => String(route.params.id || ''));
 
+// 判断标签页是否为当前激活状态
+function isActiveTab(tabId: string): boolean {
+  // 从路由路径中提取文件 ID，与标签页 ID 比较
+  return tabId === currentFileId.value;
+}
+
+async function handleClickTab(_id: string, path: string): Promise<void> {
   if (path && route.fullPath !== path) {
     await router.push(path);
   }
 }
 
 async function handleCloseTab(id: string): Promise<void> {
-  const isActive = tabsStore.activeId === id;
+  const isActive = isActiveTab(id);
   const firstTab = tabsStore.tabs[0];
 
   tabsStore.removeTab(id);
 
   if (isActive && firstTab && firstTab.id !== id) {
     await router.push(firstTab.path);
+  } else if (tabsStore.tabs.length === 0) {
+    // 最后一个标签页被关闭时，跳转到欢迎页
+    await router.push('/welcome');
   }
 }
 
