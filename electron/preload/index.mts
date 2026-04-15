@@ -12,6 +12,8 @@ import { contextBridge, ipcRenderer } from 'electron';
  * 所有 IPC 调用都通过这里进行，确保安全隔离
  */
 const electronAPI: ElectronAPI = {
+  readFile: (filePath: string) => ipcRenderer.invoke('fs:readFile', filePath),
+
   // ==================== 文件对话框操作 ====================
 
   /**
