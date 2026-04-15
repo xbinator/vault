@@ -27,6 +27,12 @@ export interface ElectronFileResult {
   ext: string;
 }
 
+export interface ElectronReadFileResult {
+  content: string;
+  fileName: string;
+  ext: string;
+}
+
 export interface DbExecuteResult {
   changes: number;
   lastInsertRowid: number;
@@ -39,6 +45,8 @@ export interface FileChangeEvent {
 }
 
 export interface ElectronAPI {
+  readFile: (filePath: string) => Promise<ElectronReadFileResult>;
+
   // 文件对话框操作
   openFile: (options?: ElectronOpenFileOptions) => Promise<ElectronFileResult>;
 
