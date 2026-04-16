@@ -34,6 +34,8 @@ export interface Native {
 
   writeFile(path: string, content: string): Promise<void>;
 
+  renameFile(oldPath: string, newPath: string): Promise<void>;
+
   watchFile(path: string): Promise<void>;
 
   unwatchFile(): Promise<void>;

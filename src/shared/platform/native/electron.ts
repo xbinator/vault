@@ -33,6 +33,10 @@ export class ElectronNative implements Native {
     await getElectronAPI().writeFile(filePath, content);
   }
 
+  async renameFile(oldPath: string, newPath: string): Promise<void> {
+    await getElectronAPI().renameFile(oldPath, newPath);
+  }
+
   async watchFile(filePath: string): Promise<void> {
     await getElectronAPI().watchFile(filePath);
   }

@@ -26,7 +26,7 @@ import type { AIProvider, AIProviderModel } from 'types/ai';
 import { computed, ref, watch } from 'vue';
 import { message } from 'ant-design-vue';
 import BButton from '@/components/BButton/index.vue';
-import { useAgent } from '@/hooks/useAgent';
+import { useChat } from '@/hooks/useChat';
 
 interface Props {
   models: AIProviderModel[];
@@ -38,7 +38,7 @@ const dataItem = defineModel<Partial<AIProvider>>('value', { default: () => ({})
 
 const testModel = ref<string | undefined>(undefined);
 
-const { agent } = useAgent({ providerId: () => dataItem.value.id, ignoreEnabled: true });
+const { agent } = useChat({ providerId: () => dataItem.value.id, ignoreEnabled: true });
 
 const loading = ref(false);
 
