@@ -35,8 +35,8 @@
               <Icon icon="lucide:file-text" width="14" height="14" />
             </div>
             <div class="recent-file-info">
-              <div class="recent-file-name">{{ file.name || '未命名文件' }}</div>
-              <div class="recent-file-path">{{ file.path || '本地文件' }}</div>
+              <div class="recent-file-name">{{ getFileLabel(file) }}</div>
+              <div class="recent-file-path">{{ file.path || '未保存文件' }}</div>
             </div>
           </div>
         </div>
@@ -59,13 +59,15 @@ import { customAlphabet } from 'nanoid';
 import BSearchRecent from '@/components/BSearchRecent/index.vue';
 import { useOpenFile } from '@/hooks/useOpenFile';
 import { native } from '@/shared/platform';
+import type { StoredFile } from '@/shared/storage/files/types';
 import { useFilesStore } from '@/stores/files';
+import { getRecentFileLabel } from '@/utils/recentFile';
 
 const router = useRouter();
 const nanoid = customAlphabet('0123456789abcdefghijklmnopqrstuvwxyz_', 8);
 
 const filesStore = useFilesStore();
-const { openFileById } = useOpenFile();
+const { openFileById, openNativeFile } = useOpenFile();
 const isDragging = ref(false);
 const visibleSearchRecent = ref(false);
 
@@ -78,23 +80,15 @@ function handleNewFile(): void {
 }
 
 async function handleOpenFile(): Promise<void> {
-  const file = await native.openFile();
-  if (!file.path) return;
-
-  let id = nanoid();
-  const existingFile = await filesStore.getFileByPath(file.path);
-
-  if (existingFile) {
-    id = existingFile.id;
-  } else {
-    await filesStore.addFile({ ...file, id });
-  }
-
-  router.push({ name: 'editor', params: { id } });
+  await openNativeFile();
 }
 
 async function handleOpenRecentFile(id: string): Promise<void> {
   await openFileById(id);
+}
+
+function getFileLabel(file: Pick<StoredFile, 'name' | 'content'>): string {
+  return getRecentFileLabel(file);
 }
 
 function handleShowShortcuts(): void {
