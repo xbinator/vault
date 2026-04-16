@@ -39,6 +39,8 @@ const electronAPI: ElectronAPI = {
    */
   writeFile: (filePath: string, content: string) => ipcRenderer.invoke('fs:writeFile', filePath, content),
 
+  renameFile: (oldPath: string, newPath: string) => ipcRenderer.invoke('fs:renameFile', oldPath, newPath),
+
   watchFile: (filePath: string) => ipcRenderer.invoke('fs:watchFile', filePath),
 
   unwatchFile: () => ipcRenderer.invoke('fs:unwatchFile'),

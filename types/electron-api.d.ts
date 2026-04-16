@@ -53,6 +53,7 @@ export interface ElectronAPI {
   saveFile: (content: string, filePath?: string, options?: ElectronSaveFileOptions) => Promise<string | null>;
 
   writeFile: (filePath: string, content: string) => Promise<void>;
+  renameFile: (oldPath: string, newPath: string) => Promise<void>;
 
   watchFile: (filePath: string) => Promise<void>;
   unwatchFile: () => Promise<void>;
