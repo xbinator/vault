@@ -54,6 +54,31 @@ export async function initDatabase(): Promise<void> {
       custom_prompt TEXT,
       updated_at INTEGER NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS chat_sessions (
+      id TEXT PRIMARY KEY,
+      type TEXT NOT NULL,
+      title TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      last_message_at INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS chat_messages (
+      id TEXT PRIMARY KEY,
+      session_id TEXT NOT NULL,
+      role TEXT NOT NULL,
+      content TEXT NOT NULL,
+      files_json TEXT,
+      usage_json TEXT,
+      created_at INTEGER NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_chat_sessions_type_last_message_at
+    ON chat_sessions(type, last_message_at DESC);
+
+    CREATE INDEX IF NOT EXISTS idx_chat_messages_session_id_created_at
+    ON chat_messages(session_id, created_at ASC);
   `);
 }
 

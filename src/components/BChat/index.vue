@@ -1,7 +1,7 @@
 <!-- 聊天组件模板 -->
 <template>
   <div class="b-chat">
-    <Container :loading="loading" class="b-chat__container">
+    <Container :loading="props.loading" class="b-chat__container">
       <div class="b-chat__messages">
         <MessageBubble v-for="item in messages" :key="item.id" :message="item" @edit="handleEdit" @regenerate="handleRegenerate" />
       </div>
@@ -13,14 +13,14 @@
         <!-- 提示词编辑器组件 -->
         <BPromptEditor
           v-model:value="inputValue"
-          placeholder="输入消息..."
+          :placeholder="props.placeholder"
           :max-height="200"
-          :submit-on-enter="true"
-          :disabled="loading"
+          :submit-on-enter="props.submitOnEnter"
+          :disabled="props.loading || props.disabled"
           variant="borderless"
           @submit="handleSubmit"
         />
-        <BButton v-if="!loading" size="small" square icon="lucide:send-horizontal" :disabled="!inputValue" @click="handleSubmit" />
+        <BButton v-if="!props.loading" size="small" square icon="lucide:arrow-up" :disabled="!props.canSubmit || props.disabled" @click="handleSubmit" />
         <BButton v-else size="small" square icon="lucide:square" @click="handleAbort" />
       </div>
     </div>
@@ -29,112 +29,94 @@
 
 <script setup lang="ts">
 import type { BChatProps as Props, Message } from './types';
+import type { AIServiceError, AIStreamFinishChunk } from 'types/ai';
 import { ref } from 'vue';
-import { useRouter } from 'vue-router';
-import { message } from 'ant-design-vue';
+import { message as antdMessage } from 'ant-design-vue';
 import { nanoid } from 'nanoid';
 import BButton from '@/components/BButton/index.vue';
 import { useChat } from '@/hooks/useChat';
-import { useServiceModelStore } from '@/stores/service-model';
-import { Modal } from '@/utils/modal';
+import { useChatStore } from '@/stores/chat';
 import Container from './components/Container.vue';
 import MessageBubble from './components/MessageBubble.vue';
 
 defineOptions({ name: 'BChat' });
 
-const props = withDefaults(defineProps<Props>(), {});
+const props = withDefaults(defineProps<Props>(), {
+  loading: false,
+  placeholder: '输入消息...',
+  disabled: false,
+  submitOnEnter: true,
+  canSubmit: false,
+  sessionId: ''
+});
 
-const router = useRouter();
+const emit = defineEmits<{
+  (e: 'submit', prompt: string): void;
+  (e: 'abort'): void;
+  (e: 'edit', message: Message): void;
+  (e: 'regenerate', message: Message): void;
+  (e: 'loadingChange', loading: boolean): void;
+  (e: 'messageUpdate', sessionId: string): void;
+}>();
 
 // 输入框内容
-const inputValue = ref('');
+const inputValue = defineModel<string>('inputValue', { default: '' });
 // 消息列表，支持双向绑定
-const messages = defineModel<Message[]>('value', { default: () => [] });
-// 加载状态
-const loading = ref(false);
-// 服务模型状态存储
-const serviceModelStore = useServiceModelStore();
+const messages = defineModel<Message[]>('messages', { default: () => [] });
 
-// 初始化Agent，处理AI对话流的各种回调
+// Stores
+const chatStore = useChatStore();
+
+// State
+const activeRequest = ref<{ sessionId: string; messageId: string } | null>(null);
+
+// Stream Lifecycle
+async function finalizeRequest(errorMessage?: string): Promise<void> {
+  const request = activeRequest.value;
+  if (!request) return;
+
+  activeRequest.value = null;
+  emit('loadingChange', false);
+
+  await chatStore.updateMessage(request.sessionId, request.messageId, { loading: false, finished: true, error: errorMessage }, false);
+  await chatStore.persistSession(request.sessionId);
+}
+
 const { agent } = useChat({
-  // 接收到流式数据块时的处理
-  onChunk: (content: string) => {
-    const lastMessage = messages.value[messages.value.length - 1];
-    // 追加内容到最后一条助手消息
-    lastMessage.content += content;
-    lastMessage.loading = false;
+  onChunk: async (content: string) => {
+    const request = activeRequest.value;
+    if (!request) return;
+
+    const current = chatStore.getMessagesBySessionId(request.sessionId).find((m) => m.id === request.messageId);
+
+    if (current) {
+      const updates = { content: current.content + content, loading: false };
+      await chatStore.updateMessage(request.sessionId, request.messageId, updates, false);
+      emit('messageUpdate', request.sessionId);
+    }
   },
-  // 对话完成时的处理
-  onComplete: () => {
-    loading.value = false;
-    const lastMessage = messages.value[messages.value.length - 1];
-    // 关闭加载状态
-    lastMessage.loading = false;
-    lastMessage.finished = true;
+  onFinish: async ({ usage }: AIStreamFinishChunk) => {
+    if (activeRequest.value) {
+      const updates = { usage };
+      await chatStore.updateMessage(activeRequest.value.sessionId, activeRequest.value.messageId, updates, false);
+      emit('messageUpdate', activeRequest.value.sessionId);
+    }
   },
-  // 发生错误时的处理
-  onError: (error) => {
-    message.error(error.message);
-    const lastMessage = messages.value[messages.value.length - 1];
-    lastMessage.loading = false;
-    // 记录错误信息
-    lastMessage.error = error.message;
-    lastMessage.finished = true;
+  onComplete: () => finalizeRequest(),
+  onError: (error: AIServiceError) => {
+    antdMessage.error(error.message);
+    finalizeRequest(error.message);
   }
 });
 
 /**
- * 获取服务配置
- * 如果未配置可用的大模型服务，会弹出提示框引导用户去设置
- * @returns 服务配置对象或null
- */
-async function getServiceConfig() {
-  // 检查是否指定了服务类型
-  if (!props.serviceType) return null;
-
-  // 获取可用的服务配置
-  const config = await serviceModelStore.getAvailableServiceConfig(props.serviceType);
-
-  // 如果配置有效，直接返回
-  if (config?.providerId && config?.modelId) return config;
-
-  // 未配置时弹出确认框，引导用户去设置页面
-  const [, confirmed] = await Modal.confirm('提示', '当前未配置可用的大模型服务', { confirmText: '去填写', cancelText: '取消' });
-
-  confirmed && router.push('/settings/service-model');
-}
-
-/**
- * 内部方法：执行大模型流式请求
- * @param config 服务配置
- */
-async function _streamMessage(config: { providerId: string; modelId: string }) {
-  loading.value = true;
-  // 添加助手占位消息
-  messages.value.push({ id: nanoid(), role: 'assistant', content: '', loading: true, finished: false });
-  // 构建传给大模型的上下文历史 (排除刚才加的占位消息)
-  const chatMessages = messages.value.slice(0, -1).map((msg) => ({ role: msg.role, content: msg.content }));
-
-  await agent.stream({ messages: chatMessages, modelId: config.modelId, providerId: config.providerId });
-}
-
-/**
  * 提交消息处理函数
- * 将用户消息添加到列表，并发送给AI获取回复
  */
-async function handleSubmit(): Promise<void> {
+function handleSubmit(): void {
   const prompt = inputValue.value.trim();
-  if (!prompt || loading.value) return;
+  if (!props.canSubmit || props.loading || props.disabled) return;
 
-  const config = await getServiceConfig();
-  if (!config) return;
-
-  // 添加用户消息
-  messages.value.push({ id: nanoid(), role: 'user', content: prompt });
-
-  inputValue.value = '';
-
-  await _streamMessage(config);
+  emit('submit', prompt);
 }
 
 /**
@@ -142,12 +124,7 @@ async function handleSubmit(): Promise<void> {
  */
 function handleAbort(): void {
   agent.abort();
-  loading.value = false;
-  const lastMessage = messages.value[messages.value.length - 1];
-  if (lastMessage?.role === 'assistant' && lastMessage.loading) {
-    lastMessage.loading = false;
-    lastMessage.finished = true;
-  }
+  emit('abort');
 }
 
 /**
@@ -155,23 +132,61 @@ function handleAbort(): void {
  * 将消息内容填充到输入框中
  * @param msg 要编辑的消息对象
  */
-function handleEdit(msg: Message) {
-  inputValue.value = msg.content;
+function handleEdit(msg: Message): void {
+  emit('edit', msg);
 }
 
-async function handleRegenerate(msg: Message) {
-  if (loading.value) return;
-
-  const config = await getServiceConfig();
-  if (!config) return;
-
-  const index = messages.value.findIndex((m) => m.id === msg.id);
-  if (index === -1) return;
-
-  messages.value.splice(index);
-
-  await _streamMessage(config);
+/**
+ * 处理消息重新生成
+ * @param msg 要重新生成的消息对象
+ */
+function handleRegenerate(msg: Message): void {
+  emit('regenerate', msg);
 }
+
+/**
+ * 启动流式请求
+ * @param sessionId 会话ID
+ * @param excludeId 要排除的消息ID
+ * @param config 服务配置
+ */
+async function startStream(sessionId: string, excludeId: string, config: { providerId: string; modelId: string }) {
+  const messageId = await appendAssistantPlaceholder(sessionId);
+  activeRequest.value = { sessionId, messageId };
+  emit('loadingChange', true);
+
+  await agent.stream({
+    messages: chatStore
+      .getMessagesBySessionId(sessionId)
+      .filter((m) => m.id !== excludeId)
+      .map(({ role, content }) => ({ role, content })),
+    modelId: config.modelId,
+    providerId: config.providerId
+  });
+}
+
+/**
+ * 创建一条 assistant 占位消息并挂载到 session，返回消息 id
+ * @param sessionId 会话ID
+ * @returns 消息ID
+ */
+async function appendAssistantPlaceholder(sessionId: string): Promise<string> {
+  const msg = chatStore.createMessage({
+    id: nanoid(),
+    role: 'assistant',
+    content: '',
+    createdAt: Date.now(),
+    loading: true,
+    finished: false
+  });
+  await chatStore.appendMessage(sessionId, msg, false);
+  return msg.id;
+}
+
+// 暴露方法给父组件
+defineExpose({
+  startStream
+});
 </script>
 
 <style lang="less">

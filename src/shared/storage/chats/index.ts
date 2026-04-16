@@ -1,0 +1,1 @@
+export { chatStorage } from './sqlite';

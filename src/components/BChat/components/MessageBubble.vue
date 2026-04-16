@@ -1,9 +1,17 @@
 <template>
   <div class="b-message-bubble">
     <BBubbleText :content="message.content" :placement="message.role === 'assistant' ? 'left' : 'right'" :loading="message.loading" size="auto">
-      <template v-if="message.role === 'user' && message.images?.length" #header>
-        <div class="b-message-bubble__images">
-          <img v-for="(img, idx) in message.images" :key="idx" :src="img" alt="Uploaded Image" class="b-message-bubble__image" />
+      <template v-if="message.role === 'user' && (imageFiles.length || otherFiles.length)" #header>
+        <div class="b-message-bubble__header">
+          <div v-if="imageFiles.length" class="b-message-bubble__images">
+            <img v-for="file in imageFiles" :key="file.id" :src="file.url || file.path" :alt="file.name" class="b-message-bubble__image" />
+          </div>
+          <div v-if="otherFiles.length" class="b-message-bubble__files">
+            <div v-for="file in otherFiles" :key="file.id" class="b-message-bubble__file">
+              <Icon icon="lucide:file" width="14" height="14" />
+              <span class="b-message-bubble__file-name">{{ file.name }}</span>
+            </div>
+          </div>
         </div>
       </template>
       <template v-if="message.finished" #toolbar>
@@ -19,6 +27,8 @@
 
 <script setup lang="ts">
 import type { Message } from '../types';
+import { computed } from 'vue';
+import { Icon } from '@iconify/vue';
 import BBubbleText from '@/components/BBubbleText/index.vue';
 import BButton from '@/components/BButton/index.vue';
 import { useClipboard } from '@/hooks/useClipboard';
@@ -27,12 +37,15 @@ defineOptions({ name: 'BMessageBubble' });
 
 const { clipboard } = useClipboard();
 
-defineProps<{ message: Message }>();
+const props = defineProps<{ message: Message }>();
 
 defineEmits<{
   (e: 'edit', message: Message): void;
   (e: 'regenerate', message: Message): void;
 }>();
+
+const imageFiles = computed(() => props.message.files?.filter((file) => file.type === 'image' && (file.url || file.path)) ?? []);
+const otherFiles = computed(() => props.message.files?.filter((file) => file.type !== 'image' || (!file.url && !file.path)) ?? []);
 
 function handleCopy(msg: Message) {
   clipboard(msg.content, { successMessage: '已复制到剪贴板' });
@@ -50,6 +63,12 @@ function handleCopy(msg: Message) {
   margin-bottom: 0;
 }
 
+.b-message-bubble__header {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
 .b-message-bubble__images {
   display: flex;
   flex-wrap: wrap;
@@ -61,6 +80,31 @@ function handleCopy(msg: Message) {
   max-height: 200px;
   object-fit: cover;
   border-radius: 8px;
+}
+
+.b-message-bubble__files {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.b-message-bubble__file {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  max-width: 220px;
+  padding: 6px 10px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  border-radius: 999px;
+}
+
+.b-message-bubble__file-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .b-message-bubble__toolbar {
