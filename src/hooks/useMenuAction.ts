@@ -16,6 +16,9 @@ export function useMenuAction() {
       case 'file:open':
         emitter.emit('file:open');
         break;
+      case 'file:recent':
+        emitter.emit('file:recent');
+        break;
       case 'file:duplicate':
         emitter.emit('file:duplicate');
         break;

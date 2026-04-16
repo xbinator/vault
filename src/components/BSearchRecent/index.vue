@@ -15,7 +15,7 @@
             @click="handleSelect(file)"
           >
             <div class="b-search-recent-item-main">
-              <span class="b-search-recent-item-title">{{ getFileLabel(file) }}</span>
+              <span class="b-search-recent-item-title">{{ getRecentFileLabel(file) }}</span>
 
               <span v-if="file.path" class="b-search-recent-item-path">{{ file.path }}</span>
 
@@ -44,6 +44,7 @@ import BScrollbar from '@/components/BScrollbar/index.vue';
 import { useOpenFile } from '@/hooks/useOpenFile';
 import type { StoredFile } from '@/shared/storage';
 import { useFilesStore } from '@/stores/files';
+import { getRecentFileLabel } from '@/utils/recentFile';
 
 withDefaults(defineProps<BSearchRecentProps>(), {
   maxHeight: 420
@@ -63,13 +64,6 @@ const inputRef = ref<HTMLElement | null>(null);
 
 const activeId = computed<string>(() => (route.name === 'editor' ? (route.params.id as string) || '' : ''));
 
-function getFileLabel(file: Pick<StoredFile, 'name' | 'content'>): string {
-  const content = file.content.replace(/^\s*---[\s\S]*?---\s*\n?/, '');
-  const match = /^#{1,6}\s+(.+)/m.exec(content);
-
-  return match?.[1]?.trim() || file.name || '未命名';
-}
-
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
@@ -87,7 +81,7 @@ const filteredFiles = computed<StoredFile[]>(() => {
   const searchRegExp = createSearchRegExp(term);
 
   return files.filter((file) => {
-    const label = getFileLabel(file);
+    const label = getRecentFileLabel(file);
 
     const name = file.name || '';
     const path = file.path || '';

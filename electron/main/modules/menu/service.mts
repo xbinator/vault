@@ -1,4 +1,5 @@
 import { app, Menu, MenuItemConstructorOptions, BrowserWindow } from 'electron';
+import { getWindow } from '../../window.mjs';
 
 export function setupAppMenu(): void {
   const isMac = process.platform === 'darwin';
@@ -9,7 +10,7 @@ export function setupAppMenu(): void {
   }
 
   const sendAction = (action: string) => {
-    const win = BrowserWindow.getFocusedWindow();
+    const win = BrowserWindow.getFocusedWindow() ?? getWindow() ?? BrowserWindow.getAllWindows()[0];
     if (win) {
       win.webContents.send('menu:action', action);
     }

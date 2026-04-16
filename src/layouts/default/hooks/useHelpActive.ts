@@ -1,6 +1,7 @@
 import { computed, onUnmounted } from 'vue';
 import { useToolbarShortcuts } from '@/components/BToolbar/hooks/useToolbarShortcuts';
 import type { ToolbarOptions } from '@/components/BToolbar/types';
+import { emitter } from '@/utils/emitter';
 
 interface UseHelpOptions {
   searchRecent: boolean;
@@ -22,7 +23,14 @@ export function useHelpActive(options: UseHelpOptions) {
   ]);
 
   const cleanup = registerShortcuts(toolbarHelpOptions.value);
-  onUnmounted(cleanup);
+  const unregisterShortcuts = emitter.on('help:shortcuts', () => {
+    options.shortcutsHelp = true;
+  });
+
+  onUnmounted(() => {
+    cleanup();
+    unregisterShortcuts();
+  });
 
   return {
     toolbarHelpOptions
