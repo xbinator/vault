@@ -1,7 +1,7 @@
 <template>
   <div v-if="editor && visible" ref="wrapperRef" class="ai-input-wrapper" :style="wrapperStyle">
     <!-- AI 生成预览区 -->
-    <div v-if="previewText || loading" class="ai-preview" @click="applyGeneratedContent">
+    <div v-if="previewText || loading" class="ai-preview">
       <div class="ai-preview-text">
         <BMessage :content="previewText" :max-height="200" type="text" status="streaming" :loading="loading" />
       </div>
@@ -15,7 +15,7 @@
         </div>
         <div v-else class="flex items-center justify-between">
           <div>点击应用 AI 生成内容</div>
-          <div class="flex items-center gap-2">
+          <div class="flex items-center gap-4">
             <BButton type="secondary" size="small" @click.stop="closePanel">取 消</BButton>
             <BButton type="primary" size="small" @click.stop="applyGeneratedContent">应 用</BButton>
           </div>
@@ -262,7 +262,6 @@ onBeforeUnmount(() => {
 
 // ---- 预览确认区 ----
 .ai-preview {
-  cursor: pointer;
   background: var(--bg-primary);
   border: 1px solid var(--border-secondary);
   border-radius: 8px;

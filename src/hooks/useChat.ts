@@ -103,7 +103,6 @@ export function useChat(options: UseStreamOptions) {
     try {
       await electronAPI.aiStream(provider, cloneDeep({ ...payload, requestId }));
     } catch (err) {
-      console.log('🚀 ~ onStream ~ err:', err);
       _onError({ message: String((err as Error | AIServiceError)?.message || '未知错误') } as AIServiceError);
 
       cleanupAll();
