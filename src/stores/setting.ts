@@ -15,6 +15,8 @@ const LEGACY_SIDEBAR_VISIBLE_KEY = 'sidebar_visible';
 const LEGACY_SIDEBAR_WIDTH_KEY = 'sidebar_width';
 
 interface PersistedSettingState {
+  providerSidebarCollapsed: boolean;
+  settingsSidebarCollapsed: boolean;
   theme: ThemeMode;
   showOutline: boolean;
   sourceMode: boolean;
@@ -27,6 +29,8 @@ interface SettingState extends PersistedSettingState {
 }
 
 const DEFAULT_SETTINGS: PersistedSettingState = {
+  providerSidebarCollapsed: false,
+  settingsSidebarCollapsed: false,
   theme: 'system',
   showOutline: true,
   sourceMode: false,
@@ -143,6 +147,8 @@ export const useSettingStore = defineStore('setting', {
 
     persistSettings(): void {
       const settings: PersistedSettingState = {
+        providerSidebarCollapsed: this.providerSidebarCollapsed,
+        settingsSidebarCollapsed: this.settingsSidebarCollapsed,
         theme: this.theme,
         showOutline: this.showOutline,
         sourceMode: this.sourceMode,
@@ -227,6 +233,16 @@ export const useSettingStore = defineStore('setting', {
 
     toggleSidebar(): void {
       this.setSidebarVisible(!this.sidebarVisible);
+    },
+
+    setSettingsSidebarCollapsed(collapsed: boolean): void {
+      this.settingsSidebarCollapsed = collapsed;
+      this.persistSettings();
+    },
+
+    setProviderSidebarCollapsed(collapsed: boolean): void {
+      this.providerSidebarCollapsed = collapsed;
+      this.persistSettings();
     },
 
     /**

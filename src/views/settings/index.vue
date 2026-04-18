@@ -20,13 +20,21 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { useRoute } from 'vue-router';
+import { storeToRefs } from 'pinia';
 import { Icon } from '@iconify/vue';
 import { useAutoCollapse } from '@/hooks/useAutoCollapse';
+import { useSettingStore } from '@/stores/setting';
 import { menuItems, type SettingsMenuKey } from './constants';
 
 const route = useRoute();
+const settingStore = useSettingStore();
+const { settingsSidebarCollapsed } = storeToRefs(settingStore);
 const settingsContainerRef = ref<HTMLElement | null>(null);
-const { collapsed: sidebarCollapsed, toggleCollapsed: toggleSidebarCollapsed } = useAutoCollapse(settingsContainerRef, { threshold: 800 });
+const { collapsed: sidebarCollapsed, toggleCollapsed: toggleSidebarCollapsed } = useAutoCollapse(settingsContainerRef, {
+  collapsed: settingsSidebarCollapsed,
+  onCollapsedChange: (collapsed: boolean) => settingStore.setSettingsSidebarCollapsed(collapsed),
+  threshold: 800
+});
 
 function isActive(key: SettingsMenuKey): boolean {
   const prefix = `/settings/${key}`;
