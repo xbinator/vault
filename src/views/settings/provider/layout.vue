@@ -116,11 +116,13 @@ import type { Category, ProviderComputedData, ProviderOption } from './types';
 import type { AIProvider } from 'types/ai';
 import { computed, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import { storeToRefs } from 'pinia';
 import { Icon } from '@iconify/vue';
 import BDropdown from '@/components/BDropdown/index.vue';
 import BDropdownMenu from '@/components/BDropdown/Menu.vue';
 import type { DropdownOptionItem } from '@/components/BDropdown/type';
 import { useAutoCollapse } from '@/hooks/useAutoCollapse';
+import { useSettingStore } from '@/stores/setting';
 import { Modal } from '@/utils/modal';
 import ProviderModal from './components/ProviderModal.vue';
 import SidebarItem from './components/SidebarItem.vue';
@@ -131,10 +133,16 @@ import { useProviders } from './hooks/useProviders';
 const router = useRouter();
 const route = useRoute();
 const { providers, deleteCustomProvider } = useProviders();
+const settingStore = useSettingStore();
+const { providerSidebarCollapsed } = storeToRefs(settingStore);
 
 const layoutRef = ref<HTMLElement | null>(null);
 const searchKeyword = ref<string>('');
-const { collapsed: sidebarCollapsed, toggleCollapsed: toggleSidebarCollapsed } = useAutoCollapse(layoutRef, { threshold: 900 });
+const { collapsed: sidebarCollapsed, toggleCollapsed: toggleSidebarCollapsed } = useAutoCollapse(layoutRef, {
+  collapsed: providerSidebarCollapsed,
+  onCollapsedChange: (collapsed: boolean) => settingStore.setProviderSidebarCollapsed(collapsed),
+  threshold: 900
+});
 
 const providerComputedData = computed<ProviderComputedData>(() => {
   const custom: ProviderOption[] = [];

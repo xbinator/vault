@@ -2,7 +2,9 @@ import type { Ref } from 'vue';
 import { onBeforeUnmount, onMounted, ref } from 'vue';
 
 interface UseAutoCollapseOptions {
+  collapsed?: Ref<boolean>;
   defaultCollapsed?: boolean;
+  onCollapsedChange?: (value: boolean) => void;
   threshold: number;
 }
 
@@ -14,11 +16,20 @@ interface UseAutoCollapseReturn {
 }
 
 export function useAutoCollapse(target: Ref<HTMLElement | null>, options: UseAutoCollapseOptions): UseAutoCollapseReturn {
-  const { defaultCollapsed = false, threshold } = options;
-  const collapsed = ref<boolean>(defaultCollapsed);
+  const { collapsed: controlledCollapsed, defaultCollapsed = false, onCollapsedChange, threshold } = options;
+  const collapsed = controlledCollapsed ?? ref<boolean>(defaultCollapsed);
   const isAutoCollapsed = ref<boolean>(false);
   let hasMeasured = false;
   let resizeObserver: ResizeObserver | null = null;
+
+  function setCollapsed(value: boolean): void {
+    collapsed.value = value;
+    onCollapsedChange?.(value);
+  }
+
+  function toggleCollapsed(): void {
+    setCollapsed(!collapsed.value);
+  }
 
   function updateAutoCollapsed(width: number): void {
     const nextAutoCollapsed = width < threshold;
@@ -26,15 +37,7 @@ export function useAutoCollapse(target: Ref<HTMLElement | null>, options: UseAut
 
     hasMeasured = true;
     isAutoCollapsed.value = nextAutoCollapsed;
-    collapsed.value = nextAutoCollapsed;
-  }
-
-  function setCollapsed(value: boolean): void {
-    collapsed.value = value;
-  }
-
-  function toggleCollapsed(): void {
-    collapsed.value = !collapsed.value;
+    setCollapsed(nextAutoCollapsed);
   }
 
   onMounted(() => {
