@@ -59,6 +59,18 @@ const emit = defineEmits(['change', 'rename-file', 'delete-file', 'show-in-folde
 
 const sidebarWidth = ref(260);
 
+function stripMarkdown(text: string): string {
+  return text
+    .replace(/^#+\s*/, '')
+    .replace(/\*\*(.+?)\*\*/g, '$1')
+    .replace(/\*(.+?)\*/g, '$1')
+    .replace(/__(.+?)__/g, '$1')
+    .replace(/_(.+?)_/g, '$1')
+    .replace(/~~(.+?)~~/g, '$1')
+    .replace(/`(.+?)`/g, '$1')
+    .replace(/\[(.+?)\]\(.+?\)/g, '$1');
+}
+
 const items = computed(() => {
   if (!props.content) return [];
 
@@ -68,7 +80,7 @@ const items = computed(() => {
 
   const _headings = headings.map((t, i) => ({
     id: props.anchorIdPrefix ? `${props.anchorIdPrefix}-heading-${i}` : `heading-${i}`,
-    text: t.text.trim(),
+    text: stripMarkdown(t.text.trim()),
     level: t.depth
   }));
 

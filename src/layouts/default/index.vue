@@ -26,11 +26,11 @@
         <div class="b-layout-header__right">
           <!-- 辅助工具侧边栏切换按钮 -->
           <BButton type="secondary" size="small" square @click="handleToggleSidebar">
-            <Icon icon="lucide:panel-right" width="16" height="16" />
+            <Icon :icon="settingStore.sidebarVisible ? 'tabler:layout-sidebar-right-filled' : 'tabler:layout-sidebar-right'" width="16" height="16" />
           </BButton>
 
           <BButton type="secondary" size="small" square @click="handleOpenSettings">
-            <Icon icon="lucide:settings" width="16" height="16" />
+            <Icon icon="tabler:settings" width="16" height="16" />
           </BButton>
         </div>
       </div>
