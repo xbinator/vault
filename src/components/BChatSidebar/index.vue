@@ -13,6 +13,8 @@
         placeholder="输入消息..."
         :on-before-send="handleBeforeSend"
         :on-before-regenerate="handleBeforeRegenerate"
+        :tools="tools"
+        :get-tool-context="editorToolContextRegistry.getCurrentContext"
         @complete="handleComplete"
       >
         <template #empty>
@@ -36,8 +38,13 @@
 import type { ChatSession } from 'types/chat';
 import { onMounted, ref } from 'vue';
 import { Icon } from '@iconify/vue';
+import { createBuiltinTools } from '@/ai/tools/builtin';
+import type { AIToolConfirmationRequest } from '@/ai/tools/confirmation';
+import { editorToolContextRegistry } from '@/ai/tools/editor-context';
+import { getDefaultChatToolNames } from '@/ai/tools/policy';
 import type { Message } from '@/components/BChat/types';
 import { useChatStore } from '@/stores/chat';
+import { Modal } from '@/utils/modal';
 import SessionHistory from './components/SessionHistory.vue';
 
 const CHAT_SESSION_TYPE = 'assistant';
@@ -49,6 +56,30 @@ const activeSessionId = ref<string | null>(null);
 const messages = ref<Message[]>([]);
 const sessions = ref<ChatSession[]>([]);
 const loading = ref(false);
+const tools = createBuiltinTools({
+  confirm: {
+    async confirm(request: AIToolConfirmationRequest): Promise<boolean> {
+      // 先复用统一 confirm modal，后续再升级为更完整的 diff 预览组件。
+      const content = [
+        request.description,
+        request.beforeText ? `原文：\n${request.beforeText}` : '',
+        request.afterText ? `新内容：\n${request.afterText}` : ''
+      ]
+        .filter(Boolean)
+        .join('\n\n');
+
+      const [, confirmed] = await Modal.confirm(request.title, content, {
+        confirmText: '应用',
+        cancelText: '取消'
+      });
+
+      return confirmed;
+    }
+  }
+}).filter((tool) => {
+  // MVP 聊天侧先只开放低风险工具，避免默认暴露替换类操作。
+  return getDefaultChatToolNames().includes(tool.definition.name);
+});
 
 async function handleBeforeSend(message: Message): Promise<void> {
   if (!activeSessionId.value) {

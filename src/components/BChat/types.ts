@@ -1,5 +1,6 @@
 import type { AIUsage } from 'types/ai';
 import type { ChatMessageFile, ChatMessageRole } from 'types/chat';
+import type { AIToolContext, AIToolExecutor } from '@/ai/tools/types';
 
 export interface Message {
   id: string;
@@ -18,4 +19,6 @@ export interface BChatProps {
   messages?: Message[];
   onBeforeSend?: (message: Message) => Message | Promise<Message | void> | void;
   onBeforeRegenerate?: (messages: Message[], triggerMessage: Message) => Promise<void> | void;
+  tools?: AIToolExecutor[];
+  getToolContext?: () => AIToolContext | undefined;
 }

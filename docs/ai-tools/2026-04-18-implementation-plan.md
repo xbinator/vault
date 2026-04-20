@@ -8,7 +8,53 @@
 
 **Tech Stack:** Vue 3, Pinia, TypeScript strict mode, Electron IPC, Vercel AI SDK `streamText`, Vitest, Ant Design Vue modal utilities.
 
+**Explicit constraints for v1:**
+
+- Single active editor context only.
+- Tool calls are handled serially, not in parallel.
+- No prompt-JSON fallback for providers without native tools.
+- Tool events are not persisted as normal chat history.
+- All write tools require per-call confirmation.
+- `replace_document` is implemented behind a cautious gate and should not be in the default exposed tool set until earlier write tools are stable.
+
 ---
+
+## Recommended Delivery Order
+
+Even though the tasks below are listed by module, the safest rollout order is:
+
+1. Tool transport and renderer loop for read-only tools only.
+2. `read_current_document` and `get_current_selection`.
+3. `search_current_document`.
+4. Confirmation UI and `insert_at_cursor`.
+5. `replace_selection`.
+6. `replace_document` only after the above path is stable.
+
+This keeps the first end-to-end milestone small: confirm protocol, state transitions, and second-round model continuation before adding higher-risk write operations.
+
+## Additional Design Requirements To Carry Into Implementation
+
+- Every transport-level tool call must carry a stable `toolCallId`.
+- Executed tool results must reference the same `toolCallId`.
+- Renderer must prevent duplicate execution for the same `toolCallId`.
+- Write tools must re-read the latest editor state right before execution.
+- Provider capability checks must happen before enabling tools in the UI.
+- Abort must stop future tool rounds and clear any pending confirmation state for the current response.
+
+## UI State Expectations
+
+Before implementation, keep these minimum states explicit in the chat layer:
+
+- `idle`
+- `streaming_text`
+- `executing_tool`
+- `awaiting_tool_confirmation`
+- `resuming_after_tool`
+- `completed`
+- `failed`
+- `aborted`
+
+Tasks below do not need a dedicated state-machine module if the current codebase does not warrant it, but the implementation should still preserve these transitions cleanly.
 
 ## File Structure
 
@@ -17,6 +63,7 @@ Create:
 - `src/ai/tools/types.ts` — shared tool contracts, permissions, context, execution result types.
 - `src/ai/tools/results.ts` — small helpers for success, failure, and cancellation results.
 - `src/ai/tools/editor-context.ts` — active editor tool context registry.
+- `src/ai/tools/registry.ts` — tool lookup and conversion helpers from internal definitions to model transport schema.
 - `src/ai/tools/builtin/read.ts` — read-only built-in tools.
 - `src/ai/tools/builtin/write.ts` — write built-in tools.
 - `src/ai/tools/builtin/index.ts` — built-in tool registry export.
@@ -164,8 +211,13 @@ export interface AIToolExecutionError {
     | 'INVALID_INPUT'
     | 'NO_ACTIVE_DOCUMENT'
     | 'NO_SELECTION'
+    | 'NO_CURSOR'
     | 'USER_CANCELLED'
     | 'EDITOR_UNAVAILABLE'
+    | 'STALE_CONTEXT'
+    | 'TOOL_TIMEOUT'
+    | 'UNSUPPORTED_PROVIDER'
+    | 'CONFIRMATION_DISMISSED'
     | 'EXECUTION_FAILED';
   message: string;
 }
@@ -1547,6 +1599,10 @@ pnpm test test/ai/tools/stream.test.ts
 
 Expected: PASS.
 
+- [ ] **Step 4.5: Add duplicate tool-call protection**
+
+Extend `src/ai/tools/stream.ts` or the caller-side orchestration with a per-response executed-call registry so the same `toolCallId` cannot execute a write tool twice. Repeated tool-call chunks should be ignored after the first successful dispatch attempt.
+
 - [ ] **Step 5: Commit**
 
 ```bash
@@ -1738,6 +1794,10 @@ pnpm build
 
 Expected: PASS.
 
+- [ ] **Step 4.5: Gate tools by provider capability**
+
+Before passing tools into the request, check whether the active provider supports native tool calling. Unsupported providers should either hide the tool-enabled flow or return a stable `UNSUPPORTED_PROVIDER` path without entering the tool loop.
+
 - [ ] **Step 5: Commit**
 
 ```bash
@@ -1906,6 +1966,10 @@ pnpm build
 
 Expected: PASS.
 
+- [ ] **Step 5.5: Verify abort behavior**
+
+Add coverage or focused verification for the case where the user aborts while a tool is pending or while the chat is waiting for confirmation. Expected behavior: no additional tool rounds continue and UI state returns to `aborted` cleanly.
+
 - [ ] **Step 6: Commit**
 
 ```bash
@@ -1943,6 +2007,12 @@ pnpm test test/ai/tools/results.test.ts test/ai/tools/editor-context.test.ts tes
 ```
 
 Expected: PASS.
+
+Focused test coverage should now also include:
+
+- Duplicate `toolCallId` does not execute a write tool twice.
+- Abort stops tool continuation cleanly.
+- Unsupported providers do not enter the tool loop.
 
 - [ ] **Step 3: Run full tests**
 

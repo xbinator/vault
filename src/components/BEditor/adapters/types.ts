@@ -6,6 +6,12 @@ export interface EditorSearchState {
   term: string;
 }
 
+export interface EditorSelection {
+  from: number;
+  to: number;
+  text: string;
+}
+
 export const EMPTY_SEARCH_STATE: EditorSearchState = {
   currentIndex: 0,
   matchCount: 0,
@@ -23,6 +29,10 @@ export interface EditorController {
   findNext: () => void;
   findPrevious: () => void;
   clearSearch: () => void;
+  getSelection: () => EditorSelection | null;
+  insertAtCursor: (content: string) => Promise<void>;
+  replaceSelection: (content: string) => Promise<void>;
+  replaceDocument: (content: string) => Promise<void>;
   getSearchState: () => EditorSearchState;
   scrollToAnchor: (anchorId: string) => boolean;
   getActiveAnchorId: (scrollContainer: HTMLElement, thresholdPx: number) => string;
@@ -46,6 +56,18 @@ export function createNoopEditorController(): EditorController {
     findNext: noop,
     findPrevious: noop,
     clearSearch: noop,
+    getSelection(): EditorSelection | null {
+      return null;
+    },
+    async insertAtCursor(): Promise<void> {
+      return undefined;
+    },
+    async replaceSelection(): Promise<void> {
+      return undefined;
+    },
+    async replaceDocument(): Promise<void> {
+      return undefined;
+    },
     getSearchState(): EditorSearchState {
       return { ...EMPTY_SEARCH_STATE };
     },

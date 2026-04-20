@@ -4,7 +4,8 @@
  * 通过 contextBridge 将 electronAPI 注入到 window 对象
  */
 
-import type { ElectronAPI } from 'types/electron-api';
+import type { AIServiceError, AIStreamFinishChunk, AIStreamToolCallChunk } from 'types/ai';
+import type { ElectronAPI, FileChangeEvent } from 'types/electron-api';
 import { contextBridge, ipcRenderer } from 'electron';
 
 /**
@@ -50,7 +51,7 @@ const electronAPI: ElectronAPI = {
   unwatchFile: () => ipcRenderer.invoke('fs:unwatchFile'),
 
   onFileChanged: (callback) => {
-    const handler = (_event: Electron.IpcRendererEvent, data: any) => {
+    const handler = (_event: Electron.IpcRendererEvent, data: FileChangeEvent) => {
       callback(data);
     };
     ipcRenderer.on('file:changed', handler);
@@ -183,8 +184,7 @@ const electronAPI: ElectronAPI = {
   },
 
   onAiStreamError: (callback) => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const handler = (_event: Electron.IpcRendererEvent, error: any) => callback(error);
+    const handler = (_event: Electron.IpcRendererEvent, error: AIServiceError) => callback(error);
 
     ipcRenderer.on('ai:stream:error', handler);
     return () => {
@@ -193,11 +193,20 @@ const electronAPI: ElectronAPI = {
   },
 
   onAiStreamFinish: (callback) => {
-    const handler = (_event: Electron.IpcRendererEvent, payload: any) => callback(payload);
+    const handler = (_event: Electron.IpcRendererEvent, payload: AIStreamFinishChunk) => callback(payload);
 
     ipcRenderer.on('ai:stream:finish', handler);
     return () => {
       ipcRenderer.removeListener('ai:stream:finish', handler);
+    };
+  },
+
+  onAiStreamToolCall: (callback) => {
+    const handler = (_event: Electron.IpcRendererEvent, payload: AIStreamToolCallChunk) => callback(payload);
+
+    ipcRenderer.on('ai:stream:tool-call', handler);
+    return () => {
+      ipcRenderer.removeListener('ai:stream:tool-call', handler);
     };
   },
 

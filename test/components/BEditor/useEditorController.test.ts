@@ -36,6 +36,21 @@ function createController(tag: string): EditorController {
     clearSearch(): void {
       void tag;
     },
+    getSelection() {
+      return { from: 1, to: 3, text: tag };
+    },
+    async insertAtCursor(content: string): Promise<void> {
+      void content;
+      void tag;
+    },
+    async replaceSelection(content: string): Promise<void> {
+      void content;
+      void tag;
+    },
+    async replaceDocument(content: string): Promise<void> {
+      void content;
+      void tag;
+    },
     getSearchState(): ReturnType<EditorController['getSearchState']> {
       return EMPTY_SEARCH_STATE;
     },
@@ -92,6 +107,7 @@ describe('useEditorController', () => {
     expect(focusEditorAtStart).toHaveBeenCalledTimes(1);
     expect(controller.value.canUndo()).toBe(false);
     expect(controller.value.canRedo()).toBe(false);
+    expect(controller.value.getSelection()).toBeNull();
     expect(controller.value.getSearchState()).toEqual(EMPTY_SEARCH_STATE);
   });
 
@@ -113,9 +129,36 @@ describe('useEditorController', () => {
     expect(() => controller.value.findNext()).not.toThrow();
     expect(() => controller.value.findPrevious()).not.toThrow();
     expect(() => controller.value.clearSearch()).not.toThrow();
+    expect(controller.value.getSelection()).toBeNull();
     expect(controller.value.getSearchState()).toEqual(EMPTY_SEARCH_STATE);
     expect(controller.value.scrollToAnchor('heading-0')).toBe(false);
     expect(controller.value.getActiveAnchorId(null as unknown as HTMLElement, 100)).toBe('');
     expect(noopController.getSearchState()).toEqual(EMPTY_SEARCH_STATE);
+  });
+
+  it('delegates editor write methods to the active controller', async () => {
+    const insertAtCursor = vi.fn(async () => undefined);
+    const replaceSelection = vi.fn(async () => undefined);
+    const replaceDocument = vi.fn(async () => undefined);
+    const controller = useEditorController({
+      isRichMode: computed(() => true),
+      richEditorPaneRef: shallowRef<EditorController | null>({
+        ...createController('rich'),
+        insertAtCursor,
+        replaceSelection,
+        replaceDocument
+      }),
+      sourceEditorPaneRef: shallowRef<EditorController | null>(null)
+    });
+
+    expect(controller.value.getSelection()).toEqual({ from: 1, to: 3, text: 'rich' });
+
+    await controller.value.insertAtCursor('A');
+    await controller.value.replaceSelection('B');
+    await controller.value.replaceDocument('C');
+
+    expect(insertAtCursor).toHaveBeenCalledWith('A');
+    expect(replaceSelection).toHaveBeenCalledWith('B');
+    expect(replaceDocument).toHaveBeenCalledWith('C');
   });
 });

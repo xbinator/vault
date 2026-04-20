@@ -192,6 +192,22 @@ function clearSearch(): void {
   editorController.value.clearSearch();
 }
 
+function getSelection() {
+  return editorController.value.getSelection();
+}
+
+async function insertAtCursor(content: string): Promise<void> {
+  await editorController.value.insertAtCursor(content);
+}
+
+async function replaceSelection(content: string): Promise<void> {
+  await editorController.value.replaceSelection(content);
+}
+
+async function replaceDocument(content: string): Promise<void> {
+  await editorController.value.replaceDocument(content);
+}
+
 function focusEditor(): void {
   editorController.value.focusEditor();
 }
@@ -206,6 +222,10 @@ const editorPublicInstance = computed<BEditorPublicInstance>(() => ({
   canUndo,
   canRedo,
   focusEditor,
+  getSelection,
+  insertAtCursor,
+  replaceSelection,
+  replaceDocument,
   setSearchTerm,
   findNext,
   findPrevious,
@@ -213,7 +233,23 @@ const editorPublicInstance = computed<BEditorPublicInstance>(() => ({
   getSearchState
 }));
 
-defineExpose({ setContent, undo, redo, canUndo, canRedo, setSearchTerm, findNext, findPrevious, clearSearch, focusEditor, getSearchState });
+defineExpose({
+  setContent,
+  undo,
+  redo,
+  canUndo,
+  canRedo,
+  setSearchTerm,
+  findNext,
+  findPrevious,
+  clearSearch,
+  focusEditor,
+  getSelection,
+  insertAtCursor,
+  replaceSelection,
+  replaceDocument,
+  getSearchState
+});
 </script>
 
 <style lang="less">

@@ -1,0 +1,121 @@
+import { describe, expect, it } from 'vitest';
+import type { AIToolContext, AIToolExecutor } from '@/ai/tools/types';
+import { createToolSuccessResult } from '@/ai/tools/results';
+import { createToolResultMessages, executeToolCall, toTransportTools } from '@/ai/tools/stream';
+
+function createContext(): AIToolContext {
+  return {
+    document: {
+      id: 'doc-1',
+      title: 'Note',
+      path: null,
+      getContent: () => 'content'
+    },
+    editor: {
+      getSelection: () => null,
+      insertAtCursor: async () => undefined,
+      replaceSelection: async () => undefined,
+      replaceDocument: async () => undefined
+    }
+  };
+}
+
+const echoTool: AIToolExecutor<{ value: string }, { value: string }> = {
+  definition: {
+    name: 'echo',
+    description: 'Echo value',
+    source: 'builtin',
+    permission: 'read',
+    parameters: {
+      type: 'object',
+      properties: {
+        value: { type: 'string' }
+      },
+      required: ['value'],
+      additionalProperties: false
+    }
+  },
+  async execute(input) {
+    return createToolSuccessResult('echo', { value: input.value });
+  }
+};
+
+describe('AI tool stream helpers', () => {
+  it('converts executors to transport tools', () => {
+    expect(toTransportTools([echoTool])).toEqual([
+      {
+        name: 'echo',
+        description: 'Echo value',
+        parameters: {
+          type: 'object',
+          properties: {
+            value: { type: 'string' }
+          },
+          required: ['value'],
+          additionalProperties: false
+        }
+      }
+    ]);
+  });
+
+  it('executes a registered tool', async () => {
+    const result = await executeToolCall({ toolCallId: 'call-1', toolName: 'echo', input: { value: 'hi' } }, [echoTool], createContext());
+
+    expect(result).toEqual({
+      toolCallId: 'call-1',
+      toolName: 'echo',
+      input: { value: 'hi' },
+      result: {
+        toolName: 'echo',
+        status: 'success',
+        data: { value: 'hi' }
+      }
+    });
+  });
+
+  it('returns a failure for unknown tools', async () => {
+    const result = await executeToolCall({ toolCallId: 'call-2', toolName: 'missing', input: {} }, [echoTool], createContext());
+
+    expect(result.result.status).toBe('failure');
+    expect(result.result.error?.code).toBe('TOOL_NOT_FOUND');
+  });
+
+  it('returns a failure when no active context exists', async () => {
+    const result = await executeToolCall({ toolCallId: 'call-3', toolName: 'echo', input: { value: 'hi' } }, [echoTool], undefined);
+
+    expect(result.result.status).toBe('failure');
+    expect(result.result.error?.code).toBe('NO_ACTIVE_DOCUMENT');
+  });
+
+  it('creates tool-result model messages from executed tool calls', () => {
+    const messages = createToolResultMessages([
+      {
+        toolCallId: 'call-1',
+        toolName: 'echo',
+        input: { value: 'hi' },
+        result: createToolSuccessResult('echo', { value: 'hi' })
+      }
+    ]);
+
+    expect(messages).toEqual([
+      {
+        role: 'tool',
+        content: [
+          {
+            type: 'tool-result',
+            toolCallId: 'call-1',
+            toolName: 'echo',
+            output: {
+              type: 'json',
+              value: {
+                toolName: 'echo',
+                status: 'success',
+                data: { value: 'hi' }
+              }
+            }
+          }
+        ]
+      }
+    ]);
+  });
+});

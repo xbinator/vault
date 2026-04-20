@@ -1,4 +1,5 @@
 import type { ModelMessage } from 'ai';
+import type { JSONSchema7 } from 'json-schema';
 
 /**
  * 提供商请求格式类型
@@ -36,6 +37,28 @@ export interface AIRequestOptions {
   temperature?: number;
   // 对话消息列表（用于多轮对话）
   messages?: ModelMessage[];
+  // 可供模型调用的工具定义
+  tools?: AITransportTool[];
+  // 上一轮工具执行结果，用于继续模型生成
+  toolResults?: AITransportToolResult[];
+}
+
+export interface AITransportTool {
+  name: string;
+  description: string;
+  parameters: JSONSchema7;
+}
+
+export interface AIStreamToolCallChunk {
+  toolCallId: string;
+  toolName: string;
+  input: unknown;
+}
+
+export interface AITransportToolResult {
+  toolCallId: string;
+  toolName: string;
+  result: unknown;
 }
 
 /**

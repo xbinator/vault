@@ -8,7 +8,7 @@
 </template>
 
 <script setup lang="ts">
-import type { EditorController, EditorSearchState } from '../adapters/types';
+import type { EditorController, EditorSearchState, EditorSelection as EditorSelectionRange } from '../adapters/types';
 import type { SearchScrollContext } from '../extensions/Search';
 import type { FrontMatterData } from '../hooks/useFrontMatter';
 import { computed, toRef, watch } from 'vue';
@@ -121,6 +121,53 @@ function clearSearch(): void {
   editorInstance.value?.commands.clearSearch();
 }
 
+function getSelection(): EditorSelectionRange | null {
+  const selection = editorInstance.value?.state.selection;
+  const document = editorInstance.value?.state.doc;
+  if (!selection || !document || selection.from === selection.to) {
+    return null;
+  }
+
+  return {
+    from: selection.from,
+    to: selection.to,
+    text: document.textBetween(selection.from, selection.to, '')
+  };
+}
+
+async function insertAtCursor(content: string): Promise<void> {
+  const instance = editorInstance.value;
+  if (!instance) {
+    return;
+  }
+
+  const { selection } = instance.state;
+  instance.chain().focus().insertContentAt({ from: selection.from, to: selection.to }, content).run();
+}
+
+async function replaceSelection(content: string): Promise<void> {
+  const instance = editorInstance.value;
+  if (!instance) {
+    return;
+  }
+
+  const { selection } = instance.state;
+  if (selection.from === selection.to) {
+    throw new Error('NO_SELECTION');
+  }
+
+  instance.chain().focus().insertContentAt({ from: selection.from, to: selection.to }, content).run();
+}
+
+async function replaceDocument(content: string): Promise<void> {
+  const instance = editorInstance.value;
+  if (!instance) {
+    return;
+  }
+
+  instance.commands.setContent(content);
+}
+
 function getSearchState(): EditorSearchState {
   return getSearchSnapshot(editorInstance.value);
 }
@@ -144,6 +191,10 @@ const controller: EditorController & { setContent: (text: string) => void } = {
   findNext,
   findPrevious,
   clearSearch,
+  getSelection,
+  insertAtCursor,
+  replaceSelection,
+  replaceDocument,
   getSearchState,
   scrollToAnchor,
   getActiveAnchorId,

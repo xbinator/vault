@@ -1,0 +1,37 @@
+/**
+ * @file confirmation.ts
+ * @description AI 工具确认机制，用于危险操作的用户确认
+ */
+import type { AIToolPermission } from './types';
+
+/**
+ * AI 工具确认请求
+ * @description 描述需要用户确认的操作信息
+ */
+export interface AIToolConfirmationRequest {
+  /** 工具名称 */
+  toolName: string;
+  /** 确认弹窗标题 */
+  title: string;
+  /** 确认弹窗描述 */
+  description: string;
+  /** 权限级别 */
+  permission: AIToolPermission;
+  /** 操作前的文本内容（用于预览） */
+  beforeText?: string;
+  /** 操作后的文本内容（用于预览） */
+  afterText?: string;
+}
+
+/**
+ * AI 工具确认适配器接口
+ * @description 定义工具确认的实现方式
+ */
+export interface AIToolConfirmationAdapter {
+  /**
+   * 请求用户确认
+   * @param request - 确认请求信息
+   * @returns 用户是否确认
+   */
+  confirm: (request: AIToolConfirmationRequest) => Promise<boolean>;
+}
