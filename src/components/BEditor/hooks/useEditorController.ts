@@ -21,6 +21,10 @@ function isEditorController(controller: EditorController | SourceEditorFocusCont
     'findNext' in controller &&
     'findPrevious' in controller &&
     'clearSearch' in controller &&
+    'getSelection' in controller &&
+    'insertAtCursor' in controller &&
+    'replaceSelection' in controller &&
+    'replaceDocument' in controller &&
     'getSearchState' in controller &&
     'scrollToAnchor' in controller &&
     'getActiveAnchorId' in controller
@@ -41,6 +45,18 @@ function createSourceEditorController(sourceEditorPaneRef: SourceEditorPaneRef, 
     },
     focusEditorAtStart(): void {
       sourceEditorPaneRef.value?.focusEditorAtStart();
+    },
+    getSelection() {
+      return null;
+    },
+    async insertAtCursor(): Promise<void> {
+      return undefined;
+    },
+    async replaceSelection(): Promise<void> {
+      return undefined;
+    },
+    async replaceDocument(): Promise<void> {
+      return undefined;
     }
   };
 }

@@ -1,8 +1,12 @@
+/**
+ * @file codes.mts
+ * @description AI 服务错误代码定义和错误处理工具函数
+ */
 import type { AIServiceError } from 'types/ai';
 
 /**
  * AI 服务错误代码常量
- * 定义了所有可能的 AI 服务错误类型
+ * @description 定义了所有可能的 AI 服务错误类型
  */
 export const AI_ERROR_CODE = {
   /** 模型未找到 */
@@ -28,12 +32,12 @@ export type AIErrorCode = (typeof AI_ERROR_CODE)[keyof typeof AI_ERROR_CODE];
 
 /**
  * 从错误响应中提取的错误详情
- * 包含错误消息、状态码、错误代码等信息
+ * @description 包含错误消息、状态码、错误代码等信息
  */
 export interface ExtractedErrorDetails {
   /** 原始错误消息 */
   message: string;
-  /** 标准化后的错误消息 */
+  /** 标准化后的错误消息（小写） */
   normalizedMessage: string;
   /** HTTP 状态码 */
   statusCode?: number;

@@ -21,8 +21,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, onBeforeUnmount, watchEffect, ref } from 'vue';
 import { useRoute } from 'vue-router';
+import { editorToolContextRegistry } from '@/ai/tools/editor-context';
 import BEditor from '@/components/BEditor/index.vue';
 import type { BEditorPublicInstance } from '@/components/BEditor/types';
 import { useSettingStore } from '@/stores/setting';
@@ -39,6 +40,37 @@ const settingStore = useSettingStore();
 const editorRef = ref<BEditorPublicInstance | null>(null);
 
 useBindings(fileId, { fileState, actions, editorInstance: editorRef });
+
+watchEffect(() => {
+  const editorInstance = editorRef.value;
+  const documentId = fileState.value.id;
+
+  if (!editorInstance || !documentId) {
+    return;
+  }
+
+  editorToolContextRegistry.register(documentId, {
+    document: {
+      id: documentId,
+      title: fileState.value.name,
+      path: fileState.value.path,
+      getContent: () => fileState.value.content
+    },
+    editor: {
+      getSelection: () => editorInstance.getSelection(),
+      insertAtCursor: (content: string) => editorInstance.insertAtCursor(content),
+      replaceSelection: (content: string) => editorInstance.replaceSelection(content),
+      replaceDocument: (content: string) => editorInstance.replaceDocument(content)
+    }
+  });
+});
+
+onBeforeUnmount(() => {
+  const documentId = fileState.value.id;
+  if (documentId) {
+    editorToolContextRegistry.unregister(documentId);
+  }
+});
 </script>
 
 <style lang="less" scoped>

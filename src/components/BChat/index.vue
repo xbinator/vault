@@ -4,6 +4,7 @@
       <div class="b-chat__messages">
         <MessageBubble v-for="item in messages" :key="item.id" :message="item" @edit="handleEdit" @regenerate="handleRegenerate" />
       </div>
+      <div v-if="toolStatus" class="b-chat__tool-status">{{ toolStatus }}</div>
     </Container>
 
     <div v-else class="b-chat__empty">
@@ -25,13 +26,17 @@
 
 <script setup lang="ts">
 import type { BChatProps as Props, Message } from './types';
-import type { AIServiceError, AIStreamFinishChunk } from 'types/ai';
+import type { ModelMessage } from 'ai';
+import type { AIServiceError, AIStreamFinishChunk, AIStreamToolCallChunk } from 'types/ai';
 import { nextTick, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { message as aMessage } from 'ant-design-vue';
 import { nanoid } from 'nanoid';
+import { getProviderToolSupport, type AIToolProviderSupport } from '@/ai/tools/policy';
+import { createToolResultMessages, executeToolCall, toTransportTools, type ExecutedToolCall } from '@/ai/tools/stream';
 import BButton from '@/components/BButton/index.vue';
 import { useChat } from '@/hooks/useChat';
+import { providerStorage } from '@/shared/storage';
 import { useServiceModelStore } from '@/stores/service-model';
 import { Modal } from '@/utils/modal';
 import Container from './components/Container.vue';
@@ -40,6 +45,7 @@ import MessageBubble from './components/MessageBubble.vue';
 interface ServiceConfig {
   providerId: string;
   modelId: string;
+  toolSupport: AIToolProviderSupport;
 }
 
 defineOptions({ name: 'BChat' });
@@ -54,9 +60,45 @@ const inputValue = defineModel<string>('inputValue', { default: '' });
 const messages = defineModel<Message[]>('messages', { default: () => [] });
 
 const loading = ref(false);
+const toolStatus = ref('');
+const pendingToolResults = ref<ExecutedToolCall[]>([]);
+const executedToolCallIds = ref<Set<string>>(new Set());
 
 const router = useRouter();
 const serviceModelStore = useServiceModelStore();
+let lastServiceConfig: ServiceConfig | null = null;
+
+function toModelMessages(sourceMessages: Message[]): ModelMessage[] {
+  return sourceMessages.map((item) => ({
+    role: item.role,
+    content: item.content
+  }));
+}
+
+function removeTrailingEmptyAssistantMessage(): void {
+  const lastMessage = messages.value[messages.value.length - 1];
+  if (!lastMessage || lastMessage.role !== 'assistant') {
+    return;
+  }
+
+  if (!lastMessage.content && !lastMessage.usage) {
+    messages.value.pop();
+  }
+}
+
+async function handleToolCall(chunk: AIStreamToolCallChunk): Promise<void> {
+  if (executedToolCallIds.value.has(chunk.toolCallId)) {
+    return;
+  }
+
+  executedToolCallIds.value.add(chunk.toolCallId);
+  toolStatus.value = `正在执行工具：${chunk.toolName}`;
+
+  const result = await executeToolCall(chunk, props.tools ?? [], props.getToolContext?.());
+  pendingToolResults.value.push(result);
+
+  toolStatus.value = result.result.status === 'success' ? `工具已完成：${chunk.toolName}` : `工具处理完成：${chunk.toolName}`;
+}
 
 const { agent } = useChat({
   onChunk: async (content: string): Promise<void> => {
@@ -71,12 +113,32 @@ const { agent } = useChat({
 
     message.usage = usage;
   },
+  onToolCall: handleToolCall,
   onComplete: (): void => {
     loading.value = false;
 
     const message = messages.value[messages.value.length - 1];
-    message.loading = false;
-    message.finished = true;
+    if (message) {
+      message.loading = false;
+      message.finished = true;
+    }
+
+    // 工具轮次完成后立即发起下一轮，当前轮次的空 assistant 占位不写入历史。
+    if (pendingToolResults.value.length && lastServiceConfig) {
+      const nextToolResults = [...pendingToolResults.value];
+
+      pendingToolResults.value = [];
+      removeTrailingEmptyAssistantMessage();
+
+      nextTick(() => {
+        // eslint-disable-next-line no-use-before-define
+        streamMessages(messages.value, lastServiceConfig as ServiceConfig, nextToolResults);
+      });
+      return;
+    }
+
+    executedToolCallIds.value = new Set();
+    toolStatus.value = '';
 
     emit('complete', message);
   },
@@ -88,7 +150,13 @@ const { agent } = useChat({
 async function getServiceConfig(): Promise<ServiceConfig | undefined> {
   const config = await serviceModelStore.getAvailableServiceConfig('chat');
   if (config?.providerId && config?.modelId) {
-    return { providerId: config.providerId, modelId: config.modelId };
+    const provider = await providerStorage.getProvider(config.providerId);
+
+    return {
+      providerId: config.providerId,
+      modelId: config.modelId,
+      toolSupport: getProviderToolSupport(provider)
+    };
   }
 
   const [, confirmed] = await Modal.confirm('提示', '当前未配置可用的大模型服务', { confirmText: '去配置', cancelText: '取消' });
@@ -115,10 +183,24 @@ function findRegenerateStartIndex(targetMessage: Message): number {
   return -1;
 }
 
-function streamMessages(_messages: Message[], config: ServiceConfig): void {
+function streamMessages(_messages: Message[], config: ServiceConfig, toolResults: ExecutedToolCall[] = []): void {
   loading.value = true;
+  lastServiceConfig = config;
 
-  agent.stream({ messages: _messages, modelId: config.modelId, providerId: config.providerId });
+  const modelMessages = toModelMessages(_messages);
+  const continuedMessages = toolResults.length ? [...modelMessages, ...createToolResultMessages(toolResults)] : modelMessages;
+  const shouldEnableTools = config.toolSupport.supported && Boolean(props.tools?.length);
+
+  // provider 未验证时直接降级为普通对话，避免把未兼容的 tool schema 发给模型侧。
+  toolStatus.value =
+    !config.toolSupport.supported && props.tools?.length ? `已禁用工具调用：${config.toolSupport.reason ?? '当前服务商暂不支持 AI Tools'}` : '';
+
+  agent.stream({
+    messages: continuedMessages,
+    modelId: config.modelId,
+    providerId: config.providerId,
+    tools: shouldEnableTools ? toTransportTools(props.tools ?? []) : undefined
+  });
 
   messages.value.push(createAssistantPlaceholder());
 }
@@ -144,6 +226,9 @@ async function handleSubmit(): Promise<void> {
 }
 
 function handleAbort(): void {
+  pendingToolResults.value = [];
+  executedToolCallIds.value = new Set();
+  toolStatus.value = '';
   agent.abort();
 }
 
@@ -194,6 +279,12 @@ async function handleRegenerate(message: Message): Promise<void> {
 .b-chat__messages {
   display: flex;
   flex-direction: column;
+}
+
+.b-chat__tool-status {
+  padding: 0 16px 12px;
+  font-size: 12px;
+  color: var(--text-secondary);
 }
 
 .b-chat__input {

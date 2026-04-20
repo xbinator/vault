@@ -50,6 +50,90 @@ import type { DefineComponent } from 'vue'
 
 ## 文件组织规范
 
+## 注释规范
+
+### 基本要求
+- **所有代码必须有注释**，不允许出现无注释的函数、类、接口或复杂逻辑块
+- 注释必须准确描述代码的意图，而不是简单重复代码本身
+- 注释需要随代码同步更新，禁止出现过时或误导性注释
+
+### 文件头注释
+每个文件顶部必须包含文件说明注释：
+
+```typescript
+/**
+ * @file 文件名
+ * @description 文件功能描述
+ */
+```
+
+### 函数 / 方法注释
+所有函数和方法必须使用 JSDoc 格式注释：
+
+```typescript
+/**
+ * 获取用户信息
+ * @param userId - 用户 ID
+ * @returns 用户信息对象，不存在时返回 null
+ */
+async function getUserInfo(userId: string): Promise<UserInfo | null> {
+  // ...
+}
+```
+
+### 接口 / 类型注释
+所有接口和类型定义必须添加说明：
+
+```typescript
+/**
+ * 用户信息
+ */
+interface UserInfo {
+  /** 用户唯一标识 */
+  id: string
+  /** 用户名 */
+  name: string
+  /** 注册时间（时间戳） */
+  createdAt: number
+}
+```
+
+### 复杂逻辑注释
+对于复杂的业务逻辑，必须在关键步骤添加行内注释：
+
+```typescript
+async function syncData() {
+  // 1. 从本地缓存读取上次同步时间
+  const lastSyncTime = await getLastSyncTime()
+
+  // 2. 拉取服务端增量数据
+  const delta = await fetchDelta(lastSyncTime)
+
+  // 3. 合并数据，以服务端为准（本地修改会被覆盖）
+  const merged = mergeData(localData, delta)
+
+  // 4. 写入本地数据库并更新同步时间
+  await saveLocal(merged)
+  await updateLastSyncTime(Date.now())
+}
+```
+
+### 临时代码 / 待办注释
+- 使用 `// TODO:` 标记待完成的功能
+- 使用 `// FIXME:` 标记已知问题需要修复
+- 使用 `// HACK:` 标记临时方案，需说明原因和后续处理计划
+
+```typescript
+// TODO: 后续支持批量操作
+// FIXME: 当列表为空时会触发越界错误
+// HACK: 临时绕过接口限制，等后端修复后移除
+```
+
+### 禁止事项
+- ❌ 禁止无意义注释，如 `// 定义变量 i`
+- ❌ 禁止注释掉的废弃代码长期存在，应直接删除
+- ❌ 禁止用注释代替清晰的命名，命名本身应具有可读性
+
 ## 代码质量要求
 
 ### ESLint 和 TypeScript
@@ -60,7 +144,7 @@ import type { DefineComponent } from 'vue'
 ### 代码风格
 - 使用一致的缩进和格式
 - 使用有意义的变量和函数命名
-- 添加必要的注释说明复杂逻辑
+- **所有函数、接口、复杂逻辑必须添加注释**，具体格式见[注释规范](#注释规范)
 
 ## Changelog 日志规范
 
