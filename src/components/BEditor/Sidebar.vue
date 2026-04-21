@@ -102,16 +102,6 @@ const headerMenuOptions = computed<DropdownOption[]>(() => [
     icon: 'lucide:folder-open',
     disabled: !props.filePath,
     onClick: () => emit('show-in-folder')
-  },
-  {
-    type: 'divider'
-  },
-  {
-    value: 'delete',
-    label: '删除',
-    icon: 'lucide:trash-2',
-    danger: true,
-    onClick: () => emit('delete-file')
   }
 ]);
 
