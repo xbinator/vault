@@ -1,3 +1,7 @@
+/**
+ * @file types.ts
+ * @description BChat 组件消息与属性类型定义
+ */
 import type { AIUsage, AIToolContext, AIToolExecutor } from 'types/ai';
 import type { ChatMessageFile, ChatMessageRole } from 'types/chat';
 
@@ -23,8 +27,6 @@ export interface Message {
   loading?: boolean;
   /** 是否完成（可选） */
   finished?: boolean;
-  /** 错误信息（可选） */
-  error?: string;
 }
 
 /**

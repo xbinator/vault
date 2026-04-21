@@ -29,7 +29,6 @@
  * @description AI 聊天组件，支持消息流式输出和 AI 工具调用
  */
 import type { BChatProps as Props, Message } from './types';
-import type { ModelMessage } from 'ai';
 import type { AIServiceError, AIStreamFinishChunk, AIStreamToolCallChunk } from 'types/ai';
 import { nextTick, ref } from 'vue';
 import { useRouter } from 'vue-router';
@@ -43,6 +42,7 @@ import { useServiceModelStore } from '@/stores/service-model';
 import { Modal } from '@/utils/modal';
 import Container from './components/Container.vue';
 import MessageBubble from './components/MessageBubble.vue';
+import { createAssistantPlaceholder, createErrorMessage, toModelMessages } from './message';
 
 /**
  * 服务配置信息
@@ -80,15 +80,6 @@ const router = useRouter();
 const serviceModelStore = useServiceModelStore();
 /** 最近一次请求的服务配置，用于工具循环时复用 */
 let lastServiceConfig: ServiceConfig | null = null;
-
-/**
- * 将组件消息转换为 AI SDK 的 ModelMessage 格式
- * @param sourceMessages - 组件内部消息列表
- * @returns AI SDK 兼容的消息格式
- */
-function toModelMessages(sourceMessages: Message[]): ModelMessage[] {
-  return sourceMessages.map((item) => ({ role: item.role, content: item.content }));
-}
 
 /**
  * 移除末尾空的 assistant 消息
@@ -166,6 +157,11 @@ const { agent } = useChat({
       message.finished = true;
     }
 
+    // 错误消息已在 onError 中完成展示和持久化事件派发，避免重复保存
+    if (message?.role === 'error') {
+      return;
+    }
+
     // 工具轮次完成后立即发起下一轮，当前轮次的空 assistant 占位不写入历史
     if (pendingToolResults.value.length && lastServiceConfig) {
       const nextToolResults = [...pendingToolResults.value];
@@ -184,11 +180,21 @@ const { agent } = useChat({
     executedToolCallIds.value = new Set();
     toolStatus.value = '';
 
-    emit('complete', message);
+    if (message) {
+      emit('complete', message);
+    }
   },
   /** 处理错误事件 */
   onError: (error: AIServiceError): void => {
-    aMessage.error(error.message);
+    loading.value = false;
+    pendingToolResults.value = [];
+    executedToolCallIds.value = new Set();
+    toolStatus.value = '';
+    removeTrailingEmptyAssistantMessage();
+    const message = createErrorMessage(error.message);
+
+    messages.value.push(message);
+    emit('complete', message);
   }
 });
 
@@ -212,14 +218,6 @@ async function getServiceConfig(): Promise<ServiceConfig | undefined> {
   }
 
   return undefined;
-}
-
-/**
- * 创建 assistant 消息占位符
- * @returns 空的 assistant 消息对象
- */
-function createAssistantPlaceholder(): Message {
-  return { id: nanoid(), role: 'assistant', content: '', thinking: '', createdAt: '', loading: true };
 }
 
 /**
