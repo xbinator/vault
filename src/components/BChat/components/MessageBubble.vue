@@ -1,5 +1,5 @@
 <template>
-  <div class="b-message-bubble">
+  <div :class="['b-message-bubble', { 'b-message-bubble--error': isErrorMessage }]">
     <BBubbleText :content="message.content" :think="message.thinking" :placement="bubblePlacement" :loading="message.loading" size="auto">
       <template v-if="showHeader" #header>
         <div class="b-message-bubble__header">
@@ -52,14 +52,20 @@ const otherFiles = computed(() => props.message.files?.filter((file) => file.typ
 const isUserMessage = computed(() => props.message.role === 'user');
 /** 是否为助手消息 */
 const isAssistantMessage = computed(() => props.message.role === 'assistant');
+/** 是否为错误消息 */
+const isErrorMessage = computed(() => props.message.role === 'error');
 /** 气泡位置 */
-const bubblePlacement = computed(() => (isAssistantMessage.value ? 'left' : 'right'));
+const bubblePlacement = computed(() => (isAssistantMessage.value || isErrorMessage.value ? 'left' : 'right'));
 /** 是否显示头部（仅用户消息且有附件时显示） */
 const showHeader = computed(() => isUserMessage.value && (imageFiles.value.length || otherFiles.value.length));
 /** 工具栏样式类 */
 const toolbarClass = computed(() => ({ 'b-message-bubble__toolbar--right': isUserMessage.value }));
 
-function handleCopy(msg: Message) {
+/**
+ * 复制消息内容
+ * @param msg - 待复制的聊天消息
+ */
+function handleCopy(msg: Message): void {
   clipboard(msg.content, { successMessage: '已复制到剪贴板' });
 }
 </script>
@@ -73,6 +79,17 @@ function handleCopy(msg: Message) {
 
 .b-message-bubble:last-child {
   margin-bottom: 0;
+}
+
+.b-message-bubble--error {
+  .bubble__container {
+    padding: 10px 14px;
+    font-size: 12px;
+    color: var(--color-error);
+    background: var(--color-error-bg);
+    border: 1px solid var(--color-error);
+    border-radius: 12px;
+  }
 }
 
 .b-message-bubble__header {
