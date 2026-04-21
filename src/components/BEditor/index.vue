@@ -9,7 +9,6 @@
       :active-id="activeAnchorId"
       @change="handleEditorAnchorChange"
       @rename-file="emit('rename-file')"
-      @delete-file="emit('delete-file')"
       @show-in-folder="emit('show-in-folder')"
     />
 
@@ -79,7 +78,7 @@ const props = withDefaults(defineProps<Props>(), {
   showOutline: true
 });
 
-const emit = defineEmits(['rename-file', 'delete-file', 'show-in-folder']);
+const emit = defineEmits(['rename-file', 'show-in-folder']);
 
 const isRichMode = computed<boolean>(() => props.viewMode === 'rich');
 

@@ -12,7 +12,6 @@
           :view-mode="settingStore.sourceMode ? 'source' : 'rich'"
           :show-outline="settingStore.showOutline"
           @rename-file="actions.onRename"
-          @delete-file="actions.onDelete"
           @show-in-folder="actions.onShowInFolder"
         />
       </div>
