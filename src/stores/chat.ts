@@ -2,8 +2,8 @@
  * @file chat.ts
  * @description 聊天会话与消息状态管理
  */
-import type { ChatMessageRecord, ChatSession, ChatSessionType } from 'types/chat';
 import type { AIUsage } from 'types/ai';
+import type { ChatMessageRecord, ChatSession, ChatSessionType } from 'types/chat';
 import { defineStore } from 'pinia';
 import { nanoid } from 'nanoid';
 import { isPersistableMessage, type PersistableMessage } from '@/components/BChat/message';

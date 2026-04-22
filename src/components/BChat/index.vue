@@ -28,6 +28,7 @@
  * @file BChat/index.vue
  * @description AI 聊天组件，负责消息渲染、流式响应和工具续轮控制。
  */
+import type { CachedModelMessagesResult } from './message';
 import type { BChatProps as Props, Message, MessageToolCall, ServiceConfig, ToolLoopGuardConfig } from './types';
 import type { AIServiceError, AIStreamFinishChunk, AIStreamToolCallChunk } from 'types/ai';
 import { nextTick, ref } from 'vue';
@@ -42,12 +43,12 @@ import { useServiceModelStore } from '@/stores/service-model';
 import { Modal } from '@/utils/modal';
 import Container from './components/Container.vue';
 import MessageBubble from './components/MessageBubble.vue';
-import { createAssistantPlaceholder, createErrorMessage, isRemovableAssistantPlaceholder, toModelMessages } from './message';
+import { createAssistantPlaceholder, createErrorMessage, isRemovableAssistantPlaceholder, toCachedModelMessages } from './message';
 import { createToolCallTracker, type ToolCallTracker } from './utils/tool-call-tracker';
 import { createToolLoopGuard, type ToolLoopGuard } from './utils/tool-loop-guard';
 
 /**
- * 工具续轮保护的默认阈值
+ * 工具续轮保护的默认阈值。
  */
 const TOOL_LOOP_GUARD_CONFIG: ToolLoopGuardConfig = {
   maxRounds: 5,
@@ -77,9 +78,10 @@ let executedToolCallIds = new Set<string>();
 let currentToolRoundId = 0;
 let currentToolCallTracker: ToolCallTracker = createToolCallTracker();
 let currentToolLoopGuard: ToolLoopGuard = createToolLoopGuard(TOOL_LOOP_GUARD_CONFIG);
+let currentModelMessageCache: CachedModelMessagesResult | undefined;
 
 /**
- * 为一次新的流式请求切换到新的异步跟踪上下文
+ * 为一次新的流式请求切换到新的异步跟踪上下文。
  */
 function startStreamRound(): void {
   currentToolRoundId += 1;
@@ -87,18 +89,27 @@ function startStreamRound(): void {
 }
 
 /**
- * 为新的用户请求链路重置工具续轮状态
+ * 仅重置当前工具续轮的运行时状态，不创建新的循环保护器。
  */
-function startToolLoopSession(): void {
-  startStreamRound();
-  currentToolLoopGuard = createToolLoopGuard(TOOL_LOOP_GUARD_CONFIG);
+function resetToolLoopState(): void {
+  currentToolRoundId = 0;
+  currentToolCallTracker = createToolCallTracker();
   blockedToolLoopReason.value = '';
   executedToolCallIds = new Set();
   pendingToolResults.value = [];
+  lastServiceConfig = null;
 }
 
 /**
- * 只有真正空白的 assistant 占位消息才允许在续轮前移除
+ * 为新的用户请求重置工具续轮会话。
+ */
+function startToolLoopSession(): void {
+  resetToolLoopState();
+  currentToolLoopGuard = createToolLoopGuard(TOOL_LOOP_GUARD_CONFIG);
+}
+
+/**
+ * 只有真正空白的 assistant 占位消息才允许在续轮前移除。
  */
 function removeTrailingEmptyAssistantMessage(): void {
   const lastMessage = messages.value[messages.value.length - 1];
@@ -108,7 +119,7 @@ function removeTrailingEmptyAssistantMessage(): void {
 }
 
 /**
- * 在 assistant 占位消息上记录模型发起的工具调用
+ * 在 assistant 占位消息上记录模型发起的工具调用。
  * @param chunk - 工具调用数据块
  */
 function appendAssistantToolCall(chunk: AIStreamToolCallChunk): void {
@@ -117,17 +128,13 @@ function appendAssistantToolCall(chunk: AIStreamToolCallChunk): void {
     return;
   }
 
-  const toolCall: MessageToolCall = {
-    toolCallId: chunk.toolCallId,
-    toolName: chunk.toolName,
-    input: chunk.input
-  };
+  const toolCall: MessageToolCall = { toolCallId: chunk.toolCallId, toolName: chunk.toolName, input: chunk.input };
 
   message.toolCalls = [...(message.toolCalls ?? []), toolCall];
 }
 
 /**
- * 结束工具续轮并写入可见错误消息
+ * 终止工具续轮并写入可见错误消息。
  * @param reason - 终止原因
  */
 function stopToolLoop(reason: string): void {
@@ -141,7 +148,7 @@ function stopToolLoop(reason: string): void {
 }
 
 /**
- * 执行工具调用，并仅在当前轮次仍有效时写回结果
+ * 执行工具调用，并仅在当前轮次仍有效时写回结果。
  * @param chunk - 工具调用数据块
  * @param roundId - 发起执行时记录的轮次 ID
  */
@@ -155,7 +162,7 @@ async function executeTrackedToolCall(chunk: AIStreamToolCallChunk, roundId: num
 }
 
 /**
- * 处理模型返回的工具调用
+ * 处理模型返回的工具调用。
  * @param chunk - 工具调用数据块
  */
 async function handleToolCall(chunk: AIStreamToolCallChunk): Promise<void> {
@@ -177,27 +184,48 @@ async function handleToolCall(chunk: AIStreamToolCallChunk): Promise<void> {
 }
 
 /**
- * 获取当前可用的服务配置
+ * 读取当前可用的服务配置，不处理 UI 副作用。
+ * @returns 可用服务配置，不存在时返回 undefined
  */
-async function getServiceConfig(): Promise<ServiceConfig | undefined> {
+async function resolveServiceConfig(): Promise<ServiceConfig | undefined> {
   const config = await serviceModelStore.getAvailableServiceConfig('chat');
-  if (config?.providerId && config?.modelId) {
-    const toolSupport = await getModelToolSupport(config.providerId, config.modelId);
-    return { providerId: config.providerId, modelId: config.modelId, toolSupport };
+  if (!config?.providerId || !config?.modelId) {
+    return undefined;
   }
 
+  const toolSupport = await getModelToolSupport(config.providerId, config.modelId);
+  return { providerId: config.providerId, modelId: config.modelId, toolSupport };
+}
+
+/**
+ * 在缺少可用模型配置时提示用户进入设置页。
+ */
+async function handleMissingServiceConfig(): Promise<void> {
   const [, confirmed] = await Modal.confirm('提示', '当前未配置可用的大模型服务', { confirmText: '去配置', cancelText: '取消' });
 
   if (confirmed) {
     router.push('/settings/service-model');
   }
+}
 
+/**
+ * 获取当前可用服务配置，并在缺失时执行 UI 提示。
+ * @returns 可用服务配置，不存在时返回 undefined
+ */
+async function ensureServiceConfig(): Promise<ServiceConfig | undefined> {
+  const config = await resolveServiceConfig();
+  if (config) {
+    return config;
+  }
+
+  await handleMissingServiceConfig();
   return undefined;
 }
 
 /**
- * 查找重新生成应截断到的 user 消息位置
+ * 查找重新生成应截断到的 user 消息位置。
  * @param targetMessage - 目标 assistant 消息
+ * @returns 重新生成起始 user 消息索引，不存在时返回 -1
  */
 function findRegenerateStartIndex(targetMessage: Message): number {
   const targetIndex = messages.value.findIndex((item) => item.id === targetMessage.id);
@@ -215,7 +243,7 @@ function findRegenerateStartIndex(targetMessage: Message): number {
 }
 
 /**
- * 发起一轮新的流式请求
+ * 发起一轮新的流式请求。
  * @param sourceMessages - 消息历史
  * @param config - 服务配置
  * @param toolResults - 上一轮工具执行结果
@@ -225,8 +253,12 @@ function streamMessages(sourceMessages: Message[], config: ServiceConfig, toolRe
   lastServiceConfig = config;
   startStreamRound();
 
-  const modelMessages = toModelMessages(sourceMessages);
-  const continuedMessages = toolResults.length ? [...modelMessages, ...createToolResultMessages(toolResults)] : modelMessages;
+  currentModelMessageCache = toCachedModelMessages(sourceMessages, currentModelMessageCache);
+
+  const continuedMessages = [...currentModelMessageCache.modelMessages];
+
+  toolResults.length && continuedMessages.push(...createToolResultMessages(toolResults));
+
   const tools = config.toolSupport.supported && Boolean(props.tools?.length) ? toTransportTools(props.tools ?? []) : undefined;
 
   // eslint-disable-next-line no-use-before-define
@@ -235,14 +267,14 @@ function streamMessages(sourceMessages: Message[], config: ServiceConfig, toolRe
 }
 
 /**
- * 提交用户消息
+ * 提交用户消息。
  */
 async function handleSubmit(): Promise<void> {
   if (loading.value) {
     return;
   }
 
-  const config = await getServiceConfig();
+  const config = await ensureServiceConfig();
   if (!config) {
     return;
   }
@@ -252,12 +284,7 @@ async function handleSubmit(): Promise<void> {
     return;
   }
 
-  const message: Message = {
-    id: nanoid(),
-    role: 'user',
-    content,
-    createdAt: new Date().toISOString()
-  };
+  const message: Message = { id: nanoid(), role: 'user', content, createdAt: new Date().toISOString() };
 
   await props.onBeforeSend?.(message);
 
@@ -268,16 +295,16 @@ async function handleSubmit(): Promise<void> {
 }
 
 /**
- * 中止当前请求
+ * 中止当前请求。
  */
 function handleAbort(): void {
-  startToolLoopSession();
+  resetToolLoopState();
   // eslint-disable-next-line no-use-before-define
   agent.abort();
 }
 
 /**
- * 将消息回填到输入框
+ * 将消息回填到输入框。
  * @param message - 待编辑的消息
  */
 function handleEdit(message: Message): void {
@@ -285,7 +312,7 @@ function handleEdit(message: Message): void {
 }
 
 /**
- * 重新生成 assistant 消息
+ * 重新生成 assistant 消息。
  * @param message - 待重新生成的 assistant 消息
  */
 async function handleRegenerate(message: Message): Promise<void> {
@@ -293,7 +320,7 @@ async function handleRegenerate(message: Message): Promise<void> {
     return;
   }
 
-  const config = await getServiceConfig();
+  const config = await ensureServiceConfig();
   if (!config) {
     return;
   }
@@ -313,11 +340,11 @@ async function handleRegenerate(message: Message): Promise<void> {
 }
 
 /**
- * useChat hook 配置
+ * useChat hook 配置。
  */
 const { agent } = useChat({
   /**
-   * 追加模型文本输出
+   * 追加模型文本输出。
    * @param content - 增量文本
    */
   onText: async (content: string): Promise<void> => {
@@ -327,8 +354,8 @@ const { agent } = useChat({
     message.createdAt ||= new Date().toISOString();
   },
   /**
-   * 追加模型思考输出
-   * @param thinking - 增量思考
+   * 追加模型思考输出。
+   * @param thinking - 增量思考文本
    */
   onThinking: async (thinking: string): Promise<void> => {
     const message = messages.value[messages.value.length - 1];
@@ -337,7 +364,7 @@ const { agent } = useChat({
     message.createdAt ||= new Date().toISOString();
   },
   /**
-   * 记录 usage
+   * 记录 usage 信息。
    * @param finishChunk - 完成数据块
    */
   onFinish: async ({ usage }: AIStreamFinishChunk): Promise<void> => {
@@ -346,64 +373,79 @@ const { agent } = useChat({
   },
   onToolCall: handleToolCall,
   /**
-   * 收口当前轮次，并在有工具结果时决定是否继续下一轮
+   * 收口当前轮次，并在有工具结果时决定是否继续下一轮。
    */
   onComplete: async (): Promise<void> => {
+    // 重置加载状态
     loading.value = false;
+    // 保存当前轮次 ID 和工具调用追踪器，用于后续的异步一致性检查
     const roundId = currentToolRoundId;
     const tracker = currentToolCallTracker;
 
+    // 等待所有工具调用完成
     await tracker.waitForAll();
-    if (roundId !== currentToolRoundId) {
+    // 如果轮次 ID 不存在或不一致（说明已被新的轮次替换），则直接返回
+    if (!roundId || roundId !== currentToolRoundId) {
       return;
     }
 
+    // 如果工具循环被阻止（如用户中断或错误），清空已执行的工具调用 ID 集合并返回
     if (blockedToolLoopReason.value) {
       executedToolCallIds = new Set();
       return;
     }
 
+    // 获取最后一条消息并标记为已完成
     const message = messages.value[messages.value.length - 1];
     if (message) {
       message.loading = false;
       message.finished = true;
     }
 
+    // 如果最后一条消息是错误消息，直接返回
     if (message?.role === 'error') {
       return;
     }
 
+    // 如果有待处理的工具结果且存在服务配置，则继续下一轮工具调用
     if (pendingToolResults.value.length && lastServiceConfig) {
+      // 尝试推进到下一轮，检查是否超过轮次限制
       const roundGuardResult = currentToolLoopGuard.advanceRound();
       if (!roundGuardResult.allowed) {
+        // 超过轮次限制，清空状态并停止工具循环
         executedToolCallIds = new Set();
         stopToolLoop(roundGuardResult.reason ?? '工具调用轮次超过限制，已停止自动续轮。');
         return;
       }
 
+      // 取出待处理的工具结果，准备发起下一轮请求
       const nextToolResults = [...pendingToolResults.value];
       pendingToolResults.value = [];
+      // 移除末尾可能存在的空 assistant 消息
       removeTrailingEmptyAssistantMessage();
 
+      // 在下一个 tick 中发起下一轮流式请求
       nextTick(() => {
         streamMessages(messages.value, lastServiceConfig as ServiceConfig, nextToolResults);
       });
       return;
     }
 
+    // 没有待处理的工具结果，清空已执行的工具调用 ID 集合
     executedToolCallIds = new Set();
 
+    // 触发完成事件
     if (message) {
       emit('complete', message);
     }
   },
   /**
-   * 将服务异常显示到聊天记录中
+   * 将服务异常显示到聊天记录中。
    * @param error - 错误对象
    */
   onError: (error: AIServiceError): void => {
     loading.value = false;
-    startToolLoopSession();
+    resetToolLoopState();
     removeTrailingEmptyAssistantMessage();
 
     const message = createErrorMessage(error.message);

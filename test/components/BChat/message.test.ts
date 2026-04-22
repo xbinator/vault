@@ -3,8 +3,26 @@
  * @description BChat 消息工具行为测试
  */
 import { describe, expect, it } from 'vitest';
-import { createErrorMessage, isModelMessage, isPersistableMessage, isRemovableAssistantPlaceholder, toModelMessages } from '@/components/BChat/message';
+import {
+  createErrorMessage,
+  isModelMessage,
+  isPersistableMessage,
+  isRemovableAssistantPlaceholder,
+  toCachedModelMessages,
+  toModelMessages
+} from '@/components/BChat/message';
 import type { Message } from '@/components/BChat/types';
+
+/**
+ * 创建基础消息列表，便于复用缓存相关测试。
+ * @returns 测试使用的基础消息
+ */
+function createBaseMessages(): Message[] {
+  return [
+    { id: 'user-1', role: 'user', content: '你好', createdAt: '2026-04-21T00:00:00.000Z' },
+    { id: 'assistant-1', role: 'assistant', content: '我来帮你处理。', createdAt: '2026-04-21T00:00:01.000Z' }
+  ];
+}
 
 describe('BChat message helpers', () => {
   it('creates a finished error message for visible stream failures', () => {
@@ -66,6 +84,64 @@ describe('BChat message helpers', () => {
             toolCallId: 'call_function_z4c3rw63ddmt_1',
             toolName: 'read_current_document',
             input: {}
+          }
+        ]
+      }
+    ]);
+  });
+
+  it('reuses the cached model-message prefix when only new messages are appended', () => {
+    const baseMessages = createBaseMessages();
+    const baseCache = toCachedModelMessages(baseMessages);
+    const nextMessages: Message[] = [
+      ...baseMessages,
+      { id: 'error-1', role: 'error', content: '服务连接失败', createdAt: '2026-04-21T00:00:02.000Z' },
+      { id: 'user-2', role: 'user', content: '继续', createdAt: '2026-04-21T00:00:03.000Z' }
+    ];
+
+    const nextCache = toCachedModelMessages(nextMessages, baseCache);
+
+    expect(nextCache.modelMessages).toEqual([
+      { role: 'user', content: '你好' },
+      { role: 'assistant', content: '我来帮你处理。' },
+      { role: 'user', content: '继续' }
+    ]);
+    expect(nextCache.entries[0]).toBe(baseCache.entries[0]);
+    expect(nextCache.entries[1]).toBe(baseCache.entries[1]);
+  });
+
+  it('rebuilds cached entries when an existing assistant message changes', () => {
+    const baseMessages = createBaseMessages();
+    const baseCache = toCachedModelMessages(baseMessages);
+    const changedMessages: Message[] = [
+      baseMessages[0],
+      {
+        ...baseMessages[1],
+        toolCalls: [
+          {
+            toolCallId: 'call_function_z4c3rw63ddmt_2',
+            toolName: 'read_current_document',
+            input: { path: '/docs/guide.md' }
+          }
+        ]
+      }
+    ];
+
+    const nextCache = toCachedModelMessages(changedMessages, baseCache);
+
+    expect(nextCache.entries[0]).toBe(baseCache.entries[0]);
+    expect(nextCache.entries[1]).not.toBe(baseCache.entries[1]);
+    expect(nextCache.modelMessages).toEqual([
+      { role: 'user', content: '你好' },
+      {
+        role: 'assistant',
+        content: [
+          { type: 'text', text: '我来帮你处理。' },
+          {
+            type: 'tool-call',
+            toolCallId: 'call_function_z4c3rw63ddmt_2',
+            toolName: 'read_current_document',
+            input: { path: '/docs/guide.md' }
           }
         ]
       }
