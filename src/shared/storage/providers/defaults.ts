@@ -52,46 +52,6 @@ export const DEFAULT_PROVIDERS: AIProvider[] = [
     models: []
   },
   {
-    id: 'zhipu',
-    name: '智谱 AI',
-    description: '提供 GLM 系列模型，支持中文场景优化、对话生成与智能问答。',
-    baseUrl: 'https://open.bigmodel.cn/api/paas/v4',
-    type: 'openai',
-    isEnabled: false,
-    readonly: true,
-    models: []
-  },
-  {
-    id: 'alibaba',
-    name: '阿里云',
-    description: '提供通义千问系列模型，支持中文优化、多模态处理与企业级应用。',
-    baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
-    type: 'openai',
-    isEnabled: false,
-    readonly: true,
-    models: []
-  },
-  {
-    id: 'baidu',
-    name: '百度',
-    description: '提供文心一言系列模型，深耕中文场景，支持知识增强与对话生成。',
-    baseUrl: 'https://qianfan.baidubce.com/v2',
-    type: 'openai',
-    isEnabled: false,
-    readonly: true,
-    models: []
-  },
-  {
-    id: 'bytedance',
-    name: '字节跳动',
-    description: '提供豆包系列模型，适用于对话生成、内容创作与智能助手场景。',
-    baseUrl: 'https://ark.cn-beijing.volces.com/api/v3',
-    type: 'openai',
-    isEnabled: false,
-    readonly: true,
-    models: []
-  },
-  {
     id: 'minimax',
     name: 'MiniMax',
     description: '提供 MiniMax 系列模型，支持长上下文、多模态与角色扮演。',
@@ -112,6 +72,86 @@ export const DEFAULT_PROVIDERS: AIProvider[] = [
     models: []
   },
   {
+    id: 'zhipu',
+    name: '智谱 AI',
+    description: '提供 GLM 系列模型，支持中文场景优化、对话生成与智能问答。',
+    baseUrl: 'https://open.bigmodel.cn/api/paas/v4',
+    type: 'openai',
+    isEnabled: false,
+    readonly: true,
+    models: []
+  },
+  {
+    id: 'zhipu_plan',
+    name: '智谱 AI Plan',
+    description: '提供 GLM 系列模型，支持中文场景优化、对话生成与智能问答。',
+    baseUrl: 'https://open.bigmodel.cn/api/coding/paas/v4',
+    type: 'openai',
+    isEnabled: false,
+    readonly: true,
+    models: []
+  },
+  {
+    id: 'alibaba',
+    name: '阿里云',
+    description: '提供通义千问系列模型，支持中文优化、多模态处理与企业级应用。',
+    baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+    type: 'openai',
+    isEnabled: false,
+    readonly: true,
+    models: []
+  },
+  {
+    id: 'alibaba_plan',
+    name: '阿里云 Plan',
+    description: '提供通义千问系列模型，支持中文优化、多模态处理与企业级应用。',
+    baseUrl: 'https://coding.dashscope.aliyuncs.com/v1',
+    type: 'openai',
+    isEnabled: false,
+    readonly: true,
+    models: []
+  },
+  {
+    id: 'baidu',
+    name: '百度',
+    description: '提供文心一言系列模型，深耕中文场景，支持知识增强与对话生成。',
+    baseUrl: 'https://qianfan.baidubce.com/v2',
+    type: 'openai',
+    isEnabled: false,
+    readonly: true,
+    models: []
+  },
+  {
+    id: 'baidu_plan',
+    name: '百度 Plan',
+    description: '提供文心一言系列模型，深耕中文场景，支持知识增强与对话生成。',
+    baseUrl: 'https://qianfan.baidubce.com/v2/coding',
+    type: 'openai',
+    isEnabled: false,
+    readonly: true,
+    models: []
+  },
+  {
+    id: 'volcengine',
+    name: '火山引擎',
+    description: '提供豆包系列模型，适用于对话生成、内容创作与智能助手场景。',
+    baseUrl: 'https://ark.cn-beijing.volces.com/api/v3',
+    type: 'openai',
+    isEnabled: false,
+    readonly: true,
+    models: []
+  },
+  {
+    id: 'volcengine_plan',
+    name: '火山引擎 Plan',
+    description: '提供豆包系列模型，适用于对话生成、内容创作与智能助手场景。',
+    baseUrl: 'https://ark.cn-beijing.volces.com/api/coding',
+    type: 'anthropic',
+    isEnabled: false,
+    readonly: true,
+    models: []
+  },
+  {
     id: 'tencentcloud',
     name: '腾讯云',
     description: '提供混元系列大模型，擅长对话、创作、代码与企业级智能服务。',
@@ -122,10 +162,10 @@ export const DEFAULT_PROVIDERS: AIProvider[] = [
     models: []
   },
   {
-    id: 'longcat',
-    name: 'LongCat',
-    description: '提供 LongCat 系列大模型，擅长长上下文、多模态与角色扮演。',
-    baseUrl: 'https://api.longcat.chat/openai/v1',
+    id: 'tencentcloud_plan',
+    name: '腾讯云 Plan',
+    description: '提供混元系列大模型，擅长对话、创作、代码与企业级智能服务。',
+    baseUrl: 'https://api.lkeap.cloud.tencent.com/coding/v3',
     type: 'openai',
     isEnabled: false,
     readonly: true,
