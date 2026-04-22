@@ -11,7 +11,7 @@
 
 <script setup lang="ts">
 /**
- * @file ToolResultPart.vue
+ * @file MessageBubblePartToolResult.vue
  * @description 聊天工具结果片段组件，负责展示结果状态和折叠内容。
  */
 import type { ChatMessageToolResultPart } from 'types/chat';
@@ -20,7 +20,7 @@ import { Icon } from '@iconify/vue';
 import { createNamespace } from '@/utils/namespace';
 import { formatStructuredValue } from '../utils/message-part';
 
-defineOptions({ name: 'ToolResultPart' });
+defineOptions({ name: 'MessageBubblePartToolResult' });
 
 defineProps<{
   /** 工具结果片段 */
