@@ -10,7 +10,7 @@
 
 <script setup lang="ts">
 /**
- * @file ToolCallPart.vue
+ * @file MessageBubblePartToolCall.vue
  * @description 聊天工具调用片段组件，负责展示工具名称和输入参数。
  */
 import type { ChatMessageToolCallPart } from 'types/chat';
@@ -18,7 +18,7 @@ import { Icon } from '@iconify/vue';
 import { createNamespace } from '@/utils/namespace';
 import { formatStructuredValue, hasStructuredValueContent } from '../utils/message-part';
 
-defineOptions({ name: 'ToolCallPart' });
+defineOptions({ name: 'MessageBubblePartToolCall' });
 
 defineProps<{
   /** 工具调用片段 */

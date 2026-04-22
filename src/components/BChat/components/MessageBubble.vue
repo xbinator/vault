@@ -3,20 +3,30 @@
     <BBubble :placement="bubblePlacement" :loading="message.loading" :size="message.role === 'user' ? 'auto' : 'fill'">
       <!-- 头部区域：展示用户上传的图片和文件 -->
       <template v-if="showHeader" #header>
-        <MessageAttachmentsHeader :files="message.files ?? []" />
+        <div :class="bem('header')">
+          <div v-if="imageFiles.length" :class="bem('images')">
+            <img v-for="file in imageFiles" :key="file.id" :src="file.url || file.path" :alt="file.name" :class="bem('image')" />
+          </div>
+          <div v-if="otherFiles.length" :class="bem('files')">
+            <div v-for="file in otherFiles" :key="file.id" :class="bem('file')">
+              <Icon icon="lucide:file" width="14" height="14" />
+              <span :class="bem('file-name')">{{ file.name }}</span>
+            </div>
+          </div>
+        </div>
       </template>
 
       <!-- 消息内容区域：按片段类型渲染不同内容 -->
       <div :class="bem('parts')">
         <template v-for="(part, index) in message.parts" :key="`${part.type}-${index}`">
           <!-- 文本片段：渲染 Markdown 内容 -->
-          <TextPart v-if="part.type === 'text'" :part="part" :loading="isLastPart(index) && !!message.loading" />
+          <MessageBubblePartText v-if="part.type === 'text'" :part="part" :loading="isLastPart(index) && !!message.loading" />
 
           <!-- 思考片段：可折叠的深度思考内容 -->
-          <ThinkingPart v-else-if="part.type === 'thinking'" :part="part" />
+          <MessageBubblePartThinking v-else-if="part.type === 'thinking'" :part="part" />
 
           <!-- 工具调用片段：展示工具名称和输入参数 -->
-          <ToolCallPart v-else-if="part.type === 'tool-call'" :part="part" />
+          <MessageBubblePartToolCall v-else-if="part.type === 'tool-call'" :part="part" />
 
           <!-- 确认片段：需要用户确认的操作卡片 -->
           <ConfirmationCard
@@ -26,7 +36,7 @@
           />
 
           <!-- 工具结果片段：展示工具执行结果 -->
-          <ToolResultPart v-else :part="part" />
+          <MessageBubblePartToolResult v-else :part="part" />
         </template>
       </div>
 
@@ -49,16 +59,16 @@
  */
 import type { Message } from '../types';
 import { computed } from 'vue';
+import { Icon } from '@iconify/vue';
 import BBubble from '@/components/BBubble/index.vue';
 import BButton from '@/components/BButton/index.vue';
 import { useClipboard } from '@/hooks/useClipboard';
 import { createNamespace } from '@/utils/namespace';
 import ConfirmationCard from './ConfirmationCard.vue';
-import MessageAttachmentsHeader from './MessageAttachmentsHeader.vue';
-import TextPart from './TextPart.vue';
-import ThinkingPart from './ThinkingPart.vue';
-import ToolCallPart from './ToolCallPart.vue';
-import ToolResultPart from './ToolResultPart.vue';
+import MessageBubblePartText from './MessageBubblePartText.vue';
+import MessageBubblePartThinking from './MessageBubblePartThinking.vue';
+import MessageBubblePartToolCall from './MessageBubblePartToolCall.vue';
+import MessageBubblePartToolResult from './MessageBubblePartToolResult.vue';
 
 defineOptions({ name: 'BMessageBubble' });
 
@@ -79,6 +89,10 @@ defineEmits<{
   (e: 'confirmation-action', confirmationId: string, action: 'approve' | 'cancel'): void;
 }>();
 
+/** 图片文件列表 */
+const imageFiles = computed(() => props.message.files?.filter((file) => file.type === 'image' && (file.url || file.path)) ?? []);
+/** 其他文件列表 */
+const otherFiles = computed(() => props.message.files?.filter((file) => file.type !== 'image' || (!file.url && !file.path)) ?? []);
 /** 是否为用户消息 */
 const isUserMessage = computed(() => props.message.role === 'user');
 /** 是否为助手消息 */
@@ -88,7 +102,7 @@ const isErrorMessage = computed(() => props.message.role === 'error');
 /** 气泡位置 */
 const bubblePlacement = computed(() => (isAssistantMessage.value || isErrorMessage.value ? 'left' : 'right'));
 /** 是否显示头部（仅用户消息且有附件时显示） */
-const showHeader = computed(() => isUserMessage.value && !!props.message.files?.length);
+const showHeader = computed(() => isUserMessage.value && (imageFiles.value.length || otherFiles.value.length));
 
 /**
  * 判断消息片段是否为最后一个片段。
