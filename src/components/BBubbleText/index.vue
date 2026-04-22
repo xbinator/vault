@@ -11,8 +11,8 @@
     <template v-if="think" #top>
       <div class="b-bubble-text__think">
         <div class="b-bubble-text__think-toggle" @click="handleThinkCollapse">
-          <div class="b-bubble-text__think-title">{{ thinkTitle || '深度思考' }}</div>
           <Icon :icon="collapse.think ? 'lucide:chevron-up' : 'lucide:chevron-down'" class="b-bubble-text__think-icon" />
+          <div class="b-bubble-text__think-title">{{ thinkTitle || '深度思考' }}</div>
         </div>
         <div v-show="!collapse.think" class="b-bubble-text__think-content">
           <BMessage :content="think" :type="isMarkdown ? 'markdown' : 'text'" />
@@ -64,15 +64,17 @@ function handleThinkCollapse(): void {
 
 .b-bubble-text__think-toggle {
   display: flex;
+  gap: 2px;
   align-items: center;
   width: fit-content;
-  padding: 4px 10px;
+  padding: 2px 6px;
   margin-bottom: 10px;
-  font-size: 13px;
+  font-size: 12px;
+  color: var(--text-secondary);
   cursor: pointer;
   user-select: none;
   background-color: var(--bg-secondary);
-  border-radius: 6px;
+  border-radius: 4px;
   transition: background-color 0.2s;
 }
 
@@ -80,14 +82,8 @@ function handleThinkCollapse(): void {
   background-color: var(--bg-tertiary);
 }
 
-.b-bubble-text__think-title {
-  margin-right: 6px;
-  font-weight: 500;
-  color: var(--text-secondary);
-}
-
 .b-bubble-text__think-icon {
-  font-size: 14px;
+  font-size: 12px;
   color: var(--text-tertiary);
   transition: transform 0.2s;
 }
