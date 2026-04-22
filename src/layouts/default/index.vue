@@ -256,7 +256,7 @@ useEventListener(window, 'resize', validateWindowState);
 }
 
 .b-layout-header__left {
-  padding-left: 20px;
+  padding-left: 8px;
 }
 
 .b-dropdown-menu-item.is-active {
