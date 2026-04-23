@@ -24,7 +24,8 @@ describe('createBuiltinTools', () => {
       'read_current_document',
       'get_current_selection',
       'get_current_time',
-      'search_current_document'
+      'search_current_document',
+      'ask_user_choice'
     ]);
   });
 
@@ -34,6 +35,7 @@ describe('createBuiltinTools', () => {
       'get_current_selection',
       'get_current_time',
       'search_current_document',
+      'ask_user_choice',
       'insert_at_cursor'
     ]);
   });
@@ -52,6 +54,7 @@ describe('createBuiltinTools', () => {
       'get_current_selection',
       'get_current_time',
       'search_current_document',
+      'ask_user_choice',
       'insert_at_cursor',
       'replace_selection',
       'replace_document'

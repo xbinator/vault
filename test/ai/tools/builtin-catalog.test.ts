@@ -13,7 +13,13 @@ import {
 
 describe('built-in tool catalog', () => {
   it('exposes the default readonly tool names', () => {
-    expect([...DEFAULT_BUILTIN_READONLY_TOOL_NAMES]).toEqual(['read_current_document', 'get_current_selection', 'get_current_time', 'search_current_document']);
+    expect([...DEFAULT_BUILTIN_READONLY_TOOL_NAMES]).toEqual([
+      'read_current_document',
+      'get_current_selection',
+      'get_current_time',
+      'search_current_document',
+      'ask_user_choice'
+    ]);
   });
 
   it('exposes the default low-risk writable tool names', () => {
@@ -26,12 +32,14 @@ describe('built-in tool catalog', () => {
       'get_current_selection',
       'get_current_time',
       'search_current_document',
+      'ask_user_choice',
       'insert_at_cursor'
     ]);
   });
 
   it('checks readonly tool membership from the shared catalog', () => {
     expect(isDefaultBuiltinReadonlyToolName('get_current_time')).toBe(true);
+    expect(isDefaultBuiltinReadonlyToolName('ask_user_choice')).toBe(true);
     expect(isDefaultBuiltinReadonlyToolName('insert_at_cursor')).toBe(false);
   });
 

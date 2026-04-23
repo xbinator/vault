@@ -2,9 +2,11 @@
  * @file builtin/index.ts
  * @description 内置工具工厂函数
  */
+import { randomUUID } from 'node:crypto';
 import type { AIToolConfirmationAdapter } from '../confirmation';
 import type { AIToolExecutor } from 'types/ai';
 import { isDefaultBuiltinReadonlyToolName, isDefaultBuiltinWritableToolName } from './catalog';
+import { createAskUserChoiceTool } from './ask-user-choice';
 import { createBuiltinEnvironmentTools } from './environment';
 import { createBuiltinReadTools } from './read';
 import { createBuiltinWriteTools } from './write';
@@ -36,7 +38,11 @@ export function createBuiltinTools(options: CreateBuiltinToolsOptions = {}): AIT
     readTools.readCurrentDocument,
     readTools.getCurrentSelection,
     environmentTools.getCurrentTime,
-    readTools.searchCurrentDocument
+    readTools.searchCurrentDocument,
+    createAskUserChoiceTool({
+      getPendingQuestion: () => null,
+      createQuestionId: () => randomUUID()
+    })
   ];
   const readonlyTools = allReadonlyTools.filter((tool) => isDefaultBuiltinReadonlyToolName(tool.definition.name));
 
