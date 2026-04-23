@@ -1,37 +1,42 @@
 /**
  * @file results.ts
- * @description AI 工具执行结果工厂函数
+ * @description AI tool execution result factories.
  */
-import type { AIToolExecutionError, AIToolExecutionResult } from 'types/ai';
+import type {
+  AIAwaitingUserChoiceQuestion,
+  AIToolExecutionAwaitingUserInputResult,
+  AIToolExecutionError,
+  AIToolExecutionResult
+} from 'types/ai';
 
 /**
- * 创建成功的工具执行结果
- * @param toolName - 工具名称
- * @param data - 返回的数据
- * @returns 成功的执行结果
+ * Create a successful tool execution result.
+ * @param toolName - Tool name.
+ * @param data - Result payload.
+ * @returns Success result.
  */
 export function createToolSuccessResult<TResult>(toolName: string, data: TResult): AIToolExecutionResult<TResult> {
   return { toolName, status: 'success', data };
 }
 
 /**
- * 创建失败的工具执行结果
- * @param toolName - 工具名称
- * @param code - 错误代码
- * @param message - 错误消息
- * @returns 失败的执行结果
+ * Create a failed tool execution result.
+ * @param toolName - Tool name.
+ * @param code - Error code.
+ * @param message - Error message.
+ * @returns Failure result.
  */
 export function createToolFailureResult(toolName: string, code: AIToolExecutionError['code'], message: string): AIToolExecutionResult<never> {
   return { toolName, status: 'failure', error: { code, message } };
 }
 
 /**
- * 创建失败或取消类型的执行结果
- * @param toolName - 工具名称
- * @param status - 状态（failure 或 cancelled）
- * @param code - 错误代码
- * @param message - 错误消息
- * @returns 执行结果
+ * Create a failure-like tool execution result.
+ * @param toolName - Tool name.
+ * @param status - Terminal status.
+ * @param code - Error code.
+ * @param message - Error message.
+ * @returns Failure-like result.
  */
 function createFailureLikeResult(
   toolName: string,
@@ -43,10 +48,23 @@ function createFailureLikeResult(
 }
 
 /**
- * 创建用户取消的工具执行结果
- * @param toolName - 工具名称
- * @returns 取消的执行结果
+ * Create a cancelled tool execution result.
+ * @param toolName - Tool name.
+ * @returns Cancelled result.
  */
 export function createToolCancelledResult(toolName: string): AIToolExecutionResult<never> {
   return createFailureLikeResult(toolName, 'cancelled', 'USER_CANCELLED', '用户取消了工具调用');
+}
+
+/**
+ * Create an awaiting-user-input tool execution result.
+ * @param toolName - Tool name.
+ * @param question - Choice question payload.
+ * @returns Awaiting-user-input result.
+ */
+export function createAwaitingUserInputResult(
+  toolName: string,
+  question: AIAwaitingUserChoiceQuestion
+): AIToolExecutionAwaitingUserInputResult {
+  return { toolName, status: 'awaiting_user_input', data: question };
 }
