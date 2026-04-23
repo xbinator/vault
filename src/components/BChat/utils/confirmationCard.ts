@@ -45,7 +45,7 @@ export function formatConfirmationPreviewText(text: string, toolName: string): s
  */
 export function getConfirmationStatusText(part: ChatMessageConfirmationPart): string {
   if (part.confirmationStatus === 'pending') {
-    return part.permission === 'dangerous' ? '此操作会影响当前全部内容，请确认是否继续。' : '等待你确认是否应用这次修改。';
+    return part.riskLevel === 'dangerous' ? '此操作会影响当前全部内容，请确认是否继续。' : '等待你确认是否应用这次修改。';
   }
 
   if (part.confirmationStatus === 'cancelled') {

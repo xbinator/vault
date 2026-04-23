@@ -60,7 +60,7 @@ describe('built-in settings tools', () => {
   });
 
   it('updates theme after confirmation', async () => {
-    const confirm = vi.fn(async () => true);
+    const confirm = vi.fn(async () => ({ approved: true }));
     const tools = createBuiltinSettingsTools({ confirm });
     const settingStore = useSettingStore();
 
@@ -71,7 +71,8 @@ describe('built-in settings tools', () => {
     expect(confirm).toHaveBeenCalledWith(
       expect.objectContaining({
         toolName: 'update_settings',
-        permission: 'write',
+        riskLevel: 'write',
+        allowRemember: true,
         beforeText: 'theme: system',
         afterText: 'theme: dark'
       })
@@ -79,7 +80,7 @@ describe('built-in settings tools', () => {
   });
 
   it('keeps current settings when confirmation is rejected', async () => {
-    const confirm = vi.fn(async () => false);
+    const confirm = vi.fn(async () => ({ approved: false }));
     const tools = createBuiltinSettingsTools({ confirm });
     const settingStore = useSettingStore();
 
@@ -91,7 +92,7 @@ describe('built-in settings tools', () => {
   });
 
   it('rejects invalid theme values before confirmation', async () => {
-    const confirm = vi.fn(async () => true);
+    const confirm = vi.fn(async () => ({ approved: true }));
     const tools = createBuiltinSettingsTools({ confirm });
 
     const result = await tools.updateSettings.execute({ key: 'theme', value: 'blue' }, createToolContext());
@@ -99,5 +100,56 @@ describe('built-in settings tools', () => {
     expect(result.status).toBe('failure');
     expect(result.error?.code).toBe('INVALID_INPUT');
     expect(confirm).not.toHaveBeenCalled();
+  });
+
+  it('rejects updates in readonly mode without confirmation', async () => {
+    const confirm = vi.fn(async () => ({ approved: true }));
+    const tools = createBuiltinSettingsTools({ confirm });
+    const settingStore = useSettingStore();
+
+    settingStore.setToolPermissionMode('readonly');
+    const result = await tools.updateSettings.execute({ key: 'theme', value: 'dark' }, createToolContext());
+
+    expect(result.status).toBe('failure');
+    expect(result.error?.code).toBe('PERMISSION_DENIED');
+    expect(settingStore.theme).toBe('system');
+    expect(confirm).not.toHaveBeenCalled();
+  });
+
+  it('auto-approves safe settings updates in autoSafe mode', async () => {
+    const confirm = vi.fn(async () => ({ approved: true }));
+    const tools = createBuiltinSettingsTools({ confirm });
+    const settingStore = useSettingStore();
+
+    settingStore.setToolPermissionMode('autoSafe');
+    const result = await tools.updateSettings.execute({ key: 'theme', value: 'dark' }, createToolContext());
+
+    expect(result.status).toBe('success');
+    expect(settingStore.theme).toBe('dark');
+    expect(confirm).not.toHaveBeenCalled();
+  });
+
+  it('skips confirmation after a session grant', async () => {
+    const confirm = vi.fn(async () => ({ approved: true }));
+    const tools = createBuiltinSettingsTools({ confirm });
+    const settingStore = useSettingStore();
+
+    settingStore.grantToolPermission('update_settings', 'session');
+    const result = await tools.updateSettings.execute({ key: 'showOutline', value: false }, createToolContext());
+
+    expect(result.status).toBe('success');
+    expect(settingStore.showOutline).toBe(false);
+    expect(confirm).not.toHaveBeenCalled();
+  });
+
+  it('stores a grant only after the operation succeeds', async () => {
+    const confirm = vi.fn(async () => ({ approved: true, grantScope: 'always' as const }));
+    const tools = createBuiltinSettingsTools({ confirm });
+    const settingStore = useSettingStore();
+
+    const result = await tools.updateSettings.execute({ key: 'sidebarWidth', value: 260 }, createToolContext());
+
+    expect(result.status).toBe('success');
+    expect(settingStore.alwaysToolPermissionGrants.update_settings).toBe(true);
   });
 });

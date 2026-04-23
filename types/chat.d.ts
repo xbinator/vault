@@ -118,6 +118,21 @@ export type ChatMessageConfirmationStatus = 'pending' | 'approved' | 'cancelled'
 export type ChatMessageConfirmationExecutionStatus = 'idle' | 'running' | 'success' | 'failure';
 
 /**
+ * 确认卡片操作类型
+ */
+export type ChatMessageConfirmationAction = 'approve' | 'approve-session' | 'approve-always' | 'cancel';
+
+/**
+ * 确认卡片操作事件载荷
+ */
+export interface ChatMessageConfirmationActionPayload {
+  /** 确认项 ID */
+  confirmationId: string;
+  /** 确认操作 */
+  action: ChatMessageConfirmationAction;
+}
+
+/**
  * 聊天消息确认卡片片段
  */
 export interface ChatMessageConfirmationPart {
@@ -131,12 +146,16 @@ export interface ChatMessageConfirmationPart {
   title: string;
   /** 描述 */
   description: string;
-  /** 权限级别 */
-  permission: 'write' | 'dangerous';
+  /** 风险级别 */
+  riskLevel: 'write' | 'dangerous';
   /** 原始文本 */
   beforeText?: string;
   /** 新文本 */
   afterText?: string;
+  /** 是否允许记住本次授权 */
+  allowRemember?: boolean;
+  /** 可选的记忆授权范围 */
+  rememberScopes?: Array<'session' | 'always'>;
   /** 确认状态 */
   confirmationStatus: ChatMessageConfirmationStatus;
   /** 执行状态 */
@@ -148,12 +167,7 @@ export interface ChatMessageConfirmationPart {
 /**
  * 聊天消息结构化片段
  */
-export type ChatMessagePart =
-  | ChatMessageTextPart
-  | ChatMessageThinkingPart
-  | ChatMessageToolCallPart
-  | ChatMessageToolResultPart
-  | ChatMessageConfirmationPart;
+export type ChatMessagePart = ChatMessageTextPart | ChatMessageThinkingPart | ChatMessageToolCallPart | ChatMessageToolResultPart | ChatMessageConfirmationPart;
 
 /**
  * 聊天会话

@@ -47,7 +47,7 @@
  * @file BChatSidebar/index.vue
  * @description 聊天侧边栏，负责会话列表切换、会话持久化和聊天面板接入。
  */
-import type { ChatSession } from 'types/chat';
+import type { ChatMessageConfirmationAction, ChatSession } from 'types/chat';
 import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
 import { Icon } from '@iconify/vue';
 import { createBuiltinTools } from '@/ai/tools/builtin';
@@ -178,9 +178,19 @@ async function handleDeleteSession(sessionId: string): Promise<void> {
  * @param confirmationId - 确认项 ID
  * @param action - 用户操作
  */
-async function handleConfirmationAction(confirmationId: string, action: 'approve' | 'cancel'): Promise<void> {
+async function handleConfirmationAction(confirmationId: string, action: ChatMessageConfirmationAction): Promise<void> {
   if (action === 'approve') {
     confirmationController.approveConfirmation(confirmationId);
+    return;
+  }
+
+  if (action === 'approve-session') {
+    confirmationController.approveConfirmation(confirmationId, 'session');
+    return;
+  }
+
+  if (action === 'approve-always') {
+    confirmationController.approveConfirmation(confirmationId, 'always');
     return;
   }
 

@@ -66,7 +66,8 @@ function getExecutionErrorMessage(error: unknown): string {
  * @returns null 表示已确认，否则返回取消结果
  */
 async function confirmOrCancel(adapter: AIToolConfirmationAdapter, request: AIToolConfirmationRequest, toolName: string) {
-  const confirmed = await adapter.confirm(request);
+  const decision = await adapter.confirm(request);
+  const confirmed = typeof decision === 'boolean' ? decision : decision.approved;
 
   return confirmed ? null : createToolCancelledResult(toolName);
 }
@@ -105,7 +106,7 @@ export function createBuiltinWriteTools(adapter: AIToolConfirmationAdapter): Bui
         name: 'insert_at_cursor',
         description: '在当前光标位置插入内容。',
         source: 'builtin',
-        permission: 'write',
+        riskLevel: 'write',
         parameters: {
           type: 'object',
           properties: {
@@ -127,7 +128,7 @@ export function createBuiltinWriteTools(adapter: AIToolConfirmationAdapter): Bui
           toolName: 'insert_at_cursor',
           title: 'AI 想要插入内容',
           description: 'AI 请求在当前光标位置插入新内容。',
-          permission: 'write',
+          riskLevel: 'write',
           afterText: content
         };
         const cancelled = await confirmOrCancel(adapter, request, 'insert_at_cursor');
@@ -146,7 +147,7 @@ export function createBuiltinWriteTools(adapter: AIToolConfirmationAdapter): Bui
         name: 'replace_selection',
         description: '替换当前编辑器选区内容。',
         source: 'builtin',
-        permission: 'write',
+        riskLevel: 'write',
         parameters: {
           type: 'object',
           properties: {
@@ -174,7 +175,7 @@ export function createBuiltinWriteTools(adapter: AIToolConfirmationAdapter): Bui
           toolName: 'replace_selection',
           title: 'AI 想要替换当前选区',
           description: 'AI 请求用新内容替换当前选中的文本。',
-          permission: 'write',
+          riskLevel: 'write',
           beforeText: selection.text,
           afterText: content
         };
@@ -200,7 +201,7 @@ export function createBuiltinWriteTools(adapter: AIToolConfirmationAdapter): Bui
         name: 'replace_document',
         description: '替换当前整个文档内容。',
         source: 'builtin',
-        permission: 'dangerous',
+        riskLevel: 'dangerous',
         parameters: {
           type: 'object',
           properties: {
@@ -222,7 +223,7 @@ export function createBuiltinWriteTools(adapter: AIToolConfirmationAdapter): Bui
           toolName: 'replace_document',
           title: 'AI 想要替换整篇文档',
           description: 'AI 请求使用新内容覆盖当前整篇文档。',
-          permission: 'dangerous',
+          riskLevel: 'dangerous',
           beforeText: context.document.getContent(),
           afterText: content
         };

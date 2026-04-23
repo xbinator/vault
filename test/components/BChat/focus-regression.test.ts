@@ -30,7 +30,7 @@ describe('BChat user choice continuation', () => {
   test('resolves service config again when a restored pending choice is answered', () => {
     const source = readSource('src/components/BChat/index.vue');
 
-    expect(source).toContain('const config = lastServiceConfig ?? await ensureServiceConfig();');
+    expect(source).toContain('const config = lastServiceConfig ?? (await ensureServiceConfig());');
     expect(source).not.toContain('if (loading.value || !lastServiceConfig)');
   });
 });

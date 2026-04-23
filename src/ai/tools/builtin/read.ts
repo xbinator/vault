@@ -109,7 +109,7 @@ export function createBuiltinReadTools(): BuiltinReadTools {
         name: 'read_current_document',
         description: '读取当前编辑器文档的标题、路径和 Markdown 内容。',
         source: 'builtin',
-        permission: 'read',
+        riskLevel: 'read',
         parameters: { type: 'object', properties: {}, additionalProperties: false }
       },
       async execute(_input: Record<string, never>, context: AIToolContext) {
@@ -126,7 +126,7 @@ export function createBuiltinReadTools(): BuiltinReadTools {
         name: 'search_current_document',
         description: '在当前文档中搜索关键词并返回匹配片段。',
         source: 'builtin',
-        permission: 'read',
+        riskLevel: 'read',
         parameters: {
           type: 'object',
           properties: {

@@ -60,7 +60,7 @@
  */
 import type { Message } from '../types';
 import type { AIToolExecutionAwaitingUserInputResult } from 'types/ai';
-import type { AIUserChoiceAnswerData, ChatMessagePart, ChatMessageToolResultPart } from 'types/chat';
+import type { AIUserChoiceAnswerData, ChatMessageConfirmationAction, ChatMessagePart, ChatMessageToolResultPart } from 'types/chat';
 import { computed } from 'vue';
 import { Icon } from '@iconify/vue';
 import BBubble from '@/components/BBubble/index.vue';
@@ -90,7 +90,7 @@ defineEmits<{
   /** 重新生成消息事件 */
   (e: 'regenerate', message: Message): void;
   /** 确认操作事件 */
-  (e: 'confirmation-action', confirmationId: string, action: 'approve' | 'cancel'): void;
+  (e: 'confirmation-action', confirmationId: string, action: ChatMessageConfirmationAction): void;
   /** 用户选择题提交事件 */
   (e: 'user-choice-submit', answer: AIUserChoiceAnswerData): void;
 }>();

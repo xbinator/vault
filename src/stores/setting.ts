@@ -8,6 +8,8 @@ import { native } from '@/shared/platform';
 import { local } from '@/shared/storage/base';
 
 export type ThemeMode = 'dark' | 'light' | 'system';
+export type ToolPermissionMode = 'ask' | 'readonly' | 'autoSafe';
+export type ToolPermissionGrantScope = 'session' | 'always';
 
 type ResolvedTheme = 'dark' | 'light';
 
@@ -35,10 +37,15 @@ interface PersistedSettingState {
   sidebarVisible: boolean;
   // 侧边栏宽度，单位像素
   sidebarWidth: number;
+  // AI 工具权限模式
+  toolPermissionMode: ToolPermissionMode;
+  // 持久化的 AI 工具始终允许授权
+  alwaysToolPermissionGrants: Record<string, true>;
 }
 
 interface SettingState extends PersistedSettingState {
   title: string;
+  sessionToolPermissionGrants: Record<string, true>;
 }
 
 const DEFAULT_SETTINGS: PersistedSettingState = {
@@ -49,7 +56,9 @@ const DEFAULT_SETTINGS: PersistedSettingState = {
   showOutline: true,
   sourceMode: false,
   sidebarVisible: false,
-  sidebarWidth: 340
+  sidebarWidth: 340,
+  toolPermissionMode: 'ask',
+  alwaysToolPermissionGrants: {}
 };
 
 function getSystemTheme(): ResolvedTheme {
@@ -72,6 +81,10 @@ function isThemeMode(value: unknown): value is ThemeMode {
   return value === 'dark' || value === 'light' || value === 'system';
 }
 
+function isToolPermissionMode(value: unknown): value is ToolPermissionMode {
+  return value === 'ask' || value === 'readonly' || value === 'autoSafe';
+}
+
 function normalizeSidebarWidth(value: unknown): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : DEFAULT_SETTINGS.sidebarWidth;
 }
@@ -87,6 +100,20 @@ function normalizeSettings(value: unknown): PersistedSettingState {
   // 确保主题模式有效
   if (!isThemeMode(normalized.theme)) {
     normalized.theme = DEFAULT_SETTINGS.theme;
+  }
+
+  // 确保工具权限模式有效
+  if (!isToolPermissionMode(normalized.toolPermissionMode)) {
+    normalized.toolPermissionMode = DEFAULT_SETTINGS.toolPermissionMode;
+  }
+
+  // 确保持久授权记录是普通对象
+  if (
+    !normalized.alwaysToolPermissionGrants ||
+    typeof normalized.alwaysToolPermissionGrants !== 'object' ||
+    Array.isArray(normalized.alwaysToolPermissionGrants)
+  ) {
+    normalized.alwaysToolPermissionGrants = {};
   }
 
   // 确保侧边栏宽度有效
@@ -135,7 +162,8 @@ function loadPersistedSettings(): PersistedSettingState {
 export const useSettingStore = defineStore('setting', {
   state: (): SettingState => ({
     ...loadPersistedSettings(),
-    title: 'Tibis'
+    title: 'Tibis',
+    sessionToolPermissionGrants: {}
   }),
 
   getters: {
@@ -168,7 +196,9 @@ export const useSettingStore = defineStore('setting', {
         showOutline: this.showOutline,
         sourceMode: this.sourceMode,
         sidebarVisible: this.sidebarVisible,
-        sidebarWidth: this.sidebarWidth
+        sidebarWidth: this.sidebarWidth,
+        toolPermissionMode: this.toolPermissionMode,
+        alwaysToolPermissionGrants: this.alwaysToolPermissionGrants
       };
 
       local.setItem(SETTINGS_STORAGE_KEY, settings);
@@ -258,6 +288,57 @@ export const useSettingStore = defineStore('setting', {
     setProviderSidebarCollapsed(collapsed: boolean): void {
       this.providerSidebarCollapsed = collapsed;
       this.persistSettings();
+    },
+
+    /**
+     * 设置 AI 工具权限模式。
+     * @param mode - 工具权限模式
+     */
+    setToolPermissionMode(mode: ToolPermissionMode): void {
+      this.toolPermissionMode = mode;
+      this.persistSettings();
+    },
+
+    /**
+     * 授权指定 AI 工具。
+     * @param toolName - 工具名称
+     * @param scope - 授权范围
+     */
+    grantToolPermission(toolName: string, scope: ToolPermissionGrantScope): void {
+      if (scope === 'session') {
+        this.sessionToolPermissionGrants[toolName] = true;
+        return;
+      }
+
+      this.alwaysToolPermissionGrants[toolName] = true;
+      delete this.sessionToolPermissionGrants[toolName];
+      this.persistSettings();
+    },
+
+    /**
+     * 撤销指定 AI 工具授权。
+     * @param toolName - 工具名称
+     */
+    revokeToolPermission(toolName: string): void {
+      delete this.alwaysToolPermissionGrants[toolName];
+      delete this.sessionToolPermissionGrants[toolName];
+      this.persistSettings();
+    },
+
+    /**
+     * 清除全部 AI 工具授权。
+     */
+    clearToolPermissionGrants(): void {
+      this.alwaysToolPermissionGrants = {};
+      this.sessionToolPermissionGrants = {};
+      this.persistSettings();
+    },
+
+    /**
+     * 清除当前页面生命周期内的 AI 工具授权。
+     */
+    clearSessionToolPermissionGrants(): void {
+      this.sessionToolPermissionGrants = {};
     },
 
     /**

@@ -33,7 +33,7 @@ describe('chat confirmation controller', () => {
       toolName: 'insert_at_cursor',
       title: 'AI 想要插入内容',
       description: 'AI 请求在当前光标位置插入新内容。',
-      permission: 'write',
+      riskLevel: 'write',
       afterText: 'hello'
     });
     const confirmationPart = messages[0].parts[0];
@@ -43,7 +43,7 @@ describe('chat confirmation controller', () => {
 
     controller.approveConfirmation(confirmationPart.type === 'confirmation' ? confirmationPart.confirmationId : '');
 
-    await expect(promise).resolves.toBe(true);
+    await expect(promise).resolves.toEqual({ approved: true });
     expect(confirmationPart?.type === 'confirmation' ? confirmationPart.confirmationStatus : '').toBe('approved');
   });
 
@@ -57,7 +57,7 @@ describe('chat confirmation controller', () => {
       toolName: 'insert_at_cursor',
       title: 'AI 想要插入内容',
       description: 'AI 请求在当前光标位置插入新内容。',
-      permission: 'write',
+      riskLevel: 'write',
       afterText: 'first'
     });
 
@@ -67,16 +67,16 @@ describe('chat confirmation controller', () => {
       toolName: 'insert_at_cursor',
       title: 'AI 想要插入内容',
       description: 'AI 请求在当前光标位置插入新内容。',
-      permission: 'write',
+      riskLevel: 'write',
       afterText: 'second'
     });
 
-    await expect(firstPromise).resolves.toBe(false);
+    await expect(firstPromise).resolves.toEqual({ approved: false });
     expect(firstPart?.type === 'confirmation' ? firstPart.confirmationStatus : '').toBe('expired');
 
     const secondPart = messages[0].parts[1];
     controller.cancelConfirmation(secondPart.type === 'confirmation' ? secondPart.confirmationId : '');
-    await expect(secondPromise).resolves.toBe(false);
+    await expect(secondPromise).resolves.toEqual({ approved: false });
     expect(secondPart?.type === 'confirmation' ? secondPart.confirmationStatus : '').toBe('cancelled');
   });
 
@@ -90,7 +90,7 @@ describe('chat confirmation controller', () => {
       toolName: 'replace_selection',
       title: 'AI 想要替换当前选区',
       description: 'AI 请求用新内容替换当前选中的文本。',
-      permission: 'write',
+      riskLevel: 'write',
       beforeText: 'old',
       afterText: 'new'
     });
@@ -98,7 +98,7 @@ describe('chat confirmation controller', () => {
     const confirmationId = confirmationPart.type === 'confirmation' ? confirmationPart.confirmationId : '';
 
     controller.approveConfirmation(confirmationId);
-    await expect(promise).resolves.toBe(true);
+    await expect(promise).resolves.toEqual({ approved: true });
 
     controller.markExecutionStart();
     expect(confirmationPart.type === 'confirmation' ? confirmationPart.executionStatus : '').toBe('running');
@@ -106,5 +106,29 @@ describe('chat confirmation controller', () => {
     controller.markExecutionComplete({ status: 'failure', errorMessage: '磁盘写入失败' });
     expect(confirmationPart.type === 'confirmation' ? confirmationPart.executionStatus : '').toBe('failure');
     expect(confirmationPart.type === 'confirmation' ? confirmationPart.executionError : '').toBe('磁盘写入失败');
+  });
+
+  it('returns a session grant decision when approving with session scope', async () => {
+    const messages = createMessages();
+    const controller = createChatConfirmationController({
+      getMessages: () => messages
+    });
+
+    const promise = controller.requestConfirmation({
+      toolName: 'update_settings',
+      title: 'AI 想要修改设置',
+      description: 'AI 请求修改设置。',
+      riskLevel: 'write',
+      allowRemember: true,
+      rememberScopes: ['session', 'always']
+    });
+    const confirmationPart = messages[0].parts[0];
+    const confirmationId = confirmationPart.type === 'confirmation' ? confirmationPart.confirmationId : '';
+
+    expect(confirmationPart.type === 'confirmation' ? confirmationPart.allowRemember : false).toBe(true);
+
+    controller.approveConfirmation(confirmationId, 'session');
+
+    await expect(promise).resolves.toEqual({ approved: true, grantScope: 'session' });
   });
 });

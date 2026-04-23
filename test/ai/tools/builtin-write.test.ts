@@ -1,5 +1,6 @@
 import type { AIToolContext } from 'types/ai';
 import { describe, expect, it, vi } from 'vitest';
+import type { AIToolConfirmationRequest } from '@/ai/tools/confirmation';
 import { createBuiltinWriteTools } from '@/ai/tools/builtin/write';
 
 function createContext() {
@@ -76,7 +77,7 @@ describe('built-in write tools', () => {
   });
 
   it('replaces the full document after dangerous confirmation', async () => {
-    const confirm = vi.fn(async () => true);
+    const confirm = vi.fn(async (_request: AIToolConfirmationRequest) => true);
     const tools = createBuiltinWriteTools({ confirm });
     const { context, getDocumentContent } = createContext();
 
@@ -85,8 +86,7 @@ describe('built-in write tools', () => {
     expect(result.status).toBe('success');
     expect(getDocumentContent()).toBe('# rewritten');
     expect(confirm).toHaveBeenCalledTimes(1);
-    // @ts-ignore
-    expect(confirm.mock.calls[0]?.[0].permission).toBe('dangerous');
+    expect(confirm.mock.calls[0]?.[0].riskLevel).toBe('dangerous');
   });
 
   it('notifies adapter execution lifecycle around a confirmed write', async () => {
