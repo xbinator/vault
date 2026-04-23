@@ -3,7 +3,7 @@
  * @description BChat 组件消息、服务配置与续轮保护类型定义。
  */
 import type { AIUsage, AIToolContext, AIToolExecutor } from 'types/ai';
-import type { ChatMessageFile, ChatMessagePart, ChatMessageRole } from 'types/chat';
+import type { ChatMessageConfirmationAction, ChatMessageFile, ChatMessagePart, ChatMessageRole } from 'types/chat';
 import type { AIToolProviderSupport } from '@/ai/tools/policy';
 
 /**
@@ -71,5 +71,5 @@ export interface BChatProps {
   /** 获取工具上下文 */
   getToolContext?: () => AIToolContext | undefined;
   /** 确认卡片操作回调 */
-  onConfirmationAction?: (confirmationId: string, action: 'approve' | 'cancel') => void | Promise<void>;
+  onConfirmationAction?: (confirmationId: string, action: ChatMessageConfirmationAction) => void | Promise<void>;
 }

@@ -25,7 +25,7 @@ const echoTool: AIToolExecutor<{ value: string }, { value: string }> = {
     name: 'echo',
     description: 'Echo value',
     source: 'builtin',
-    permission: 'read',
+    riskLevel: 'read',
     parameters: {
       type: 'object',
       properties: {
@@ -45,7 +45,7 @@ const contextFreeTool: AIToolExecutor<Record<string, never>, { applied: true }> 
     name: 'context_free',
     description: 'Context free tool',
     source: 'builtin',
-    permission: 'write',
+    riskLevel: 'write',
     requiresActiveDocument: false,
     parameters: {
       type: 'object',
@@ -97,7 +97,7 @@ describe('AI tool stream helpers', () => {
         name: 'ask_user_choice',
         description: 'Ask user choice',
         source: 'builtin',
-        permission: 'read',
+        riskLevel: 'read',
         parameters: {
           type: 'object',
           properties: {},

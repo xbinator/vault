@@ -1,8 +1,8 @@
 <template>
-  <div :class="bem(['part', 'confirmation', part.confirmationStatus, `permission-${part.permission}`])">
+  <div :class="bem(['part', 'confirmation', part.confirmationStatus, `permission-${part.riskLevel}`])">
     <div :class="bem('title', { clickable: true })" @click="toggleCollapse">
       <Icon :icon="collapsed ? 'lucide:chevron-down' : 'lucide:chevron-up'" width="14" height="14" />
-      <Icon :icon="part.permission === 'dangerous' ? 'lucide:triangle-alert' : 'lucide:shield-check'" width="14" height="14" />
+      <Icon :icon="part.riskLevel === 'dangerous' ? 'lucide:triangle-alert' : 'lucide:shield-check'" width="14" height="14" />
       <span>{{ part.title }}</span>
     </div>
     <div :class="bem('status')">{{ statusText }}</div>
@@ -19,6 +19,22 @@
       <div v-if="part.toolName === 'replace_document'" :class="bem('tip')">完整内容较长，当前仅展示部分预览。</div>
       <div v-if="part.confirmationStatus === 'pending'" :class="bem('actions')">
         <BButton size="small" @click="$emit('confirmation-action', { confirmationId: part.confirmationId, action: 'approve' })">应用</BButton>
+        <BButton
+          v-if="part.allowRemember && part.rememberScopes?.includes('session')"
+          size="small"
+          type="secondary"
+          @click="$emit('confirmation-action', { confirmationId: part.confirmationId, action: 'approve-session' })"
+        >
+          本会话允许
+        </BButton>
+        <BButton
+          v-if="part.allowRemember && part.rememberScopes?.includes('always')"
+          size="small"
+          type="secondary"
+          @click="$emit('confirmation-action', { confirmationId: part.confirmationId, action: 'approve-always' })"
+        >
+          始终允许
+        </BButton>
         <BButton size="small" type="text" @click="$emit('confirmation-action', { confirmationId: part.confirmationId, action: 'cancel' })">取消</BButton>
       </div>
     </template>
@@ -30,7 +46,7 @@
  * @file ConfirmationCard.vue
  * @description 聊天流中的确认卡片组件，负责展示确认状态、预览和折叠交互。
  */
-import type { ChatMessageConfirmationPart } from 'types/chat';
+import type { ChatMessageConfirmationActionPayload, ChatMessageConfirmationPart } from 'types/chat';
 import { computed, ref } from 'vue';
 import { Icon } from '@iconify/vue';
 import BButton from '@/components/BButton/index.vue';
@@ -45,7 +61,7 @@ const props = defineProps<{
 }>();
 
 defineEmits<{
-  (e: 'confirmation-action', payload: { confirmationId: string; action: 'approve' | 'cancel' }): void;
+  (e: 'confirmation-action', payload: ChatMessageConfirmationActionPayload): void;
 }>();
 
 const manuallyCollapsed = ref(false);

@@ -5,7 +5,7 @@
  */
 import type { ChatMessageConfirmationPart, ChatMessageConfirmationStatus } from 'types/chat';
 import { nanoid } from 'nanoid';
-import type { AIToolConfirmationAdapter, AIToolConfirmationRequest } from '@/ai/tools/confirmation';
+import type { AIToolConfirmationAdapter, AIToolConfirmationDecision, AIToolConfirmationRequest } from '@/ai/tools/confirmation';
 import type { Message } from '@/components/BChat/types';
 
 /**
@@ -25,7 +25,7 @@ interface PendingConfirmation {
   /** 原始请求 */
   request: AIToolConfirmationRequest;
   /** Promise 完成回调 */
-  resolve: (approved: boolean) => void;
+  resolve: (decision: AIToolConfirmationDecision) => void;
 }
 
 /**
@@ -56,9 +56,11 @@ function createConfirmationPart(confirmationId: string, request: AIToolConfirmat
     toolName: request.toolName,
     title: request.title,
     description: request.description,
-    permission: request.permission === 'dangerous' ? 'dangerous' : 'write',
+    riskLevel: request.riskLevel === 'dangerous' ? 'dangerous' : 'write',
     beforeText: request.beforeText,
     afterText: request.afterText,
+    allowRemember: request.allowRemember,
+    rememberScopes: request.rememberScopes,
     confirmationStatus: 'pending',
     executionStatus: 'idle'
   };
@@ -126,9 +128,9 @@ export function createChatConfirmationController(options: ChatConfirmationContro
   /**
    * 结束当前挂起确认项。
    * @param status - 最终确认状态
-   * @param approved - Promise 返回值
+   * @param decision - Promise 返回值
    */
-  function settlePendingConfirmation(status: ChatMessageConfirmationStatus, approved: boolean): void {
+  function settlePendingConfirmation(status: ChatMessageConfirmationStatus, decision: AIToolConfirmationDecision): void {
     if (!pendingConfirmation) {
       return;
     }
@@ -136,7 +138,7 @@ export function createChatConfirmationController(options: ChatConfirmationContro
     const current = pendingConfirmation;
     pendingConfirmation = null;
     updateConfirmationStatus(current.id, status);
-    current.resolve(approved);
+    current.resolve(decision);
   }
 
   /**
@@ -144,18 +146,18 @@ export function createChatConfirmationController(options: ChatConfirmationContro
    * @param request - 确认请求
    * @returns 用户是否确认
    */
-  async function requestConfirmation(request: AIToolConfirmationRequest): Promise<boolean> {
+  async function requestConfirmation(request: AIToolConfirmationRequest): Promise<AIToolConfirmationDecision> {
     expirePendingConfirmation();
 
     const message = findLastAssistantMessage(options.getMessages());
     if (!message) {
-      return false;
+      return { approved: false };
     }
 
     const confirmationId = nanoid();
     message.parts.push(createConfirmationPart(confirmationId, request));
 
-    return new Promise<boolean>((resolve) => {
+    return new Promise<AIToolConfirmationDecision>((resolve) => {
       pendingConfirmation = { id: confirmationId, request, resolve };
     });
   }
@@ -163,14 +165,15 @@ export function createChatConfirmationController(options: ChatConfirmationContro
   /**
    * 同意当前确认项。
    * @param confirmationId - 确认项 ID
+   * @param grantScope - 可选授权范围
    */
-  function approveConfirmation(confirmationId: string): void {
+  function approveConfirmation(confirmationId: string, grantScope?: 'session' | 'always'): void {
     if (!pendingConfirmation || pendingConfirmation.id !== confirmationId) {
       return;
     }
 
     activeConfirmationId = confirmationId;
-    settlePendingConfirmation('approved', true);
+    settlePendingConfirmation('approved', grantScope ? { approved: true, grantScope } : { approved: true });
   }
 
   /**
@@ -182,7 +185,7 @@ export function createChatConfirmationController(options: ChatConfirmationContro
       return;
     }
 
-    settlePendingConfirmation('cancelled', false);
+    settlePendingConfirmation('cancelled', { approved: false });
   }
 
   /**
@@ -193,7 +196,7 @@ export function createChatConfirmationController(options: ChatConfirmationContro
       return;
     }
 
-    settlePendingConfirmation('expired', false);
+    settlePendingConfirmation('expired', { approved: false });
   }
 
   /**

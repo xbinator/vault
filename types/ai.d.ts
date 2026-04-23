@@ -13,8 +13,14 @@ export type AIProviderType = 'openai' | 'anthropic' | 'google' | 'deepseek';
 /** AI tool source type. */
 export type AIToolSource = 'builtin' | 'custom' | 'mcp';
 
-/** AI tool permission level. */
-export type AIToolPermission = 'read' | 'write' | 'dangerous';
+/** AI tool risk level. */
+export type AIToolRiskLevel = 'read' | 'write' | 'dangerous';
+
+/** AI tool permission mode configured by the user. */
+export type AIToolPermissionMode = 'ask' | 'readonly' | 'autoSafe';
+
+/** AI tool grant scope selected by the user. */
+export type AIToolGrantScope = 'session' | 'always';
 
 /** AI tool execution status. */
 export type AIToolExecutionStatus = 'success' | 'failure' | 'cancelled' | 'awaiting_user_input';
@@ -79,12 +85,16 @@ export interface AIToolDefinition {
   description: string;
   /** Tool source. */
   source: AIToolSource;
-  /** Permission level. */
-  permission: AIToolPermission;
+  /** Risk level. */
+  riskLevel: AIToolRiskLevel;
   /** Parameter schema. */
   parameters: AIToolParameterSchema;
   /** Whether this tool needs the current editor document context. Defaults to true. */
   requiresActiveDocument?: boolean;
+  /** Permission category used by UI and policy decisions. */
+  permissionCategory?: 'document' | 'settings' | 'system';
+  /** Whether this write tool can be auto-approved and remembered in the first permission model. */
+  safeAutoApprove?: boolean;
 }
 
 /**
@@ -140,6 +150,7 @@ export interface AIToolExecutionError {
     | 'NO_ACTIVE_DOCUMENT'
     | 'NO_SELECTION'
     | 'NO_CURSOR'
+    | 'PERMISSION_DENIED'
     | 'USER_CANCELLED'
     | 'EDITOR_UNAVAILABLE'
     | 'STALE_CONTEXT'

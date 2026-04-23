@@ -6,7 +6,8 @@ import type { AIToolConfirmationAdapter, AIToolConfirmationRequest } from '../co
 import type { AIToolExecutor } from 'types/ai';
 import type { ThemeMode } from '@/stores/setting';
 import { useSettingStore } from '@/stores/setting';
-import { createToolCancelledResult, createToolFailureResult, createToolSuccessResult } from '../results';
+import { executeWithPermission } from '../permission';
+import { createToolFailureResult } from '../results';
 
 /** 设置修改工具名称。 */
 const UPDATE_SETTINGS_TOOL_NAME = 'update_settings';
@@ -171,39 +172,6 @@ function applySettingValue(input: UpdateSettingsInput): void {
 }
 
 /**
- * 请求用户确认或返回取消结果。
- * @param adapter - 确认适配器
- * @param request - 确认请求
- * @returns null 表示已确认，否则返回取消结果
- */
-async function confirmOrCancel(adapter: AIToolConfirmationAdapter, request: AIToolConfirmationRequest) {
-  const confirmed = await adapter.confirm(request);
-
-  return confirmed ? null : createToolCancelledResult(UPDATE_SETTINGS_TOOL_NAME);
-}
-
-/**
- * 执行已确认的设置修改，并同步确认生命周期状态。
- * @param adapter - 确认适配器
- * @param request - 确认请求
- * @param operation - 实际设置修改操作
- * @returns 工具执行结果
- */
-async function executeConfirmedSettingsUpdate(adapter: AIToolConfirmationAdapter, request: AIToolConfirmationRequest, operation: () => UpdateSettingsResult) {
-  await adapter.onExecutionStart?.(request);
-
-  try {
-    const result = operation();
-    await adapter.onExecutionComplete?.(request, { status: 'success' });
-    return createToolSuccessResult(UPDATE_SETTINGS_TOOL_NAME, result);
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : '设置修改失败';
-    await adapter.onExecutionComplete?.(request, { status: 'failure', errorMessage });
-    return createToolFailureResult(UPDATE_SETTINGS_TOOL_NAME, 'EXECUTION_FAILED', errorMessage);
-  }
-}
-
-/**
  * 创建内置设置修改工具。
  * @param adapter - 确认适配器
  * @returns 设置工具执行器对象
@@ -215,7 +183,9 @@ export function createBuiltinSettingsTools(adapter: AIToolConfirmationAdapter): 
         name: UPDATE_SETTINGS_TOOL_NAME,
         description: '修改应用设置。可根据自然语言请求设置主题、大纲、源码模式、聊天侧边栏和侧边栏折叠状态。',
         source: 'builtin',
-        permission: 'write',
+        riskLevel: 'write',
+        permissionCategory: 'settings',
+        safeAutoApprove: true,
         requiresActiveDocument: false,
         parameters: {
           type: 'object',
@@ -245,24 +215,27 @@ export function createBuiltinSettingsTools(adapter: AIToolConfirmationAdapter): 
           toolName: UPDATE_SETTINGS_TOOL_NAME,
           title: 'AI 想要修改应用设置',
           description: `AI 请求修改设置项 ${validatedInput.key}。`,
-          permission: 'write',
+          riskLevel: 'write',
+          allowRemember: true,
+          rememberScopes: ['session', 'always'],
           beforeText: `${validatedInput.key}: ${String(previousValue)}`,
           afterText: `${validatedInput.key}: ${String(validatedInput.value)}`
         };
-        const cancelled = await confirmOrCancel(adapter, request);
-        if (cancelled) {
-          return cancelled;
-        }
 
-        return executeConfirmedSettingsUpdate(adapter, request, () => {
-          applySettingValue(validatedInput);
+        return executeWithPermission({
+          definition: this.definition,
+          adapter,
+          request,
+          operation: () => {
+            applySettingValue(validatedInput);
 
-          return {
-            applied: true,
-            key: validatedInput.key,
-            previousValue,
-            currentValue: getCurrentSettingValue(validatedInput.key)
-          };
+            return {
+              applied: true,
+              key: validatedInput.key,
+              previousValue,
+              currentValue: getCurrentSettingValue(validatedInput.key)
+            };
+          }
         });
       }
     }

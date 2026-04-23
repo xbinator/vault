@@ -2,7 +2,7 @@
  * @file ask-user-choice.ts
  * @description Built-in executor for pausing tool flow until the user makes a choice.
  */
-import type { AIChoiceOption, AIAwaitingUserChoiceQuestion, AIToolContext, AIToolExecutor } from 'types/ai';
+import type { AIChoiceOption, AIAwaitingUserChoiceQuestion, AIToolExecutor } from 'types/ai';
 import { createAwaitingUserInputResult, createToolFailureResult } from '../results';
 
 /** Shared tool name constant. */
@@ -53,10 +53,7 @@ export interface CreateAskUserChoiceToolOptions {
  * @returns Whether the option has a usable label and value.
  */
 function isValidChoiceOption(option: AIChoiceOption): boolean {
-  return typeof option.label === 'string'
-    && option.label.trim().length > 0
-    && typeof option.value === 'string'
-    && option.value.trim().length > 0;
+  return typeof option.label === 'string' && option.label.trim().length > 0 && typeof option.value === 'string' && option.value.trim().length > 0;
 }
 
 /**
@@ -129,15 +126,13 @@ function createQuestionPayload(input: AskUserChoiceInput, questionId: string): A
  * @param options - Factory dependencies.
  * @returns Configured read-only tool executor.
  */
-export function createAskUserChoiceTool(
-  options: CreateAskUserChoiceToolOptions
-): AIToolExecutor<AskUserChoiceInput, AIAwaitingUserChoiceQuestion> {
+export function createAskUserChoiceTool(options: CreateAskUserChoiceToolOptions): AIToolExecutor<AskUserChoiceInput, AIAwaitingUserChoiceQuestion> {
   return {
     definition: {
       name: ASK_USER_CHOICE_TOOL_NAME,
       description: '向用户发起单选或多选问题，并等待用户选择后继续。',
       source: 'builtin',
-      permission: 'read',
+      riskLevel: 'read',
       parameters: {
         type: 'object',
         properties: {
@@ -164,13 +159,9 @@ export function createAskUserChoiceTool(
         additionalProperties: false
       }
     },
-    async execute(input: AskUserChoiceInput, _context: AIToolContext) {
+    async execute(input: AskUserChoiceInput) {
       if (options.getPendingQuestion()) {
-        return createToolFailureResult(
-          ASK_USER_CHOICE_TOOL_NAME,
-          'EXECUTION_FAILED',
-          '当前已有待回答问题，请等待用户先完成作答。'
-        );
+        return createToolFailureResult(ASK_USER_CHOICE_TOOL_NAME, 'EXECUTION_FAILED', '当前已有待回答问题，请等待用户先完成作答。');
       }
 
       const normalizedInput: AskUserChoiceInput = {
@@ -183,10 +174,7 @@ export function createAskUserChoiceTool(
         return createToolFailureResult(ASK_USER_CHOICE_TOOL_NAME, 'INVALID_INPUT', validationError);
       }
 
-      return createAwaitingUserInputResult(
-        ASK_USER_CHOICE_TOOL_NAME,
-        createQuestionPayload(normalizedInput, options.createQuestionId())
-      );
+      return createAwaitingUserInputResult(ASK_USER_CHOICE_TOOL_NAME, createQuestionPayload(normalizedInput, options.createQuestionId()));
     }
   };
 }

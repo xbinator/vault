@@ -110,7 +110,7 @@ function createMessageWithConfirmation(): Message {
         toolName: 'insert_at_cursor',
         title: 'AI 想要插入内容',
         description: 'AI 请求在当前光标位置插入新内容。',
-        permission: 'write',
+        riskLevel: 'write',
         afterText: 'hello',
         confirmationStatus: 'pending',
         executionStatus: 'idle'

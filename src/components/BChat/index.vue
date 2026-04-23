@@ -46,7 +46,7 @@
 import type { CachedModelMessagesResult } from './message';
 import type { BChatProps as Props, Message, ServiceConfig, ToolLoopGuardConfig } from './types';
 import type { AIServiceError, AIStreamFinishChunk, AIStreamToolCallChunk } from 'types/ai';
-import type { AIUserChoiceAnswerData } from 'types/chat';
+import type { AIUserChoiceAnswerData, ChatMessageConfirmationAction } from 'types/chat';
 import { nextTick, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { message as aMessage } from 'ant-design-vue';
@@ -391,7 +391,7 @@ function handleEdit(message: Message): void {
  * @param confirmationId - 确认项 ID
  * @param action - 确认动作
  */
-async function handleConfirmationAction(confirmationId: string, action: 'approve' | 'cancel'): Promise<void> {
+async function handleConfirmationAction(confirmationId: string, action: ChatMessageConfirmationAction): Promise<void> {
   await props.onConfirmationAction?.(confirmationId, action);
 }
 
@@ -409,7 +409,7 @@ async function handleUserChoiceSubmit(answer: AIUserChoiceAnswerData): Promise<v
     return;
   }
 
-  const config = lastServiceConfig ?? await ensureServiceConfig();
+  const config = lastServiceConfig ?? (await ensureServiceConfig());
   if (!config) {
     return;
   }
