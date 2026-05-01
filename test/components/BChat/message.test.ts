@@ -4,7 +4,7 @@
  */
 import type { ChatMessageFile } from 'types/chat';
 import { describe, expect, it } from 'vitest';
-import { append, convert, create, expandFileReferencesForModel, is, userChoice } from '@/components/BChatSidebar/utils/messageHelper';
+import { append, convert, create, is, userChoice } from '@/components/BChatSidebar/utils/messageHelper';
 import type { Message } from '@/components/BChatSidebar/utils/types';
 
 /**
@@ -72,16 +72,54 @@ describe('BChat message helpers', () => {
     ]);
   });
 
-  it('expands file reference placeholders before sending user content to the model', () => {
-    const content = '请解释 {{file-ref:{"path":"src/foo/file.ts","name":"file.ts","line":"12-14"}}} 这里的逻辑';
+  it('creates user messages with ordered file-reference parts and plain-text content', () => {
+    const message = create.userMessageFromParts([
+      { type: 'text', text: '请看 ' },
+      {
+        type: 'file-reference',
+        referenceId: 'ref-1',
+        documentId: 'doc-1',
+        snapshotId: '',
+        fileName: 'useChatStream.ts',
+        path: '/workspace/src/useChatStream.ts',
+        startLine: 300,
+        endLine: 360
+      },
+      { type: 'text', text: ' 这里' }
+    ]);
 
-    expect(expandFileReferencesForModel(content)).toBe('请解释 引用文件：src/foo/file.ts，第 12-14 行 这里的逻辑');
+    expect(message.content).toBe('请看  这里');
+    expect(message.parts.map((part) => part.type)).toEqual(['text', 'file-reference', 'text']);
+    expect(
+      message.parts.find((part): part is Extract<Message['parts'][number], { type: 'file-reference' }> => part.type === 'file-reference')
+    ).toMatchObject({
+      referenceId: 'ref-1',
+      startLine: 300,
+      endLine: 360
+    });
   });
 
-  it('expands unsaved file reference placeholders as temporary document references', () => {
-    const content = '看下 {{file-ref:{"path":null,"name":"临时笔记","line":"3"}}}';
+  it('converts file-reference parts into model-visible reference markers instead of inline file content', () => {
+    const message = create.userMessageFromParts([
+      { type: 'text', text: '分析这个引用' },
+      {
+        type: 'file-reference',
+        referenceId: 'ref-1',
+        documentId: 'doc-1',
+        snapshotId: 'snapshot-1',
+        fileName: 'draft.ts',
+        path: null,
+        startLine: 10,
+        endLine: 20
+      }
+    ]);
 
-    expect(expandFileReferencesForModel(content)).toBe('看下 引用未保存文件：临时笔记，第 3 行');
+    expect(convert.toModelMessages([message])).toEqual([
+      {
+        role: 'user',
+        content: '分析这个引用'
+      }
+    ]);
   });
 
   it('marks error messages as persistable but not model messages', () => {

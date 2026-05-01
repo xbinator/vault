@@ -51,13 +51,6 @@ export type ToolResult = Extract<ChatMessagePart, { type: 'tool-result' }>['resu
 // ─── 内部工具函数 ────────────────────────────────────────────────────────────
 
 /**
- * 判断未知值是否为普通对象。
- */
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-/**
  * 将任意值转换为 JSON 可序列化值。
  */
 function toJsonValue(value: unknown): JSONValue {
@@ -72,32 +65,6 @@ function getMessagePlainText(parts: ChatMessagePart[]): string {
     .filter((part) => part.type === 'text')
     .map((part) => part.text)
     .join('');
-}
-
-/**
- * 将文件引用占位符展开为模型可读文本。
- */
-export function expandFileReferencesForModel(content: string): string {
-  return content.replace(/\{\{file-ref:(\{.*?\})\}\}/g, (match: string, payload: string): string => {
-    try {
-      const parsed: unknown = JSON.parse(payload);
-      if (!isRecord(parsed) || (typeof parsed.path !== 'string' && parsed.path !== null)) {
-        return match;
-      }
-
-      const line = typeof parsed.line === 'number' || typeof parsed.line === 'string' ? String(parsed.line) : '';
-      if (!line) return match;
-
-      if (parsed.path === null) {
-        const fileName = typeof parsed.name === 'string' && parsed.name ? parsed.name : '未保存文件';
-        return `引用未保存文件：${fileName}，第 ${line} 行`;
-      }
-
-      return `引用文件：${parsed.path}，第 ${line} 行`;
-    } catch {
-      return match;
-    }
-  });
 }
 
 // ─── is —— 消息类型判断 ──────────────────────────────────────────────────────
@@ -200,6 +167,14 @@ export const create = {
   // 创建用户消息
   userMessage(content: string, references?: Message['references']): Message {
     return createBase({ role: 'user', content, references, parts: content ? [{ type: 'text', text: content }] : [], finished: true });
+  },
+  /**
+   * 根据结构化片段创建用户消息。
+   * @param parts - 用户消息片段
+   * @returns 用户消息
+   */
+  userMessageFromParts(parts: ChatMessagePart[]): Message {
+    return createBase({ role: 'user', content: getMessagePlainText(parts), parts, finished: true });
   }
 } as const;
 
