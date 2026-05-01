@@ -81,7 +81,7 @@
 </template>
 
 <script setup lang="ts">
-import type { ChatMessageConfirmationAction } from 'types/chat';
+import type { ChatMessageConfirmationAction, ChatMessageFileReferencePart } from 'types/chat';
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { Icon } from '@iconify/vue';
 import { createBuiltinTools } from '@/ai/tools/builtin';
@@ -95,6 +95,7 @@ import { chatSlashCommands } from '@/components/BChatSidebar/utils/slashCommands
 import type { Message } from '@/components/BChatSidebar/utils/types';
 import BPromptEditor from '@/components/BPromptEditor/index.vue';
 import type { SlashCommandOption } from '@/components/BPromptEditor/types';
+import { chatStorage } from '@/shared/storage';
 import { useChatStore } from '@/stores/chat';
 import { useFilesStore } from '@/stores/files';
 import { useSettingStore } from '@/stores/setting';
@@ -175,11 +176,60 @@ const fileReference = useFileReference({
 
 /** 聊天工具列表 */
 const filesStore = useFilesStore();
+
+/**
+ * 在当前消息历史中查找文件引用片段。
+ * @param referenceId - 引用 ID
+ * @returns 引用片段或 null
+ */
+function findReferencePart(referenceId: string): ChatMessageFileReferencePart | null {
+  for (let messageIndex = messages.value.length - 1; messageIndex >= 0; messageIndex -= 1) {
+    const referencePart = messages.value[messageIndex].parts.find(
+      (part): part is ChatMessageFileReferencePart => part.type === 'file-reference' && part.referenceId === referenceId
+    );
+
+    if (referencePart) {
+      return referencePart;
+    }
+  }
+
+  return null;
+}
+
+/**
+ * 解析聊天文件引用对应的冻结快照。
+ * @param referenceId - 引用 ID
+ * @returns 冻结快照内容或 null
+ */
+async function getReferenceSnapshot(referenceId: string): Promise<import('@/ai/tools/builtin/read-reference').ResolvedReferenceSnapshot | null> {
+  const referencePart = findReferencePart(referenceId);
+  if (!referencePart?.snapshotId) {
+    return null;
+  }
+
+  const [snapshot] = await chatStorage.getReferenceSnapshots([referencePart.snapshotId]);
+  if (!snapshot) {
+    return null;
+  }
+
+  return {
+    referenceId: referencePart.referenceId,
+    fileName: referencePart.fileName,
+    path: referencePart.path,
+    documentId: referencePart.documentId,
+    snapshotId: referencePart.snapshotId,
+    content: snapshot.content,
+    startLine: referencePart.startLine,
+    endLine: referencePart.endLine
+  };
+}
+
 const tools = createBuiltinTools({
   confirm: confirmationController.createAdapter(),
   isFileInRecent: (filePath: string) => {
     return Boolean(filesStore.recentFiles?.some((file) => file.path === filePath));
   },
+  getReferenceSnapshot,
   getPendingQuestion: () => {
     const pendingQuestion = userChoice.findPending(messages.value);
     if (!pendingQuestion) return null;

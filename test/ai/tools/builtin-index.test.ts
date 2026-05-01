@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { createBuiltinTools } from '@/ai/tools/builtin';
 import { QUERY_LOGS_TOOL_NAME } from '@/ai/tools/builtin/logs';
 import { READ_DIRECTORY_TOOL_NAME } from '@/ai/tools/builtin/read-file';
+import { READ_REFERENCE_TOOL_NAME } from '@/ai/tools/builtin/read-reference';
 import { GET_SETTINGS_TOOL_NAME, UPDATE_SETTINGS_TOOL_NAME } from '@/ai/tools/builtin/settings';
 
 /**
@@ -51,6 +52,7 @@ describe('createBuiltinTools', () => {
       'search_current_document',
       'ask_user_choice',
       'read_file',
+      READ_REFERENCE_TOOL_NAME,
       READ_DIRECTORY_TOOL_NAME,
       GET_SETTINGS_TOOL_NAME,
       QUERY_LOGS_TOOL_NAME
@@ -64,6 +66,7 @@ describe('createBuiltinTools', () => {
       'search_current_document',
       'ask_user_choice',
       'read_file',
+      READ_REFERENCE_TOOL_NAME,
       READ_DIRECTORY_TOOL_NAME,
       GET_SETTINGS_TOOL_NAME,
       QUERY_LOGS_TOOL_NAME,
@@ -87,6 +90,7 @@ describe('createBuiltinTools', () => {
       'search_current_document',
       'ask_user_choice',
       'read_file',
+      READ_REFERENCE_TOOL_NAME,
       READ_DIRECTORY_TOOL_NAME,
       GET_SETTINGS_TOOL_NAME,
       QUERY_LOGS_TOOL_NAME,
