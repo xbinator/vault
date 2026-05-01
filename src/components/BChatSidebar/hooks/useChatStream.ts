@@ -268,8 +268,10 @@ export function useChatStream(options: UseChatStreamOptions): UseChatStreamRetur
    * 加载引用快照映射
    */
   async function loadReferenceSnapshotMap(sourceMessages: Message[]) {
-    const references = sourceMessages.flatMap((m) => m.references ?? []);
-    const snapshotIds = references.map((r) => r.snapshotId).filter((id) => id.length > 0);
+    const references = sourceMessages.flatMap((message) => {
+      return message.parts.filter((part): part is Extract<Message['parts'][number], { type: 'file-reference' }> => part.type === 'file-reference');
+    });
+    const snapshotIds = references.map((reference) => reference.snapshotId).filter((id) => id.length > 0);
     const uniqueSnapshotIds = [...new Set(snapshotIds)];
 
     if (!uniqueSnapshotIds.length) return new Map();

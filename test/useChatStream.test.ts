@@ -20,6 +20,7 @@ interface MockChatCallbacks {
  * 当前测试轮次里底层流式 Hook 捕获到的回调。
  */
 let capturedCallbacks: MockChatCallbacks | null = null;
+const streamSpy = vi.fn();
 
 /**
  * 底层流式中止桩函数，用于模拟 Electron 流结束时的完成回调。
@@ -37,7 +38,7 @@ vi.mock('@/hooks/useChat', () => ({
     return {
       agent: {
         invoke: vi.fn(),
-        stream: vi.fn(),
+        stream: streamSpy,
         abort: abortSpy
       }
     };
@@ -51,6 +52,12 @@ vi.mock('@/stores/service-model', () => ({
   useServiceModelStore: () => ({
     getAvailableServiceConfig: vi.fn()
   })
+}));
+
+vi.mock('@/shared/storage', () => ({
+  chatStorage: {
+    getReferenceSnapshots: vi.fn(async () => [])
+  }
 }));
 
 /**
@@ -69,6 +76,7 @@ describe('useChatStream abort', () => {
   beforeEach(() => {
     capturedCallbacks = null;
     abortSpy.mockClear();
+    streamSpy.mockClear();
   });
 
   it('finalizes the current assistant message and calls onComplete once when the user aborts', () => {
@@ -89,5 +97,40 @@ describe('useChatStream abort', () => {
     expect(messages.value[1].finished).toBe(true);
     expect(onComplete).toHaveBeenCalledTimes(1);
     expect(onComplete).toHaveBeenCalledWith(messages.value[1]);
+  });
+
+  it('builds model-ready messages with reference index blocks instead of expanded file content', async () => {
+    const messages = ref<Message[]>([
+      create.userMessageFromParts([
+        { type: 'text', text: '请分析这个引用' },
+        {
+          type: 'file-reference',
+          referenceId: 'ref-1',
+          documentId: 'doc-1',
+          snapshotId: 'snapshot-1',
+          fileName: 'draft.ts',
+          path: null,
+          startLine: 10,
+          endLine: 20
+        }
+      ])
+    ]);
+    const { stream } = useChatStream({ messages });
+
+    await stream.streamMessages(messages.value, {
+      providerId: 'provider-1',
+      modelId: 'model-1',
+      toolSupport: {
+        supported: false,
+        unsupportedReason: 'not-configured'
+      }
+    });
+
+    expect(streamSpy).toHaveBeenCalledTimes(1);
+    expect(streamSpy.mock.calls[0][0].messages[0].content).toContain('Available file references for this message:');
+    expect(streamSpy.mock.calls[0][0].messages[0].content).toContain('ref-1: draft.ts');
+    expect(streamSpy.mock.calls[0][0].messages[0].content).toContain('lines 10-20');
+    expect(streamSpy.mock.calls[0][0].messages[0].content).not.toContain('附近片段');
+    expect(streamSpy.mock.calls[0][0].messages[0].content).not.toContain('全文内容');
   });
 });
