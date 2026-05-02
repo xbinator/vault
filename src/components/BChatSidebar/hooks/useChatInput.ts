@@ -3,7 +3,7 @@
  * @description 聊天输入状态管理 hook
  */
 import type { Message } from '../utils/types';
-import type { ChatMessageFile, ChatMessageFileReference } from 'types/chat';
+import type { ChatMessageFile } from 'types/chat';
 import { ref } from 'vue';
 
 /**
@@ -22,8 +22,6 @@ interface ChatInputOptions {
 export function useChatInput(options: ChatInputOptions) {
   /** 聊天输入框内容 */
   const inputContent = ref('');
-  /** 草稿文件引用列表 */
-  const inputReferences = ref<ChatMessageFileReference[]>([]);
   /** 草稿图片附件列表 */
   const inputImages = ref<ChatMessageFile[]>([]);
 
@@ -32,27 +30,8 @@ export function useChatInput(options: ChatInputOptions) {
    */
   function clear(): void {
     inputContent.value = '';
-    inputReferences.value = [];
     inputImages.value = [];
     options.focusInput();
-  }
-
-  /**
-   * 设置草稿内容（用于编辑消息）
-   * @param content - 消息内容
-   * @param references - 文件引用列表
-   */
-  function setContent(content: string, references?: ChatMessageFileReference[]): void {
-    inputContent.value = content;
-    inputReferences.value = references ? [...references] : [];
-  }
-
-  /**
-   * 设置草稿文件引用
-   * @param references - 文件引用列表
-   */
-  function setReferences(references: ChatMessageFileReference[]): void {
-    inputReferences.value = references;
   }
 
   /**
@@ -77,19 +56,7 @@ export function useChatInput(options: ChatInputOptions) {
    */
   function restoreFromMessage(message: Message): void {
     inputContent.value = message.content;
-    inputReferences.value = [...(message.references ?? [])];
     inputImages.value = [...(message.files?.filter((file) => file.type === 'image') ?? [])];
-  }
-
-  /**
-   * 获取内容中活跃的草稿文件引用
-   * @param content - 输入内容
-   * @returns 活跃的引用列表，无则返回 undefined
-   */
-  function getActiveReferences(content: string): ChatMessageFileReference[] | undefined {
-    const references = inputReferences.value.filter((reference) => content.includes(reference.token));
-
-    return references.length ? references : undefined;
   }
 
   /**
@@ -110,15 +77,11 @@ export function useChatInput(options: ChatInputOptions) {
 
   return {
     inputContent,
-    inputReferences,
     inputImages,
     clear,
-    setContent,
-    setReferences,
     addImages,
     removeImage,
     restoreFromMessage,
-    getActiveReferences,
     isEmpty,
     hasImages
   };

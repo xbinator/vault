@@ -31,7 +31,7 @@ function makeSnapshot(documentId: string, title: string, content: string): ChatR
  * 尝试从 SQLite 历史快照降级，成功则写入 snapshotId 并追加到 snapshots。
  * disk / sqlite 两处共用，避免逻辑重复。
  */
-async function applySnapshotFromSqlite(refs: Array<ChatMessageFileReference | ChatMessageFileReferencePart>, snapshots: ChatReferenceSnapshot[]): Promise<void> {
+async function applySnapshotFromSqlite(refs: Array<ChatMessageFileReference | ChatMessageFileReferencePart>, snapshots: ChatReferenceSnapshot[]) {
   const cached = await chatStorage.getReferenceSnapshotByDocumentId(refs[0].documentId);
   if (cached) {
     refs.forEach((r) => (r.snapshotId = cached.id));

@@ -5,7 +5,7 @@
 import type { Message } from './types';
 import type { JSONValue, ModelMessage } from 'ai';
 import type { AIAwaitingUserChoiceQuestion, AIToolExecutionAwaitingUserInputResult } from 'types/ai';
-import type { AIUserChoiceAnswerData, ChatMessageFileReference, ChatMessagePart, ChatMessageRole, ChatMessageToolResultPart } from 'types/chat';
+import type { AIUserChoiceAnswerData, ChatMessagePart, ChatMessageRole, ChatMessageToolResultPart } from 'types/chat';
 import { nanoid } from 'nanoid';
 
 // ─── 公开类型 ────────────────────────────────────────────────────────────────
@@ -58,41 +58,36 @@ function toJsonValue(value: unknown): JSONValue {
 }
 
 /**
- * 根据文本片段聚合纯文本内容。
- */
-function getMessagePlainText(parts: ChatMessagePart[]): string {
-  return parts
-    .filter((part) => part.type === 'text')
-    .map((part) => part.text)
-    .join('');
-}
-
-/**
  * 将引用行范围文本解析为起止行号。
  * @param line - 引用行范围文本
  * @returns 起止行号；未指定行号时返回 0 和 0
  */
-function parseDraftReferenceLine(line: string): { startLine: number; endLine: number } {
-  if (!line) {
-    return { startLine: 0, endLine: 0 };
-  }
+// function parseDraftReferenceLine(line: string): { startLine: number; endLine: number } {
+//   const INVALID = { startLine: 0, endLine: 0 };
 
-  const rangeSegments = line.split('-').map((segment) => Number(segment.trim()));
-  if (rangeSegments.length === 1 && Number.isInteger(rangeSegments[0]) && rangeSegments[0] > 0) {
-    return { startLine: rangeSegments[0], endLine: rangeSegments[0] };
-  }
+//   if (!line) return INVALID;
 
-  if (
-    rangeSegments.length === 2
-    && Number.isInteger(rangeSegments[0])
-    && Number.isInteger(rangeSegments[1])
-    && rangeSegments[0] > 0
-    && rangeSegments[1] >= rangeSegments[0]
-  ) {
-    return { startLine: rangeSegments[0], endLine: rangeSegments[1] };
-  }
+//   const parts = line.split('-').map((s) => Number(s.trim()));
+//   const [start, end = start] = parts;
 
-  return { startLine: 0, endLine: 0 };
+//   const isValidInt = (n: number) => Number.isInteger(n) && n > 0;
+
+//   if (parts.length > 2 || !isValidInt(start) || !isValidInt(end) || end < start) {
+//     return INVALID;
+//   }
+
+//   return { startLine: start, endLine: end };
+// }
+function parseDraftReferenceLine(text: string) {
+  const FILE_REF_RE = /\{\{file-ref:(?<documentId>[^|}]+)\|(?<fileName>[^|}]+)\|(?<start>\d+)(?:\|(?<end>\d+))?\}\}/g;
+
+  return Array.from(text.matchAll(FILE_REF_RE), ({ groups }) => {
+    const { documentId, fileName, start, end } = groups as Record<string, string>;
+    const startLine = Number(start);
+    const endLine = end ? Number(end) : startLine;
+
+    return { type: 'file-reference', documentId, fileName, startLine, endLine };
+  });
 }
 
 /**
@@ -101,43 +96,13 @@ function parseDraftReferenceLine(line: string): { startLine: number; endLine: nu
  * @param references - 活动文件引用
  * @returns 有序消息片段
  */
-export function buildMessagePartsFromDraft(content: string, references: ChatMessageFileReference[]): ChatMessagePart[] {
-  const orderedReferences = references
-    .map((reference) => ({ reference, index: content.indexOf(reference.token) }))
-    .filter((item) => item.index >= 0)
-    .sort((left, right) => left.index - right.index);
+export function buildMessagePartsFromDraft(content: string) {
+  const FILE_REF_RE = /\{\{file-ref:(?<documentId>[^|}]+)\|(?<fileName>[^|}]+)\|(?<start>\d+)(?:\|(?<end>\d+))?\}\}/g;
 
-  if (!orderedReferences.length) {
-    return content ? [{ type: 'text', text: content }] : [];
-  }
-
-  const parts: ChatMessagePart[] = [];
-  let cursor = 0;
-
-  orderedReferences.forEach(({ reference, index }) => {
-    if (index > cursor) {
-      parts.push({ type: 'text', text: content.slice(cursor, index) });
-    }
-
-    const { startLine, endLine } = parseDraftReferenceLine(reference.line);
-    parts.push({
-      type: 'file-reference',
-      referenceId: reference.id,
-      documentId: reference.documentId,
-      snapshotId: reference.snapshotId,
-      fileName: reference.fileName,
-      path: reference.path,
-      startLine,
-      endLine
-    });
-    cursor = index + reference.token.length;
+  return content.replace(FILE_REF_RE, (text) => {
+    // const reference = references.find((ref) => ref.documentId === documentId && ref.fileName === fileName);
+    return `{{${text}}}}`;
   });
-
-  if (cursor < content.length) {
-    parts.push({ type: 'text', text: content.slice(cursor) });
-  }
-
-  return parts;
 }
 
 // ─── is —— 消息类型判断 ──────────────────────────────────────────────────────
@@ -179,7 +144,7 @@ export const append = {
     } else {
       message.parts.push({ type: 'text', text });
     }
-    message.content = getMessagePlainText(message.parts);
+    message.content = message.content ?? text;
   },
 
   /**
@@ -240,14 +205,6 @@ export const create = {
   // 创建用户消息
   userMessage(content: string, references?: Message['references']): Message {
     return createBase({ role: 'user', content, references, parts: content ? [{ type: 'text', text: content }] : [], finished: true });
-  },
-  /**
-   * 根据结构化片段创建用户消息。
-   * @param parts - 用户消息片段
-   * @returns 用户消息
-   */
-  userMessageFromParts(parts: ChatMessagePart[], references?: Message['references']): Message {
-    return createBase({ role: 'user', content: getMessagePlainText(parts), parts, references, finished: true });
   }
 } as const;
 

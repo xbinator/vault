@@ -87,14 +87,9 @@ const referenceMap = computed<Map<string, ChatMessageFileReference>>(() => {
  */
 const segments = computed<MessageBubbleTextSegment[]>(() => {
   if (props.part.type === 'file-reference') {
-    const lineLabel = props.part.startLine > 0
-      ? `${props.part.startLine}${props.part.endLine > props.part.startLine ? `-${props.part.endLine}` : ''}`
-      : '';
+    const lineLabel = props.part.startLine > 0 ? `${props.part.startLine}${props.part.endLine > props.part.startLine ? `-${props.part.endLine}` : ''}` : '';
 
-    return [{
-      type: 'file-reference',
-      label: lineLabel ? `${props.part.fileName}:${lineLabel}` : props.part.fileName
-    }];
+    return [{ type: 'file-reference', label: lineLabel ? `${props.part.fileName}:${lineLabel}` : props.part.fileName }];
   }
 
   const parts: MessageBubbleTextSegment[] = [];

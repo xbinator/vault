@@ -337,9 +337,8 @@ async function handleChatSubmit(): Promise<void> {
   const config = await stream.resolveServiceConfig();
   if (!config) return;
 
-  const references = inputEvents.getActiveReferences(content) ?? [];
-  const parts = buildMessagePartsFromDraft(content, references);
-  const nextMessage = create.userMessageFromParts(parts, references);
+  const _content = buildMessagePartsFromDraft(content);
+  const nextMessage = create.userMessage(_content);
   if (images.length && supportsVision.value) {
     nextMessage.files = [...images];
   }
