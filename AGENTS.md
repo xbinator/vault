@@ -63,6 +63,12 @@ import type { DefineComponent } from 'vue'
 
 ## 文件组织规范
 
+### 文档路径规范
+- 在 `AGENTS.md`、`CONTEXT.md`、`docs/`、`changelog/` 等仓库文档中引用项目文件时，统一使用**仓库相对路径**
+- ❌ 禁止写项目绝对路径，禁止在文档中出现任何本机绝对路径示例
+- ✅ 推荐写法：`src/components/BChatSidebar/components/InputToolbar.vue`
+- 如果需要 Markdown 链接，链接目标也使用相对路径
+
 ### 组件引入规范
 - **B 开头的组件**已通过 `unplugin-vue-components` 全局自动引入，无需手动 import
 - 手动引入场景：类型定义、动态导入、编辑器内置组件
