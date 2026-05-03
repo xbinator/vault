@@ -71,7 +71,7 @@ describe('chat file reference insert wiring', () => {
     expect(sidebarSource).toContain('useFileReference');
     expect(fileReferenceHookSource).toContain('handleFileReferenceInsert');
     expect(fileReferenceHookSource).toContain('onChatFileReferenceInsert');
-    expect(fileReferenceHookSource).toContain('type ChatFileReferenceInsertPayload');
-    expect(fileReferenceHookSource).toContain('documentId: toolContext?.document.id || reference.filePath || reference.fileName');
+    expect(fileReferenceHookSource).toContain('ChatFileReferenceInsertPayload');
+    expect(fileReferenceHookSource).toContain('documentId = document?.id || reference.filePath || reference.fileName');
   });
 });

@@ -91,7 +91,7 @@ describe('BChat message helpers', () => {
   });
 
   it('creates user messages with ordered file-reference parts and plain-text content', () => {
-    const message = create.userMessageFromParts([
+    const message = create.userMessage([
       { type: 'text', text: '请看 ' },
       {
         type: 'file-reference',
@@ -115,7 +115,7 @@ describe('BChat message helpers', () => {
   });
 
   it('converts file-reference parts into model-visible reference markers instead of inline file content', () => {
-    const message = create.userMessageFromParts([
+    const message = create.userMessage([
       { type: 'text', text: '分析这个引用' },
       {
         type: 'file-reference',

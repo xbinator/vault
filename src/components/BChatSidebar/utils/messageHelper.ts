@@ -5,14 +5,7 @@
 import type { Message } from './types';
 import type { JSONValue, ModelMessage } from 'ai';
 import type { AIAwaitingUserChoiceQuestion, AIToolExecutionAwaitingUserInputResult } from 'types/ai';
-import type {
-  AIUserChoiceAnswerData,
-  ChatMessageFileReference,
-  ChatMessagePart,
-  ChatMessageRole,
-  ChatMessageTextPart,
-  ChatMessageToolResultPart
-} from 'types/chat';
+import type { AIUserChoiceAnswerData, ChatMessageFileReference, ChatMessagePart, ChatMessageRole, ChatMessageToolResultPart } from 'types/chat';
 import { nanoid } from 'nanoid';
 
 // ─── 公开类型 ────────────────────────────────────────────────────────────────
@@ -217,18 +210,8 @@ export const create = {
     return createBase({ role: 'assistant', content, parts: [{ type: 'error', text: content }], finished: true });
   },
   // 创建用户消息
-  userMessage(content: string, references?: Message['references']): Message {
-    return createBase({ role: 'user', content, references, parts: content ? [{ type: 'text', text: content }] : [], finished: true });
-  },
-  /**
-   * 从消息片段创建用户消息
-   * @param parts - 消息片段数组
-   * @returns 用户消息
-   */
-  userMessageFromParts(parts: ChatMessagePart[]): Message {
-    const textParts = parts.filter((part): part is ChatMessageTextPart => part.type === 'text');
-    const content = textParts.map((part) => part.text).join('');
-    return createBase({ role: 'user', content, parts, finished: true });
+  userMessage(content: string): Message {
+    return createBase({ role: 'user', content, finished: true });
   }
 } as const;
 

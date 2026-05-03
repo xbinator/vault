@@ -111,7 +111,7 @@ import { useSession } from './hooks/useSession';
 import { useUsagePanel } from './hooks/useUsagePanel';
 import { chipResolver } from './utils/chipResolver';
 import { createChatConfirmationController } from './utils/confirmationController';
-import { buildMessagePartsFromDraft, create, userChoice } from './utils/messageHelper';
+import { create, userChoice } from './utils/messageHelper';
 import { chatSlashCommands } from './utils/slashCommands';
 
 /** 聊天数据存储 */
@@ -164,7 +164,7 @@ function handleVoiceComplete(payload: { text: string }): void {
 const usagePanel = useUsagePanel();
 
 /** 草稿输入 hook */
-const { inputContent, inputImages, inputReferences, ...inputEvents } = useChatInput({ focusInput });
+const { inputContent, inputImages, ...inputEvents } = useChatInput({ focusInput });
 
 /** 模型选择 hook */
 const { selectedModel, supportsVision, ...modelSelectionEvents } = useModelSelection();
@@ -179,8 +179,7 @@ const canSubmit = computed<boolean>(() => !inputEvents.isEmpty() || inputEvents.
 const fileReference = useFileReference({
   insertTextAtCursor,
   saveCursorPosition,
-  focusInput,
-  addReference: inputEvents.addReference
+  focusInput
 });
 
 /** 聊天工具列表 */
@@ -324,16 +323,13 @@ async function handleComplete(nextMessage: Message): Promise<void> {
 async function handleChatSubmit(): Promise<void> {
   const content = inputContent.value.trim();
   const images = inputImages.value;
-  const references = inputReferences.value;
 
   if (!canSubmit.value) return;
 
   const config = await stream.resolveServiceConfig();
   if (!config) return;
 
-  const parts = buildMessagePartsFromDraft(content, references);
-
-  const message = create.userMessageFromParts(parts);
+  const message = create.userMessage(content);
   // 如果有图片，添加到消息中
   images.length && supportsVision.value && (message.files = [...images]);
 

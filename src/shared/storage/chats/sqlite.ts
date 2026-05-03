@@ -5,7 +5,6 @@
 import type { AIUsage } from 'types/ai';
 import type {
   ChatMessageFile,
-  ChatMessageFileReference,
   ChatMessageHistoryCursor,
   ChatMessagePart,
   ChatMessageRecord,
@@ -57,14 +56,14 @@ const SELECT_SESSION_USAGE_SQL = 'SELECT usage_json FROM chat_sessions WHERE id 
 const UPDATE_SESSION_USAGE_SQL = 'UPDATE chat_sessions SET usage_json = ? WHERE id = ?';
 
 const SELECT_MESSAGES_BY_SESSION_SQL = `
-  SELECT id, session_id, role, content, parts_json, references_json, thinking, files_json, usage_json, created_at
+  SELECT id, session_id, role, content, parts_json, thinking, files_json, usage_json, created_at
   FROM chat_messages
   WHERE session_id = ?
   ORDER BY created_at DESC, id DESC
   LIMIT ?
 `;
 const SELECT_MESSAGES_BEFORE_CURSOR_SQL = `
-  SELECT id, session_id, role, content, parts_json, references_json, thinking, files_json, usage_json, created_at
+  SELECT id, session_id, role, content, parts_json, thinking, files_json, usage_json, created_at
   FROM chat_messages
   WHERE session_id = ?
     AND (created_at < ? OR (created_at = ? AND id < ?))
@@ -73,8 +72,8 @@ const SELECT_MESSAGES_BEFORE_CURSOR_SQL = `
 `;
 const UPSERT_MESSAGE_SQL = `
   INSERT OR REPLACE INTO chat_messages
-    (id, session_id, role, content, parts_json, references_json, thinking, files_json, usage_json, created_at)
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    (id, session_id, role, content, parts_json, thinking, files_json, usage_json, created_at)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 `;
 const DELETE_SESSION_SQL = 'DELETE FROM chat_sessions WHERE id = ?';
 const DELETE_MESSAGES_BY_SESSION_SQL = 'DELETE FROM chat_messages WHERE session_id = ?';
@@ -95,7 +94,6 @@ interface ChatMessageRow {
   role: string;
   content: string;
   parts_json: string | null;
-  references_json: string | null;
   thinking: string | null;
   files_json: string | null;
   usage_json: string | null;
@@ -149,7 +147,6 @@ function mapMessageRow(row: ChatMessageRow): ChatMessageRecord {
     role: isChatMessageRole(row.role) ? row.role : 'user',
     content: row.content,
     parts: parseJson<ChatMessagePart[]>(row.parts_json) ?? [],
-    references: parseJson<ChatMessageFileReference[]>(row.references_json),
     thinking: row.thinking ?? undefined,
     files: parseJson<ChatMessageFile[]>(row.files_json),
     usage: parseJson<AIUsage>(row.usage_json),
@@ -243,7 +240,6 @@ async function upsertSessionMessages(messages: ChatMessageRecord[]): Promise<voi
         message.role,
         message.content,
         stringifyJson(message.parts),
-        stringifyJson(message.references),
         message.thinking ?? null,
         stringifyJson(message.files),
         stringifyJson(message.usage),

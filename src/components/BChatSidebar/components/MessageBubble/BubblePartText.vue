@@ -14,7 +14,7 @@
 </template>
 
 <script setup lang="ts">
-import type { ChatMessageFileReference, ChatMessageFileReferencePart, ChatMessageTextPart, ChatMessageErrorPart } from 'types/chat';
+import type { ChatMessageFileReferencePart, ChatMessageTextPart, ChatMessageErrorPart } from 'types/chat';
 import { computed } from 'vue';
 import BMessage from '@/components/BMessage/index.vue';
 import { createNamespace } from '@/utils/namespace';
@@ -56,13 +56,10 @@ interface Props {
   part: ChatMessageTextPart | ChatMessageErrorPart | ChatMessageFileReferencePart;
   /** 是否启用仅用户可见的文件引用标签渲染 */
   enableFileReferenceChips?: boolean;
-  /** 父消息附加的文件引用元数据 */
-  references?: ChatMessageFileReference[];
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  enableFileReferenceChips: false,
-  references: () => []
+  enableFileReferenceChips: false
 });
 
 const FILE_REFERENCE_TOKEN_PATTERN = /\{\{@([^\s:}]+)(?::(\d+)(?:-(\d+))?)?\}\}/g;
@@ -70,17 +67,6 @@ const FILE_REFERENCE_TOKEN_PATTERN = /\{\{@([^\s:}]+)(?::(\d+)(?:-(\d+))?)?\}\}/
 const [, bem] = createNamespace('', 'message-bubble-text');
 
 const isErrorMessage = computed(() => props.part.type === 'error');
-
-/**
- * 构建从引用标识到引用元数据的快速查找表。
- */
-const referenceMap = computed<Map<string, ChatMessageFileReference>>(() => {
-  const map = new Map<string, ChatMessageFileReference>();
-  props.references.forEach((reference) => {
-    map.set(reference.token, reference);
-  });
-  return map;
-});
 
 /**
  * 将原始文本拆分为纯文本和文件引用标签片段。
@@ -102,10 +88,7 @@ const segments = computed<MessageBubbleTextSegment[]>(() => {
       parts.push({ type: 'text', text: textPart.text.slice(lastIndex, offset) });
     }
 
-    const reference = referenceMap.value.get(match);
-    if (reference) {
-      parts.push({ type: 'file-reference', label: `${reference.fileName}:${reference.line}` });
-    } else if (fileName) {
+    if (fileName) {
       const startLine = start ? Number(start) : 0;
       const endLine = end ? Number(end) : startLine;
       let lineLabel = '';

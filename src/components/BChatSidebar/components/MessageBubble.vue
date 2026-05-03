@@ -28,7 +28,6 @@
             v-if="item.type === 'text' || item.type === 'error' || item.type === 'file-reference'"
             :part="item"
             :enable-file-reference-chips="isUserMessage"
-            :references="message.references"
           />
 
           <BubblePartThinking v-else-if="item.type === 'thinking'" :part="item" />

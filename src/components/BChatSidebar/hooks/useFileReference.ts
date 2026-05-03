@@ -3,9 +3,7 @@
  * @description 文件引用管理 hook
  */
 import type { FileReferenceChip } from '../types';
-import type { ChatMessageFileReference } from 'types/chat';
 import { nextTick, onMounted, onUnmounted } from 'vue';
-import { nanoid } from 'nanoid';
 import { editorToolContextRegistry } from '@/ai/tools/editor-context';
 import type { ChatFileReferenceInsertPayload } from '@/shared/chat/fileReference';
 import { onChatFileReferenceInsert } from '@/shared/chat/fileReference';
@@ -21,8 +19,6 @@ interface FileReferenceOptions {
   saveCursorPosition: () => void;
   /** 聚焦输入框 */
   focusInput: () => void;
-  /** 添加文件引用到草稿 */
-  addReference: (reference: ChatMessageFileReference) => void;
 }
 
 /**
@@ -50,7 +46,7 @@ export function useFileReference(options: FileReferenceOptions) {
 
   /**
    * 处理聊天中插入文件引用
-   * 将文件引用添加到草稿列表并插入 token 到输入框
+   * 将文件引用 token 插入到输入框
    * @param reference - 文件引用信息
    */
   function insertReference(reference: FileReferenceChip): void {
@@ -60,23 +56,6 @@ export function useFileReference(options: FileReferenceOptions) {
     }
     const token = `{{@${reference.fileName}${lineSuffix}}} `;
 
-    // 构建文件引用元数据
-    let lineLabel = '';
-    if (reference.startLine > 0) {
-      lineLabel = reference.startLine === reference.endLine ? `${reference.startLine}` : `${reference.startLine}-${reference.endLine}`;
-    }
-
-    const fileReference: ChatMessageFileReference = {
-      id: nanoid(),
-      token: `{{@${reference.fileName}${lineSuffix}}}`,
-      documentId: reference.documentId,
-      fileName: reference.fileName,
-      line: lineLabel,
-      path: reference.filePath,
-      snapshotId: ''
-    };
-
-    options.addReference(fileReference);
     options.insertTextAtCursor(token);
   }
 
