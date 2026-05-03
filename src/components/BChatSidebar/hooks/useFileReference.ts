@@ -4,7 +4,6 @@
  */
 import type { FileReferenceChip } from '../types';
 import { nextTick, onMounted, onUnmounted } from 'vue';
-import { editorToolContextRegistry } from '@/ai/tools/editor-context';
 import type { ChatFileReferenceInsertPayload } from '@/shared/chat/fileReference';
 import { onChatFileReferenceInsert } from '@/shared/chat/fileReference';
 import { useSettingStore } from '@/stores/setting';
@@ -40,7 +39,7 @@ export function useFileReference(options: FileReferenceOptions) {
    */
   function onPasteFiles(files: File[]): string {
     return Array.from(files)
-      .map((file) => `{{@${file.name}}} `)
+      .map((file) => `{{#[](${file.name})}}`)
       .join('');
   }
 
@@ -49,12 +48,10 @@ export function useFileReference(options: FileReferenceOptions) {
    * 将文件引用 token 插入到输入框
    * @param reference - 文件引用信息
    */
-  function insertReference(reference: FileReferenceChip): void {
-    let lineSuffix = '';
-    if (reference.startLine > 0) {
-      lineSuffix = reference.startLine === reference.endLine ? `:${reference.startLine}` : `:${reference.startLine}-${reference.endLine}`;
-    }
-    const token = `{{@${reference.fileName}${lineSuffix}}} `;
+  function insertReference(reference: FileReferenceChip) {
+    const { id, fileName, filePath = fileName, startLine, endLine } = reference;
+
+    const token = `{{#[${id}](${filePath || fileName}) ${startLine}-${endLine}}} `;
 
     options.insertTextAtCursor(token);
   }
@@ -65,23 +62,14 @@ export function useFileReference(options: FileReferenceOptions) {
    * @param reference - 文件引用插入载荷
    */
   async function handleFileReferenceInsert(reference: ChatFileReferenceInsertPayload): Promise<void> {
-    console.log('🚀 ~ handleFileReferenceInsert ~ reference:', reference);
-    const toolContext = editorToolContextRegistry.getCurrentContext();
-    const { document } = toolContext || {};
-
-    const documentId = document?.id || reference.filePath || reference.fileName;
-    const filePath = document?.path || reference.filePath || null;
-
-    const { startLine, endLine } = reference;
-
-    const enrichedReference = { documentId, filePath, fileName: reference.fileName, startLine, endLine };
+    const { startLine, endLine, id, ext, filePath, fileName } = reference;
 
     // 先锁定聊天输入框最近一次有效插入位置，再处理侧边栏聚焦与引用插入
     options.saveCursorPosition();
     settingStore.setSidebarVisible(true);
 
     await nextTick();
-    insertReference(enrichedReference);
+    insertReference({ id, filePath, fileName: `${fileName}.${ext}`, startLine, endLine });
     options.focusInput();
   }
 

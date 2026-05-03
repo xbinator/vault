@@ -4,5 +4,5 @@ export function getRecentFileLabel(file: Pick<StoredFile, 'name' | 'content'>): 
   const content = file.content.replace(/^\s*---[\s\S]*?---\s*\n?/, '');
   const match = /^#{1,6}\s+(.+)/m.exec(content);
 
-  return match?.[1]?.trim() || file.name || '未命名';
+  return match?.[1]?.trim() || file.name || 'Untitled';
 }

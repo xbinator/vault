@@ -25,14 +25,14 @@ export function replaceFileName(filePath: string, nextName: string, ext: string)
 }
 
 export function getDefaultSavePath(file: Pick<EditorFile, 'name' | 'ext'>): string {
-  const name = file.name || '未命名';
+  const name = file.name || 'Untitled';
   const ext = file.ext || 'md';
   return `${name}.${ext}`;
 }
 
 export function getRecoveredSavePath(filePath: string): string {
   const { name, ext } = parseFileName(filePath);
-  const recoveredName = `${name || '未命名'}-recovered`;
+  const recoveredName = `${name || 'Untitled'}-recovered`;
 
   return replaceFileName(filePath, recoveredName, ext);
 }

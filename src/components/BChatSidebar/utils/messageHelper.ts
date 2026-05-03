@@ -59,7 +59,7 @@ function toJsonValue(value: unknown): JSONValue {
 
 /**
  * 将草稿正文和活动引用解析为有序消息片段。
- * 格式: {{@fileName:startLine-endLine}} 或 {{@fileName:startLine}} 或 {{@fileName}}
+ * 格式: {{#[id]filePathOrFileName:startLine-endLine}} 或 {{#[id]filePathOrFileName:startLine}} 或 {{#[fileName}}
  * @param content - 草稿正文
  * @param references - 文件引用元数据列表
  * @returns 消息片段数组

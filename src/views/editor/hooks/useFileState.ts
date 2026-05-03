@@ -179,7 +179,7 @@ export function useFileState(options: SessionPersistenceOptions): SessionPersist
       fileState.value = { ...stored };
     } else {
       // 先把新文件写入最近文件存储，避免首轮自动保存更新不到记录。
-      fileState.value = { id: currentFileId, name: '未命名', content: '', ext: 'md', path: null };
+      fileState.value = { id: currentFileId, name: 'Untitled', content: '', ext: 'md', path: null };
       await filesStore.addFile({ ...fileState.value, savedContent: fileState.value.content });
     }
 

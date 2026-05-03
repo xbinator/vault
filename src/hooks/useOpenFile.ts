@@ -74,17 +74,14 @@ export function useOpenFile(): {
    * @returns 创建后的文件记录
    */
   async function createNewFile(source: OpenSource = 'new'): Promise<StoredFile> {
-    const createdFile = await filesStore.createAndOpen(
-      {
-        id: createFileId(),
-        path: null,
-        name: '未命名',
-        ext: 'md',
-        content: '',
-        savedContent: ''
-      },
-      source
-    );
+    const createdFile = await filesStore.createAndOpen({
+      id: createFileId(),
+      path: null,
+      name: 'Untitled',
+      ext: 'md',
+      content: '',
+      savedContent: ''
+    });
 
     await router.push({ name: 'editor', params: { id: createdFile.id } });
     return createdFile;

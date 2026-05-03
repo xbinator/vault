@@ -22,11 +22,8 @@ class FileRefWidget extends WidgetType {
   toDOM(): HTMLElement {
     const span = document.createElement('span');
     span.className = 'b-prompt-chip b-prompt-chip--file';
-    if (this.startLine > 0) {
-      span.textContent = this.startLine === this.endLine ? `${this.fileName}:${this.startLine}` : `${this.fileName}:${this.startLine}-${this.endLine}`;
-    } else {
-      span.textContent = this.fileName;
-    }
+
+    span.textContent = `${this.fileName} ${this.startLine}-${this.endLine}`;
     return span;
   }
 
@@ -35,29 +32,35 @@ class FileRefWidget extends WidgetType {
   }
 }
 
+export function parseFileRef(input: string) {
+  const reg = /^#\[([^\]]+)\]\(([^)]*)\)\s*(\d+)-(\d+)$/;
+
+  const match = input.match(reg);
+
+  if (!match) return null;
+
+  const [, id, filePath, startLine, endLine] = match;
+
+  return { id, filePath: filePath.trim(), startLine: Number(startLine), endLine: Number(endLine) };
+}
+
 /**
  * Chip 解析器，将 {{...}} 内部的 body 解析为渲染指令。
  * 格式: @fileName 或 @fileName:startLine 或 @fileName:startLine-endLine
  * 其他 → null（不渲染为 chip）。
  */
-export const chipResolver: ChipResolver = (body) => {
-  if (!body.startsWith('@')) {
+export const chipResolver: ChipResolver = (content) => {
+  if (!content.startsWith('#')) {
     return null;
   }
 
-  const content = body.slice(1);
-  const match = /^([^\s:]+)(?::(\d+)(?:-(\d+))?)?$/.exec(content);
-  if (match) {
-    const fileName = match[1];
-    const rawStart = match[2];
-    const rawEnd = match[3];
-    const startLine = rawStart ? Number(rawStart) : 0;
-    const endLine = rawEnd ? Number(rawEnd) : startLine;
-    return { widget: new FileRefWidget(fileName, startLine, endLine) };
-  }
+  const match = /^#\[([^\]]+)\]\(([^)]*)\)\s+(\d+)-(\d+)$/.exec(content);
 
-  if (import.meta.env.DEV) {
-    console.warn('[chipResolver] 无法解析文件引用 token body:', body);
-  }
-  return { widget: new FileRefWidget(content, 0, 0) };
+  if (!match) return { widget: new FileRefWidget(content, 0, 0) };
+
+  const [, , filePath, startLine, endLine] = match;
+
+  const fileName = filePath.split(/[\\/]/).filter(Boolean).pop() ?? filePath;
+
+  return { widget: new FileRefWidget(fileName, Number(startLine), Number(endLine)) };
 };

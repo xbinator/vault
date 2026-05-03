@@ -39,7 +39,7 @@ export function useSession(fileId: Ref<string>) {
 
   const autoSave = useAutoSave(fileState);
 
-  const currentTitle = computed(() => fileState.value.name || '未命名');
+  const currentTitle = computed(() => fileState.value.name || 'Untitled');
   // 文件状态相关的存储同步、保存收尾和外部文件回填都收口到这里，useSession 只做流程编排。
   const fileStateActions = useFileState({
     fileId,
