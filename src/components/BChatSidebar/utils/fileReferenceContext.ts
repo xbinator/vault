@@ -44,7 +44,6 @@ function buildReferenceIndexBlock(references: ChatMessageFileReferencePart[]): s
     ...references.map(formatReferenceLine),
     '',
     'File contents are not included yet.',
-    'If needed, call read_reference with the referenceId.',
     'Prefer reading a small window first.'
   ].join('\n');
 }

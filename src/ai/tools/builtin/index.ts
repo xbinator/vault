@@ -11,7 +11,6 @@ import { createBuiltinEnvironmentTools } from './environment';
 import { createBuiltinLogTools } from './logs';
 import { createBuiltinReadTools } from './read';
 import { createBuiltinReadDirectoryTool, createBuiltinReadFileTool } from './read-file';
-import { createBuiltinReadReferenceTool, type ResolvedReferenceSnapshot } from './read-reference';
 import { createBuiltinSettingsTools } from './settings';
 import { createBuiltinWriteTools } from './write';
 
@@ -33,8 +32,7 @@ interface CreateBuiltinToolsOptions {
   getWorkspaceRoot?: () => string | null;
   /** 判断文件路径是否在最近文件列表中，命中时跳过绝对路径确认 */
   isFileInRecent?: (filePath: string) => boolean;
-  /** 根据引用 ID 解析冻结快照 */
-  getReferenceSnapshot?: (referenceId: string) => Promise<ResolvedReferenceSnapshot | null>;
+
   /** 根据文档 ID 查找编辑器上下文，用于 documentId 反查文件路径 */
   getEditorContext?: (documentId: string) => import('types/ai').AIToolContext | undefined;
 }
@@ -66,9 +64,7 @@ export function createBuiltinTools(options: CreateBuiltinToolsOptions = {}): AIT
       isFileInRecent: options.isFileInRecent,
       getEditorContext: options.getEditorContext
     }),
-    createBuiltinReadReferenceTool({
-      getReferenceSnapshot: options.getReferenceSnapshot
-    }),
+
     createBuiltinReadDirectoryTool({
       confirm: options.confirm,
       getWorkspaceRoot: options.getWorkspaceRoot,

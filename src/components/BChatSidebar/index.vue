@@ -82,6 +82,7 @@
 </template>
 
 <script setup lang="ts">
+import type { Message } from './utils/types';
 import type { ChatMessageConfirmationAction } from 'types/chat';
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { Icon } from '@iconify/vue';
@@ -89,11 +90,6 @@ import { createBuiltinTools } from '@/ai/tools/builtin';
 import { editorToolContextRegistry } from '@/ai/tools/editor-context';
 import { getDefaultChatToolNames } from '@/ai/tools/policy';
 import BButton from '@/components/BButton/index.vue';
-import { chipResolver } from '@/components/BChatSidebar/utils/chipResolver';
-import { buildMessagePartsFromDraft, create, userChoice } from '@/components/BChatSidebar/utils/messageHelper';
-import { resolveReferenceSnapshotFromMessages } from '@/components/BChatSidebar/utils/referenceResolver';
-import { chatSlashCommands } from '@/components/BChatSidebar/utils/slashCommands';
-import type { Message } from '@/components/BChatSidebar/utils/types';
 import BPromptEditor from '@/components/BPromptEditor/index.vue';
 import type { SlashCommandOption } from '@/components/BPromptEditor/types';
 import { useChatStore } from '@/stores/chat';
@@ -113,7 +109,10 @@ import { useImageUpload } from './hooks/useImageUpload';
 import { useModelSelection } from './hooks/useModelSelection';
 import { useSession } from './hooks/useSession';
 import { useUsagePanel } from './hooks/useUsagePanel';
+import { chipResolver } from './utils/chipResolver';
 import { createChatConfirmationController } from './utils/confirmationController';
+import { buildMessagePartsFromDraft, create, userChoice } from './utils/messageHelper';
+import { chatSlashCommands } from './utils/slashCommands';
 
 /** 聊天数据存储 */
 const chatStore = useChatStore();
@@ -186,23 +185,11 @@ const fileReference = useFileReference({
 /** 聊天工具列表 */
 const filesStore = useFilesStore();
 
-/**
- * 解析聊天文件引用对应的冻结快照。
- * @param referenceId - 引用 ID
- * @returns 冻结快照内容或 null
- */
-async function getReferenceSnapshot(referenceId: string) {
-  return resolveReferenceSnapshotFromMessages(messages.value, referenceId, {
-    getEditorContext: (documentId: string) => editorToolContextRegistry.getContext(documentId)
-  });
-}
-
 const tools = createBuiltinTools({
   confirm: confirmationController.createAdapter(),
   isFileInRecent: (filePath: string) => {
     return Boolean(filesStore.recentFiles?.some((file) => file.path === filePath));
   },
-  getReferenceSnapshot,
   getEditorContext: (documentId: string) => editorToolContextRegistry.getContext(documentId),
   getPendingQuestion: () => {
     const pendingQuestion = userChoice.findPending(messages.value);
