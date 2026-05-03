@@ -1,13 +1,13 @@
 /* eslint-disable max-classes-per-file */
 /**
  * @file chat-storage-sqlite.test.ts
- * @description 验证聊天消息 references 在真实 SQLite 链路中的迁移、写入与读取。
+ * @description 验证聊天消息在真实 SQLite 链路中的迁移、写入与读取。
  */
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import type { ChatMessageFileReference, ChatMessageRecord, ChatSession } from 'types/chat';
+import type { ChatMessageRecord, ChatSession } from 'types/chat';
 import type { DbExecuteResult, ElectronAPI } from 'types/electron-api';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -129,23 +129,6 @@ vi.mock('electron', () => ({
 }));
 
 /**
- * 构造用于断言的文件引用。
- * @returns 标准化的消息文件引用。
- */
-function createReference(): ChatMessageFileReference {
-  return {
-    id: 'ref-1',
-    token: '{{file-ref:ref-1}}',
-    documentId: 'doc-1',
-    fileName: 'draft.md',
-    line: '12-18',
-    path: null,
-    snapshotId: 'snapshot-1',
-    excerpt: '## Heading'
-  };
-}
-
-/**
  * 构造用于断言的会话记录。
  * @returns 标准化的聊天会话。
  */
@@ -170,9 +153,8 @@ function createMessage(overrides: Partial<ChatMessageRecord> = {}): ChatMessageR
     id: 'message-1',
     sessionId: 'session-1',
     role: 'user',
-    content: '{{file-ref:ref-1}}',
-    parts: [{ type: 'text', text: '{{file-ref:ref-1}}' }],
-    references: [createReference()],
+    content: 'Test message',
+    parts: [{ type: 'text', text: 'Test message' }],
     createdAt: '2026-04-25T00:00:01.000Z',
     ...overrides
   };
@@ -190,148 +172,6 @@ describe('chatStorage SQLite references', () => {
     closeDatabase();
     fs.rmSync(tempUserDataDir, { recursive: true, force: true });
   });
-
-  it('adds references_json during database migration', async () => {
-    const legacyDbPath = path.join(tempUserDataDir, 'tibis.db');
-    const legacyDb = new DatabaseSync(legacyDbPath);
-
-    legacyDb.exec(`
-      CREATE TABLE chat_sessions (
-        id TEXT PRIMARY KEY,
-        type TEXT NOT NULL,
-        title TEXT NOT NULL,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL,
-        last_message_at TEXT NOT NULL
-      );
-
-      CREATE TABLE chat_messages (
-        id TEXT PRIMARY KEY,
-        session_id TEXT NOT NULL,
-        role TEXT NOT NULL,
-        content TEXT NOT NULL,
-        files_json TEXT,
-        usage_json TEXT,
-        created_at TEXT NOT NULL
-      );
-    `);
-    legacyDb.close();
-
-    const { initDatabase, dbSelect } = await import('../../electron/main/modules/database/service.mts');
-
-    await initDatabase();
-
-    const tableInfo = dbSelect<TableInfoRow>('PRAGMA table_info(chat_messages)');
-
-    expect(tableInfo.map((row) => row.name)).toContain('references_json');
-  });
-
-  it('round-trips references through addMessage and getMessages', async () => {
-    const { initDatabase, dbExecute, dbSelect } = await import('../../electron/main/modules/database/service.mts');
-
-    await initDatabase();
-
-    vi.doMock('@/shared/platform/electron-api', () => {
-      /**
-       * 基于真实数据库服务提供渲染层需要的 Electron API 子集。
-       * @returns 指向 SQLite 数据库服务的测试 API。
-       */
-      function createElectronApi(): ElectronAPI {
-        return {
-          dbExecute: async (sql: string, params?: unknown[]): Promise<DbExecuteResult> => {
-            const result = dbExecute(sql, params);
-
-            return {
-              changes: result.changes,
-              lastInsertRowid: Number(result.lastInsertRowid)
-            };
-          },
-          dbSelect: async <T>(sql: string, params?: unknown[]): Promise<T[]> => dbSelect<T>(sql, params)
-        } as ElectronAPI;
-      }
-
-      return {
-        hasElectronAPI: (): boolean => true,
-        getElectronAPI: (): ElectronAPI => createElectronApi()
-      };
-    });
-
-    const { chatStorage } = await import('@/shared/storage/chats');
-    const session = createSession();
-    const message = createMessage();
-
-    await chatStorage.createSession(session);
-    await chatStorage.addMessage(message);
-
-    const persistedRows = await dbSelect<{ references_json: string | null }>('SELECT references_json FROM chat_messages WHERE id = ?', [message.id]);
-    const loadedMessages = await chatStorage.getMessages(session.id);
-
-    expect(persistedRows[0]?.references_json).toBe(JSON.stringify(message.references));
-    expect(loadedMessages).toEqual([message]);
-  }, 15000);
-
-  it('round-trips references through setSessionMessages', async () => {
-    const { initDatabase, dbExecute, dbSelect } = await import('../../electron/main/modules/database/service.mts');
-
-    await initDatabase();
-
-    vi.doMock('@/shared/platform/electron-api', () => {
-      /**
-       * 基于真实数据库服务提供渲染层需要的 Electron API 子集。
-       * @returns 指向 SQLite 数据库服务的测试 API。
-       */
-      function createElectronApi(): ElectronAPI {
-        return {
-          dbExecute: async (sql: string, params?: unknown[]): Promise<DbExecuteResult> => {
-            const result = dbExecute(sql, params);
-
-            return {
-              changes: result.changes,
-              lastInsertRowid: Number(result.lastInsertRowid)
-            };
-          },
-          dbSelect: async <T>(sql: string, params?: unknown[]): Promise<T[]> => dbSelect<T>(sql, params)
-        } as ElectronAPI;
-      }
-
-      return {
-        hasElectronAPI: (): boolean => true,
-        getElectronAPI: (): ElectronAPI => createElectronApi()
-      };
-    });
-
-    const { chatStorage } = await import('@/shared/storage/chats');
-    const session = createSession();
-    const firstMessage = createMessage();
-    const secondMessage = createMessage({
-      id: 'message-2',
-      content: 'Follow-up reference',
-      parts: [{ type: 'text', text: 'Follow-up reference' }],
-      references: [
-        {
-          ...createReference(),
-          id: 'ref-2',
-          token: '{{file-ref:ref-2}}'
-        }
-      ],
-      createdAt: '2026-04-25T00:00:02.000Z'
-    });
-
-    await chatStorage.createSession(session);
-    await chatStorage.setSessionMessages(session.id, [firstMessage, secondMessage]);
-
-    const persistedRows = await dbSelect<{ id: string; references_json: string | null }>(
-      'SELECT id, references_json FROM chat_messages WHERE session_id = ? ORDER BY created_at ASC, id ASC',
-      [session.id]
-    );
-    const loadedMessages = await chatStorage.getMessages(session.id);
-
-    expect(persistedRows).toEqual([
-      { id: firstMessage.id, references_json: JSON.stringify(firstMessage.references) },
-      { id: secondMessage.id, references_json: JSON.stringify(secondMessage.references) }
-    ]);
-    expect(loadedMessages).toEqual([firstMessage, secondMessage]);
-  }, 15000);
 
   it('updates only the session title metadata when auto naming completes', async () => {
     const { initDatabase, dbExecute, dbSelect } = await import('../../electron/main/modules/database/service.mts');

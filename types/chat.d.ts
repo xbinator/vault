@@ -261,8 +261,6 @@ export interface ChatMessageRecord {
   content: string;
   /** 结构化消息片段 */
   parts: ChatMessagePart[];
-  /** 消息保存的文件引用元数据 */
-  references?: ChatMessageFileReference[];
   /** 思考内容 */
   thinking?: string;
   /** 文件列表 */

@@ -46,7 +46,6 @@ function migrateDatabase(): void {
   ensureColumn('chat_sessions', 'usage_json', 'usage_json TEXT');
   ensureColumn('chat_messages', 'thinking', 'thinking TEXT');
   ensureColumn('chat_messages', 'parts_json', 'parts_json TEXT');
-  ensureColumn('chat_messages', 'references_json', 'references_json TEXT');
 }
 
 export function getDbPath(): string {
@@ -113,7 +112,6 @@ export async function initDatabase(): Promise<void> {
       role TEXT NOT NULL,
       content TEXT NOT NULL,
       parts_json TEXT,
-      references_json TEXT,
       thinking TEXT,
       files_json TEXT,
       usage_json TEXT,

@@ -449,7 +449,6 @@ export const chatStorage = {
       message.role,
       message.content,
       stringifyJson(message.parts),
-      stringifyJson(message.references),
       message.thinking ?? null,
       stringifyJson(message.files),
       stringifyJson(message.usage),
