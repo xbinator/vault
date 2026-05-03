@@ -61,13 +61,14 @@ export function useFileReference(options: FileReferenceOptions) {
    */
   async function handleFileReferenceInsert(reference: ChatFileReferenceInsertPayload): Promise<void> {
     const toolContext = editorToolContextRegistry.getCurrentContext();
-    const enrichedReference: FileReferenceChip = {
-      documentId: toolContext?.document.id || reference.filePath || reference.fileName,
-      filePath: reference.filePath ?? toolContext?.document.path ?? null,
-      fileName: reference.fileName,
-      startLine: reference.startLine,
-      endLine: reference.endLine
-    };
+    const { document } = toolContext || {};
+
+    const documentId = document?.id || reference.filePath || reference.fileName;
+    const filePath = document?.path || reference.filePath || null;
+
+    const { startLine, endLine } = reference;
+
+    const enrichedReference = { documentId, filePath, fileName: reference.fileName, startLine, endLine };
 
     // 先锁定聊天输入框最近一次有效插入位置，再处理侧边栏聚焦与引用插入
     options.saveCursorPosition();
