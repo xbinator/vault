@@ -46,11 +46,12 @@ vi.mock('@/components/BChatSidebar/hooks/useVoiceRecorder', () => ({
 /**
  * 会话 hook 模拟。
  */
-vi.mock('@/components/BChatSidebar/hooks/useVoiceTranscriptionSession', () => ({
-  useVoiceTranscriptionSession: () => ({
+vi.mock('@/components/BChatSidebar/hooks/useVoiceSession', () => ({
+  useVoiceSession: () => ({
     finalText,
+    enqueueSegment: vi.fn(),
     resetSession: vi.fn(),
-    completeSession: vi.fn(async () => ({ text: finalText.value }))
+    completeSession: vi.fn(async () => ({ text: finalText.value, failedSegmentIds: [] }))
   })
 }));
 

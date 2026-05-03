@@ -2,8 +2,8 @@
  * @file ipc.mts
  * @description 注册语音转写相关的 IPC handlers。
  */
-import { ipcMain } from 'electron';
 import type { SpeechTranscribeRequest, SpeechTranscribeResult } from './types.mjs';
+import { ipcMain } from 'electron';
 import { transcribeAudioSegment } from './service.mjs';
 
 /**
