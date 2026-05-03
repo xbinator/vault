@@ -3,7 +3,7 @@
  * @description Chat session and message persistence store.
  */
 import type { AIUsage } from 'types/ai';
-import type { ChatMessageHistoryCursor, ChatMessageRecord, ChatSession, ChatSessionType } from 'types/chat';
+import type { ChatMessageHistoryCursor, ChatMessageRecord, ChatSession, ChatSessionType, PaginatedSessionsResult, SessionPaginationParams } from 'types/chat';
 import { defineStore } from 'pinia';
 import { nanoid } from 'nanoid';
 import { is, type PersistableMessage } from '@/components/BChatSidebar/utils/messageHelper';
@@ -57,12 +57,13 @@ export const useChatStore = defineStore('chat', {
     },
 
     /**
-     * Load sessions by type for history navigation.
+     * Load sessions by type for history navigation with cursor-based pagination.
      * @param type - Session type filter.
-     * @returns Matching chat sessions.
+     * @param pagination - Optional pagination parameters for cursor-based loading.
+     * @returns Paginated session result with items, hasMore flag, and next cursor.
      */
-    getSessions(type: ChatSessionType): Promise<ChatSession[]> {
-      return chatStorage.getSessionsByType(type);
+    getSessions(type: ChatSessionType, pagination?: SessionPaginationParams): Promise<PaginatedSessionsResult> {
+      return chatStorage.getSessionsByType(type, pagination);
     },
 
     /**

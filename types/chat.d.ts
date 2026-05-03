@@ -300,3 +300,35 @@ export interface ChatMessageHistoryCursor {
   /** 同创建时间下的边界消息 ID，用于规避时间戳精度冲突 */
   beforeId: string;
 }
+
+/**
+ * 会话分页游标，基于时间戳实现游标分页
+ */
+export interface SessionCursor {
+  /** 最后一条消息时间戳，用于主排序游标 */
+  lastMessageAt: string;
+  /** 创建时间戳，用于相同 lastMessageAt 时的二级排序游标 */
+  createdAt: string;
+}
+
+/**
+ * 会话分页查询参数
+ */
+export interface SessionPaginationParams {
+  /** 每页数量 */
+  limit: number;
+  /** 游标（可选，不传时加载第一页） */
+  cursor?: SessionCursor;
+}
+
+/**
+ * 会话分页查询结果
+ */
+export interface PaginatedSessionsResult {
+  /** 当前页会话列表 */
+  items: ChatSession[];
+  /** 是否还有更多数据可加载 */
+  hasMore: boolean;
+  /** 下一页游标，无更多数据时为 undefined */
+  nextCursor?: SessionCursor;
+}

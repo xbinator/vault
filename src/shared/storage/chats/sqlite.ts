@@ -12,7 +12,10 @@ import type {
   ChatReferenceSnapshot,
   ChatMessageRole,
   ChatSession,
-  ChatSessionType
+  ChatSessionType,
+  PaginatedSessionsResult,
+  SessionCursor,
+  SessionPaginationParams
 } from 'types/chat';
 import { local } from '@/shared/storage/base';
 import { dbSelect, dbExecute, isDatabaseAvailable, parseJson, stringifyJson } from '../utils';
@@ -27,6 +30,15 @@ const SELECT_SESSIONS_BY_TYPE_SQL = `
   FROM chat_sessions
   WHERE type = ?
   ORDER BY last_message_at DESC, updated_at DESC, created_at DESC
+  LIMIT ?
+`;
+const SELECT_SESSIONS_BY_CURSOR_SQL = `
+  SELECT id, type, title, created_at, updated_at, last_message_at, usage_json
+  FROM chat_sessions
+  WHERE type = ?
+    AND (last_message_at < ? OR (last_message_at = ? AND created_at < ?))
+  ORDER BY last_message_at DESC, updated_at DESC, created_at DESC
+  LIMIT ?
 `;
 const UPSERT_SESSION_SQL = `
   INSERT OR REPLACE INTO chat_sessions
@@ -317,13 +329,71 @@ async function upsertSessionMessages(messages: ChatMessageRecord[]): Promise<voi
 }
 
 export const chatStorage = {
-  async getSessionsByType(type: ChatSessionType): Promise<ChatSession[]> {
+  async getSessionsByType(type: ChatSessionType, pagination?: SessionPaginationParams): Promise<PaginatedSessionsResult> {
+    const limit = pagination?.limit ?? 20;
+    const cursor = pagination?.cursor;
+
     if (!isDatabaseAvailable()) {
-      return sortSessions(loadFallbackSessions().filter((item) => item.type === type));
+      const allSessions = sortSessions(loadFallbackSessions().filter((item) => item.type === type));
+      return this.paginateFallbackSessions(allSessions, limit, cursor);
     }
 
-    const rows = await dbSelect<ChatSessionRow>(SELECT_SESSIONS_BY_TYPE_SQL, [type]);
-    return rows.map(mapSessionRow).filter((item): item is ChatSession => item !== null);
+    let rows: ChatSessionRow[];
+
+    if (!cursor) {
+      rows = await dbSelect<ChatSessionRow>(SELECT_SESSIONS_BY_TYPE_SQL, [type, limit]);
+    } else {
+      rows = await dbSelect<ChatSessionRow>(SELECT_SESSIONS_BY_CURSOR_SQL, [type, cursor.lastMessageAt, cursor.lastMessageAt, cursor.createdAt, limit]);
+    }
+
+    const items = rows.map(mapSessionRow).filter((item): item is ChatSession => item !== null);
+
+    return this.buildPaginatedResult(items, limit);
+  },
+
+  /**
+   * 对降级存储的会话列表进行游标分页截取
+   * @param allSessions - 已排序的完整会话列表
+   * @param limit - 每页数量
+   * @param cursor - 游标（可选）
+   * @returns 分页结果
+   */
+  paginateFallbackSessions(allSessions: ChatSession[], limit: number, cursor?: SessionCursor): PaginatedSessionsResult {
+    let startIndex = 0;
+
+    if (cursor) {
+      startIndex = allSessions.findIndex(
+        (session) => session.lastMessageAt < cursor.lastMessageAt || (session.lastMessageAt === cursor.lastMessageAt && session.createdAt < cursor.createdAt)
+      );
+      if (startIndex === -1) {
+        return { items: [], hasMore: false };
+      }
+    }
+
+    const items = allSessions.slice(startIndex, startIndex + limit);
+
+    return this.buildPaginatedResult(items, limit);
+  },
+
+  /**
+   * 根据当前页数据构建分页结果，计算是否有更多数据及下一页游标
+   * @param items - 当前页数据
+   * @param limit - 每页数量
+   * @returns 分页结果
+   */
+  buildPaginatedResult(items: ChatSession[], limit: number): PaginatedSessionsResult {
+    const hasMore = items.length === limit;
+
+    let nextCursor: SessionCursor | undefined;
+    if (hasMore && items.length > 0) {
+      const lastItem = items[items.length - 1];
+      nextCursor = {
+        lastMessageAt: lastItem.lastMessageAt,
+        createdAt: lastItem.createdAt
+      };
+    }
+
+    return { items, hasMore, nextCursor };
   },
 
   async createSession(session: ChatSession): Promise<void> {
