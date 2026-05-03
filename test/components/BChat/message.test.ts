@@ -55,7 +55,7 @@ function createImageFile(overrides: Partial<ChatMessageFile> = {}): ChatMessageF
 function createFileReference(overrides: Partial<ChatMessageFileReference> = {}): ChatMessageFileReference {
   return {
     id: 'doc-1',
-    token: '{{file-ref:doc-1|foo.ts|3|5}}',
+    token: '{{@foo.ts:3-5}}',
     documentId: 'doc-1',
     fileName: 'foo.ts',
     line: '3-5',
@@ -137,7 +137,7 @@ describe('BChat message helpers', () => {
   });
 
   it('builds ordered text and file-reference parts from active draft references', () => {
-    const parts = buildMessagePartsFromDraft('A {{file-ref:doc-1|foo.ts|3|5}} B', [createFileReference()]);
+    const parts = buildMessagePartsFromDraft('A {{@foo.ts:3-5}} B', [createFileReference()]);
 
     expect(parts).toEqual([
       { type: 'text', text: 'A ' },
@@ -155,10 +155,10 @@ describe('BChat message helpers', () => {
   });
 
   it('keeps unsaved document references with document ids and null paths', () => {
-    const parts = buildMessagePartsFromDraft('查看 {{file-ref:doc-unsaved|draft.ts|10|20}}', [
+    const parts = buildMessagePartsFromDraft('查看 {{@draft.ts:10-20}}', [
       createFileReference({
         id: 'doc-unsaved',
-        token: '{{file-ref:doc-unsaved|draft.ts|10|20}}',
+        token: '{{@draft.ts:10-20}}',
         documentId: 'doc-unsaved',
         fileName: 'draft.ts',
         line: '10-20',

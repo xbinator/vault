@@ -164,7 +164,7 @@ function handleVoiceComplete(payload: { text: string }): void {
 const usagePanel = useUsagePanel();
 
 /** 草稿输入 hook */
-const { inputContent, inputImages, ...inputEvents } = useChatInput({ focusInput });
+const { inputContent, inputImages, inputReferences, ...inputEvents } = useChatInput({ focusInput });
 
 /** 模型选择 hook */
 const { selectedModel, supportsVision, ...modelSelectionEvents } = useModelSelection();
@@ -179,7 +179,8 @@ const canSubmit = computed<boolean>(() => !inputEvents.isEmpty() || inputEvents.
 const fileReference = useFileReference({
   insertTextAtCursor,
   saveCursorPosition,
-  focusInput
+  focusInput,
+  addReference: inputEvents.addReference
 });
 
 /** 聊天工具列表 */
@@ -324,15 +325,16 @@ async function handleComplete(nextMessage: Message): Promise<void> {
 async function handleChatSubmit(): Promise<void> {
   const content = inputContent.value.trim();
   const images = inputImages.value;
+  const references = inputReferences.value;
 
   if (!canSubmit.value) return;
 
   const config = await stream.resolveServiceConfig();
   if (!config) return;
 
-  const _content = buildMessagePartsFromDraft(content);
+  const parts = buildMessagePartsFromDraft(content, references);
 
-  const message = create.userMessage(_content);
+  const message = create.userMessageFromParts(parts);
   // 如果有图片，添加到消息中
   images.length && supportsVision.value && (message.files = [...images]);
 

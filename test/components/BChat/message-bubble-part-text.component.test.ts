@@ -68,7 +68,7 @@ const IconStub = defineComponent({
 function createReference(overrides: Partial<ChatMessageFileReference> = {}): ChatMessageFileReference {
   return {
     id: 'reference-1',
-    token: '{{file-ref:ref_123}}',
+    token: '{{@demo.ts:12-14}}',
     documentId: 'document-1',
     fileName: 'demo.ts',
     line: '12-14',
@@ -131,7 +131,7 @@ function mountBubble(message: Message): VueWrapper {
 describe('BubblePartText file references', () => {
   it('renders matched user file-reference placeholders as read-only chips', () => {
     const wrapper = mountTextPart({
-      part: { type: 'text', text: '请查看 {{file-ref:ref_123}} 的实现' },
+      part: { type: 'text', text: '请查看 {{@demo.ts:12-14}} 的实现' },
       enableFileReferenceChips: true,
       references: [createReference()]
     });
@@ -145,31 +145,31 @@ describe('BubblePartText file references', () => {
     expect(wrapper.text()).toContain('的实现');
   });
 
-  it('falls back to the raw token when no reference mapping is available', () => {
+  it('falls back to file name when no reference mapping is available', () => {
     const wrapper = mountTextPart({
-      part: { type: 'text', text: '请查看 {{file-ref:ref_missing}} 的实现' },
+      part: { type: 'text', text: '请查看 {{@missing.ts:5}} 的实现' },
       enableFileReferenceChips: true,
       references: [createReference()]
     });
 
-    expect(wrapper.find('.message-bubble__part-tag').exists()).toBe(false);
-    expect(wrapper.text()).toContain('{{file-ref:ref_missing}}');
+    const chip = wrapper.get('.message-bubble__part-tag');
+    expect(chip.text()).toBe('missing.ts:5');
   });
 
   it('keeps assistant text on the existing markdown rendering path', () => {
     const wrapper = mountBubble({
       id: 'assistant-1',
       role: 'assistant',
-      content: '请查看 {{file-ref:ref_123}}',
+      content: '请查看 {{@demo.ts:12-14}}',
       createdAt: '2026-04-25T00:00:00.000Z',
-      parts: [{ type: 'text', text: '请查看 {{file-ref:ref_123}}' }],
+      parts: [{ type: 'text', text: '请查看 {{@demo.ts:12-14}}' }],
       references: [createReference()]
     });
 
     const message = wrapper.get('.message-stub');
 
     expect(message.attributes('data-type')).toBe('markdown');
-    expect(message.text()).toContain('{{file-ref:ref_123}}');
+    expect(message.text()).toContain('{{@demo.ts:12-14}}');
     expect(wrapper.find('.message-bubble__part-tag').exists()).toBe(false);
   });
 });

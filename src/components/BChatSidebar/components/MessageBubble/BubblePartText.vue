@@ -9,7 +9,7 @@
       </template>
     </div>
 
-    <BMessage v-else :content="part.text" type="markdown" />
+    <BMessage v-else :content="'text' in part ? part.text : ''" type="markdown" />
   </div>
 </template>
 
@@ -65,7 +65,7 @@ const props = withDefaults(defineProps<Props>(), {
   references: () => []
 });
 
-const FILE_REFERENCE_TOKEN_PATTERN = /\{\{file-ref:([A-Za-z0-9_-]+)(?:\|[^}]*)?\}\}/g;
+const FILE_REFERENCE_TOKEN_PATTERN = /\{\{@([^\s:}]+)(?::(\d+)(?:-(\d+))?)?\}\}/g;
 
 const [, bem] = createNamespace('', 'message-bubble-text');
 
@@ -92,31 +92,39 @@ const segments = computed<MessageBubbleTextSegment[]>(() => {
     return [{ type: 'file-reference', label: lineLabel ? `${props.part.fileName}:${lineLabel}` : props.part.fileName }];
   }
 
+  // 此时 part 类型为 ChatMessageTextPart | ChatMessageErrorPart，都有 text 属性
+  const textPart = props.part as ChatMessageTextPart;
   const parts: MessageBubbleTextSegment[] = [];
   let lastIndex = 0;
 
-  props.part.text.replace(FILE_REFERENCE_TOKEN_PATTERN, (match: string, documentId: string, offset: number) => {
-    if (offset > lastIndex) {
-      parts.push({ type: 'text', text: props.part.text.slice(lastIndex, offset) });
+  textPart.text.replace(FILE_REFERENCE_TOKEN_PATTERN, (match: string, fileName?: string, start?: string, end?: string, offset?: number) => {
+    if (offset !== undefined && offset > lastIndex) {
+      parts.push({ type: 'text', text: textPart.text.slice(lastIndex, offset) });
     }
 
     const reference = referenceMap.value.get(match);
     if (reference) {
       parts.push({ type: 'file-reference', label: `${reference.fileName}:${reference.line}` });
-    } else {
-      parts.push({ type: 'text', text: `{{file-ref:${documentId}}}` });
+    } else if (fileName) {
+      const startLine = start ? Number(start) : 0;
+      const endLine = end ? Number(end) : startLine;
+      let lineLabel = '';
+      if (startLine > 0) {
+        lineLabel = startLine === endLine ? `${startLine}` : `${startLine}-${endLine}`;
+      }
+      parts.push({ type: 'file-reference', label: lineLabel ? `${fileName}:${lineLabel}` : fileName });
     }
 
-    lastIndex = offset + match.length;
+    lastIndex = offset !== undefined ? offset + match.length : lastIndex;
     return match;
   });
 
-  if (lastIndex < props.part.text.length) {
-    parts.push({ type: 'text', text: props.part.text.slice(lastIndex) });
+  if (lastIndex < textPart.text.length) {
+    parts.push({ type: 'text', text: textPart.text.slice(lastIndex) });
   }
 
   if (!parts.length) {
-    parts.push({ type: 'text', text: props.part.text });
+    parts.push({ type: 'text', text: textPart.text });
   }
 
   return parts;

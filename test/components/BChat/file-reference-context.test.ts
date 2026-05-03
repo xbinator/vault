@@ -49,8 +49,8 @@ describe('file reference context builder', () => {
 
     const [message] = buildModelReadyMessages(sourceMessages);
 
-    expect(message.content).toContain('Available file references for this message:');
-    expect(message.content).toContain('doc-1: draft.md (lines 12-14)');
+    expect(message.content).toContain('📎 File References:');
+    expect(message.content).toContain('[doc-1] docs/draft.md (lines 12-14)');
     expect(message.content).toContain('Please check this file.');
   });
 
@@ -82,7 +82,7 @@ describe('file reference context builder', () => {
 
     const [message] = buildModelReadyMessages(sourceMessages);
 
-    expect(message.content).toContain('lines 5');
+    expect(message.content).toContain('[doc-1] docs/draft.md (line 5)');
   });
 
   it('marks unsaved documents correctly', () => {
@@ -91,18 +91,18 @@ describe('file reference context builder', () => {
 
     const [message] = buildModelReadyMessages(sourceMessages);
 
-    expect(message.content).toContain('(unsaved document)');
+    expect(message.content).toContain('(unsaved)');
   });
 
   it('handles multiple file references from different files', () => {
-    const ref1 = createReferencePart({ documentId: 'doc-1', fileName: 'foo.ts', startLine: 3, endLine: 5 });
-    const ref2 = createReferencePart({ documentId: 'doc-2', fileName: 'bar.ts', startLine: 10, endLine: 20 });
+    const ref1 = createReferencePart({ documentId: 'doc-1', fileName: 'foo.ts', path: 'src/foo.ts', startLine: 3, endLine: 5 });
+    const ref2 = createReferencePart({ documentId: 'doc-2', fileName: 'bar.ts', path: 'src/bar.ts', startLine: 10, endLine: 20 });
     const sourceMessages = [createUserMessage([ref1, ref2])];
 
     const [message] = buildModelReadyMessages(sourceMessages);
 
-    expect(message.content).toContain('doc-1: foo.ts (lines 3-5)');
-    expect(message.content).toContain('doc-2: bar.ts (lines 10-20)');
+    expect(message.content).toContain('[doc-1] src/foo.ts (lines 3-5)');
+    expect(message.content).toContain('[doc-2] src/bar.ts (lines 10-20)');
   });
 
   it('handles reference with no explicit line range', () => {
@@ -111,6 +111,7 @@ describe('file reference context builder', () => {
 
     const [message] = buildModelReadyMessages(sourceMessages);
 
-    expect(message.content).toContain('no explicit line range');
+    expect(message.content).toContain('[doc-1] docs/draft.md');
+    expect(message.content).not.toContain('line');
   });
 });

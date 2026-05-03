@@ -37,43 +37,27 @@ class FileRefWidget extends WidgetType {
 
 /**
  * Chip 解析器，将 {{...}} 内部的 body 解析为渲染指令。
- * 新格式（4 字段）: file-ref:id|fileName|startLine|endLine
- * 旧格式（3 字段）: file-ref:id|fileName|line  — 兼容降级解析
+ * 格式: @fileName 或 @fileName:startLine 或 @fileName:startLine-endLine
  * 其他 → null（不渲染为 chip）。
  */
 export const chipResolver: ChipResolver = (body) => {
-  if (!body.startsWith('file-ref:')) {
+  if (!body.startsWith('@')) {
     return null;
   }
 
-  const stripped = body.slice('file-ref:'.length);
-  if (!stripped) return null;
-
-  const parts = stripped.split('|');
-  const fileName = parts[1] || parts[0];
-
-  // 新格式（4 字段）: id|name|startLine|endLine
-  if (parts.length >= 4) {
-    const rawStart = parts[2] !== undefined && parts[2] !== '' ? Number(parts[2]) : NaN;
-    const rawEnd = parts[3] !== undefined && parts[3] !== '' ? Number(parts[3]) : NaN;
-    const startLine = Number.isNaN(rawStart) ? 0 : rawStart;
-    // endLine < startLine 时为异常数据，退化为单行引用
-    const endLine = Number.isNaN(rawEnd) || rawEnd < startLine ? startLine : rawEnd;
+  const content = body.slice(1);
+  const match = /^([^\s:]+)(?::(\d+)(?:-(\d+))?)?$/.exec(content);
+  if (match) {
+    const fileName = match[1];
+    const rawStart = match[2];
+    const rawEnd = match[3];
+    const startLine = rawStart ? Number(rawStart) : 0;
+    const endLine = rawEnd ? Number(rawEnd) : startLine;
     return { widget: new FileRefWidget(fileName, startLine, endLine) };
   }
 
-  // 旧格式降级解析（3 字段）: id|name|line，line 为 "10" 或 "10-20"
-  const raw = parts[2] || '';
-  const rangeMatch = /^(\d+)(?:-(\d+))?$/.exec(raw);
-  if (rangeMatch) {
-    const start = Number(rangeMatch[1]);
-    const end = rangeMatch[2] !== undefined ? Number(rangeMatch[2]) : start;
-    return { widget: new FileRefWidget(fileName, start, end) };
-  }
-
-  // 格式损坏：降级为仅显示文件名
   if (import.meta.env.DEV) {
     console.warn('[chipResolver] 无法解析文件引用 token body:', body);
   }
-  return { widget: new FileRefWidget(fileName, 0, 0) };
+  return { widget: new FileRefWidget(content, 0, 0) };
 };

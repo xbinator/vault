@@ -3,7 +3,7 @@
  * @description 聊天输入状态管理 hook
  */
 import type { Message } from '../utils/types';
-import type { ChatMessageFile } from 'types/chat';
+import type { ChatMessageFile, ChatMessageFileReference } from 'types/chat';
 import { ref } from 'vue';
 
 /**
@@ -24,6 +24,8 @@ export function useChatInput(options: ChatInputOptions) {
   const inputContent = ref('');
   /** 草稿图片附件列表 */
   const inputImages = ref<ChatMessageFile[]>([]);
+  /** 草稿文件引用列表 */
+  const inputReferences = ref<ChatMessageFileReference[]>([]);
 
   /**
    * 清空当前草稿输入和文件引用，不影响对话内容
@@ -31,6 +33,7 @@ export function useChatInput(options: ChatInputOptions) {
   function clear(): void {
     inputContent.value = '';
     inputImages.value = [];
+    inputReferences.value = [];
     options.focusInput();
   }
 
@@ -51,12 +54,21 @@ export function useChatInput(options: ChatInputOptions) {
   }
 
   /**
+   * 添加文件引用
+   * @param reference - 文件引用
+   */
+  function addReference(reference: ChatMessageFileReference): void {
+    inputReferences.value.push(reference);
+  }
+
+  /**
    * 从消息恢复草稿（用于编辑消息）
    * @param message - 要编辑的消息
    */
   function restoreFromMessage(message: Message): void {
     inputContent.value = message.content;
     inputImages.value = [...(message.files?.filter((file) => file.type === 'image') ?? [])];
+    inputReferences.value = [...(message.references ?? [])];
   }
 
   /**
@@ -78,9 +90,11 @@ export function useChatInput(options: ChatInputOptions) {
   return {
     inputContent,
     inputImages,
+    inputReferences,
     clear,
     addImages,
     removeImage,
+    addReference,
     restoreFromMessage,
     isEmpty,
     hasImages

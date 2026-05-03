@@ -16,17 +16,19 @@ function collectFileReferenceParts(message: Message): ChatMessageFileReferencePa
 
 /**
  * 将单个文件引用片段格式化为模型侧索引文本。
+ * 格式: - [documentId] path (lines start-end) 或 - [documentId] path (unsaved)
  * @param reference - 文件引用片段
  * @returns 单行索引文本
  */
 function formatReferenceLine(reference: ChatMessageFileReferencePart): string {
-  const lineLabel =
-    reference.startLine > 0
-      ? `lines ${reference.startLine}${reference.endLine > reference.startLine ? `-${reference.endLine}` : ''}`
-      : 'no explicit line range';
-  const unsavedLabel = reference.path ? '' : ' (unsaved document)';
+  const pathLabel = reference.path || reference.fileName;
+  const unsavedLabel = reference.path ? '' : ' (unsaved)';
+  let lineLabel = '';
+  if (reference.startLine > 0) {
+    lineLabel = reference.endLine > reference.startLine ? ` (lines ${reference.startLine}-${reference.endLine})` : ` (line ${reference.startLine})`;
+  }
 
-  return `- ${reference.documentId}: ${reference.fileName}${unsavedLabel} (${lineLabel})`;
+  return `- [${reference.documentId}] ${pathLabel}${unsavedLabel}${lineLabel}`;
 }
 
 /**
@@ -39,13 +41,7 @@ function buildReferenceIndexBlock(references: ChatMessageFileReferencePart[]): s
     return '';
   }
 
-  return [
-    'Available file references for this message:',
-    ...references.map(formatReferenceLine),
-    '',
-    'File contents are not included yet.',
-    'Prefer reading a small window first.'
-  ].join('\n');
+  return ['📎 File References:', ...references.map(formatReferenceLine), '', 'Use read_file with documentId to read file content.'].join('\n');
 }
 
 /**

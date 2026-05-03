@@ -5,7 +5,14 @@
 import type { Message } from './types';
 import type { JSONValue, ModelMessage } from 'ai';
 import type { AIAwaitingUserChoiceQuestion, AIToolExecutionAwaitingUserInputResult } from 'types/ai';
-import type { AIUserChoiceAnswerData, ChatMessagePart, ChatMessageRole, ChatMessageToolResultPart } from 'types/chat';
+import type {
+  AIUserChoiceAnswerData,
+  ChatMessageFileReference,
+  ChatMessagePart,
+  ChatMessageRole,
+  ChatMessageTextPart,
+  ChatMessageToolResultPart
+} from 'types/chat';
 import { nanoid } from 'nanoid';
 
 // ─── 公开类型 ────────────────────────────────────────────────────────────────
@@ -59,21 +66,57 @@ function toJsonValue(value: unknown): JSONValue {
 
 /**
  * 将草稿正文和活动引用解析为有序消息片段。
+ * 格式: {{@fileName:startLine-endLine}} 或 {{@fileName:startLine}} 或 {{@fileName}}
  * @param content - 草稿正文
- * @param references - 活动文件引用
- * @returns 有序消息片段
+ * @param references - 文件引用元数据列表
+ * @returns 消息片段数组
  */
-export function buildMessagePartsFromDraft(content: string) {
-  const FILE_REF_RE = /\{\{file-ref:(?<documentId>[^|}]+)\|(?<fileName>[^|}]+)\|(?<start>\d+)(?:\|(?<end>\d+))?\}\}/g;
+export function buildMessagePartsFromDraft(content: string, references: ChatMessageFileReference[] = []): ChatMessagePart[] {
+  const TOKEN_RE = /\{\{@([^\s:}]+)(?::(\d+)(?:-(\d+))?)?\}\}/g;
+  const parts: ChatMessagePart[] = [];
+  let lastIndex = 0;
 
-  return content.replace(FILE_REF_RE, (_, ...groups) => {
-    const [documentId, , start, end] = groups;
+  const matches = Array.from(content.matchAll(TOKEN_RE));
 
-    const startLine = Number(start);
+  for (const match of matches) {
+    const [fullMatch, , start, end] = match;
+    const offset = match.index ?? 0;
+
+    const startLine = start ? Number(start) : 0;
     const endLine = end ? Number(end) : startLine;
 
-    return `<USER_SELECT_FRAGMENT documentId="${documentId}" startLine="${startLine}" endLine="${endLine}"></USER_SELECT_FRAGMENT>`;
-  });
+    // 提取 token 前的纯文本
+    if (offset > lastIndex) {
+      parts.push({ type: 'text', text: content.slice(lastIndex, offset) });
+    }
+
+    // 从 references 中查找匹配的引用
+    const reference = references.find((ref) => ref.token === fullMatch);
+    if (reference) {
+      parts.push({
+        type: 'file-reference',
+        documentId: reference.documentId,
+        snapshotId: reference.snapshotId,
+        fileName: reference.fileName,
+        path: reference.path,
+        startLine,
+        endLine
+      });
+    } else {
+      // 未找到匹配的引用，降级为纯文本
+      parts.push({ type: 'text', text: fullMatch });
+    }
+
+    lastIndex = offset + fullMatch.length;
+  }
+
+  // 提取剩余的纯文本
+  if (lastIndex < content.length) {
+    parts.push({ type: 'text', text: content.slice(lastIndex) });
+  }
+
+  // 无内容时返回空数组
+  return parts;
 }
 
 // ─── is —— 消息类型判断 ──────────────────────────────────────────────────────
@@ -176,6 +219,16 @@ export const create = {
   // 创建用户消息
   userMessage(content: string, references?: Message['references']): Message {
     return createBase({ role: 'user', content, references, parts: content ? [{ type: 'text', text: content }] : [], finished: true });
+  },
+  /**
+   * 从消息片段创建用户消息
+   * @param parts - 消息片段数组
+   * @returns 用户消息
+   */
+  userMessageFromParts(parts: ChatMessagePart[]): Message {
+    const textParts = parts.filter((part): part is ChatMessageTextPart => part.type === 'text');
+    const content = textParts.map((part) => part.text).join('');
+    return createBase({ role: 'user', content, parts, finished: true });
   }
 } as const;
 
