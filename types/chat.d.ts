@@ -80,26 +80,6 @@ export interface ChatMessageTextPart {
 }
 
 /**
- * 聊天消息文件引用片段
- */
-export interface ChatMessageFileReferencePart {
-  /** 片段类型 */
-  type: 'file-reference';
-  /** 引用对应的文档 ID */
-  documentId: string;
-  /** 引用快照 ID */
-  snapshotId: string;
-  /** 文件名 */
-  fileName: string;
-  /** 本地路径，不存在时为 null */
-  path: string | null;
-  /** 起始行号 */
-  startLine: number;
-  /** 结束行号 */
-  endLine: number;
-}
-
-/**
  * 聊天消息思考片段
  */
 export interface ChatMessageThinkingPart {
@@ -244,7 +224,6 @@ export interface ChatMessageErrorPart {
  */
 export type ChatMessagePart =
   | ChatMessageTextPart
-  | ChatMessageFileReferencePart
   | ChatMessageErrorPart
   | ChatMessageThinkingPart
   | ChatMessageToolCallPart

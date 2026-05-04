@@ -2,6 +2,7 @@
  * @file types.ts
  * @description BChatSidebar 组件消息、服务配置与续轮保护类型定义。
  */
+import type { FileReference } from '../types';
 import type { AIUsage, AIToolContext, AIToolExecutor } from 'types/ai';
 import type { ChatMessageConfirmationAction, ChatMessageFile, ChatMessagePart, ChatMessageRole } from 'types/chat';
 import type { AIToolProviderSupport } from '@/ai/tools/policy';
@@ -40,6 +41,8 @@ export interface Message {
   content: string;
   /** 有序结构化消息片段，用于界面展示、模型上下文和工具链恢复 */
   parts: ChatMessagePart[];
+  /** 文件引用列表 */
+  references?: FileReference[];
   /** 思考内容 */
   thinking?: string;
   /** 附件列表 */
