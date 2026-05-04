@@ -12,6 +12,7 @@ import {
   calculateFileSha256,
   runCli,
   runFillCommand,
+  runLocalizeCommand,
   runValidateCommand,
   validateManifestDefinition
 } from '../../../scripts/speech/manifest-tool.mjs';
@@ -105,11 +106,43 @@ describe('speech manifest tool', () => {
       'platforms.broken.version 必须是非空字符串',
       'platforms.broken.modelName 必须是非空字符串',
       'platforms.broken.assets[0].name 必须是非空字符串',
-      'platforms.broken.assets[0].url 必须使用 https://',
+      'platforms.broken.assets[0].url 必须使用 https://，本地开发仅允许 http://127.0.0.1 或 http://localhost',
       'platforms.broken.assets[0].sha256 必须是 64 位十六进制字符串',
       'platforms.broken.assets[0].archiveType 必须是非空字符串',
       'platforms.broken.assets[0].targetRelativePath 必须是相对路径'
     ]);
+  });
+
+  it('allows localhost http urls for local development manifests', () => {
+    const validationResult = validateManifestDefinition({
+      currentVersion: '2026.05.04',
+      platforms: {
+        'darwin-arm64': {
+          platform: 'darwin',
+          arch: 'arm64',
+          version: '2026.05.04',
+          modelName: 'ggml-base',
+          assets: [
+            {
+              name: 'whisper',
+              url: 'http://127.0.0.1:8787/whisper-darwin-arm64',
+              sha256: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
+              archiveType: 'file',
+              targetRelativePath: 'bin/whisper'
+            },
+            {
+              name: 'model',
+              url: 'http://localhost:8787/ggml-base.bin',
+              sha256: 'fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210',
+              archiveType: 'file',
+              targetRelativePath: 'models/ggml-base.bin'
+            }
+          ]
+        }
+      }
+    });
+
+    expect(validationResult.errors).toEqual([]);
   });
 
   it('validates a manifest file from disk', async () => {
@@ -341,6 +374,103 @@ describe('speech manifest tool', () => {
     expect(savedManifest.platforms['darwin-arm64'].assets[1].sha256).toBe(await calculateFileSha256(modelPath));
   });
 
+  it('localizes manifest asset urls to a local static server', async () => {
+    const temporaryDirectory = await createTemporaryDirectory();
+    const manifestPath = join(temporaryDirectory, 'manifest.json');
+
+    await writeFile(
+      manifestPath,
+      JSON.stringify({
+        currentVersion: '2026.05.04',
+        platforms: {
+          'darwin-arm64': {
+            platform: 'darwin',
+            arch: 'arm64',
+            version: '2026.05.04',
+            modelName: 'ggml-base',
+            assets: [
+              {
+                name: 'whisper',
+                url: 'https://github.com/xbinator/tibis/releases/download/speech-runtime-2026.05.04/whisper-darwin-arm64',
+                sha256: 'REPLACE_WITH_DARWIN_ARM64_WHISPER_SHA256',
+                archiveType: 'file',
+                targetRelativePath: 'bin/whisper'
+              },
+              {
+                name: 'model',
+                url: 'https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin',
+                sha256: 'REPLACE_WITH_GGML_BASE_SHA256',
+                archiveType: 'file',
+                targetRelativePath: 'models/ggml-base.bin'
+              }
+            ]
+          },
+          'darwin-x64': {
+            platform: 'darwin',
+            arch: 'x64',
+            version: '2026.05.04',
+            modelName: 'ggml-base',
+            assets: [
+              {
+                name: 'whisper',
+                url: 'https://github.com/xbinator/tibis/releases/download/speech-runtime-2026.05.04/whisper-darwin-x64',
+                sha256: 'REPLACE_WITH_DARWIN_X64_WHISPER_SHA256',
+                archiveType: 'file',
+                targetRelativePath: 'bin/whisper'
+              },
+              {
+                name: 'model',
+                url: 'https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin',
+                sha256: 'REPLACE_WITH_GGML_BASE_SHA256',
+                archiveType: 'file',
+                targetRelativePath: 'models/ggml-base.bin'
+              }
+            ]
+          },
+          'win32-x64': {
+            platform: 'win32',
+            arch: 'x64',
+            version: '2026.05.04',
+            modelName: 'ggml-base',
+            assets: [
+              {
+                name: 'whisper',
+                url: 'https://github.com/xbinator/tibis/releases/download/speech-runtime-2026.05.04/whisper-win32-x64.exe',
+                sha256: 'REPLACE_WITH_WIN32_X64_WHISPER_SHA256',
+                archiveType: 'file',
+                targetRelativePath: 'bin/whisper.exe'
+              },
+              {
+                name: 'model',
+                url: 'https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin',
+                sha256: 'REPLACE_WITH_GGML_BASE_SHA256',
+                archiveType: 'file',
+                targetRelativePath: 'models/ggml-base.bin'
+              }
+            ]
+          }
+        }
+      }),
+      'utf8'
+    );
+
+    await expect(
+      runLocalizeCommand({
+        manifestPath,
+        baseUrl: 'http://127.0.0.1:8787'
+      })
+    ).resolves.toBe(0);
+
+    const savedManifest = JSON.parse(await readFile(manifestPath, 'utf8')) as {
+      platforms: Record<string, { assets: Array<{ name: string; url: string }> }>;
+    };
+
+    expect(savedManifest.platforms['darwin-arm64'].assets[0].url).toBe('http://127.0.0.1:8787/whisper-darwin-arm64');
+    expect(savedManifest.platforms['darwin-x64'].assets[0].url).toBe('http://127.0.0.1:8787/whisper-darwin-x64');
+    expect(savedManifest.platforms['win32-x64'].assets[0].url).toBe('http://127.0.0.1:8787/whisper-win32-x64.exe');
+    expect(savedManifest.platforms['darwin-arm64'].assets[1].url).toBe('http://127.0.0.1:8787/ggml-base.bin');
+  });
+
   it('supports pnpm style argument forwarding with a leading double dash', async () => {
     const temporaryDirectory = await createTemporaryDirectory();
     const filePath = join(temporaryDirectory, 'sample.txt');
@@ -454,5 +584,88 @@ describe('speech manifest tool', () => {
         modelPath
       ])
     ).resolves.toBe(0);
+  });
+
+  it('supports localize command through the cli', async () => {
+    const temporaryDirectory = await createTemporaryDirectory();
+    const manifestPath = join(temporaryDirectory, 'manifest.json');
+
+    await writeFile(
+      manifestPath,
+      JSON.stringify({
+        currentVersion: '2026.05.04',
+        platforms: {
+          'darwin-arm64': {
+            platform: 'darwin',
+            arch: 'arm64',
+            version: '2026.05.04',
+            modelName: 'ggml-base',
+            assets: [
+              {
+                name: 'whisper',
+                url: 'https://github.com/xbinator/tibis/releases/download/speech-runtime-2026.05.04/whisper-darwin-arm64',
+                sha256: 'REPLACE_WITH_DARWIN_ARM64_WHISPER_SHA256',
+                archiveType: 'file',
+                targetRelativePath: 'bin/whisper'
+              },
+              {
+                name: 'model',
+                url: 'https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin',
+                sha256: 'REPLACE_WITH_GGML_BASE_SHA256',
+                archiveType: 'file',
+                targetRelativePath: 'models/ggml-base.bin'
+              }
+            ]
+          },
+          'darwin-x64': {
+            platform: 'darwin',
+            arch: 'x64',
+            version: '2026.05.04',
+            modelName: 'ggml-base',
+            assets: [
+              {
+                name: 'whisper',
+                url: 'https://github.com/xbinator/tibis/releases/download/speech-runtime-2026.05.04/whisper-darwin-x64',
+                sha256: 'REPLACE_WITH_DARWIN_X64_WHISPER_SHA256',
+                archiveType: 'file',
+                targetRelativePath: 'bin/whisper'
+              },
+              {
+                name: 'model',
+                url: 'https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin',
+                sha256: 'REPLACE_WITH_GGML_BASE_SHA256',
+                archiveType: 'file',
+                targetRelativePath: 'models/ggml-base.bin'
+              }
+            ]
+          },
+          'win32-x64': {
+            platform: 'win32',
+            arch: 'x64',
+            version: '2026.05.04',
+            modelName: 'ggml-base',
+            assets: [
+              {
+                name: 'whisper',
+                url: 'https://github.com/xbinator/tibis/releases/download/speech-runtime-2026.05.04/whisper-win32-x64.exe',
+                sha256: 'REPLACE_WITH_WIN32_X64_WHISPER_SHA256',
+                archiveType: 'file',
+                targetRelativePath: 'bin/whisper.exe'
+              },
+              {
+                name: 'model',
+                url: 'https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin',
+                sha256: 'REPLACE_WITH_GGML_BASE_SHA256',
+                archiveType: 'file',
+                targetRelativePath: 'models/ggml-base.bin'
+              }
+            ]
+          }
+        }
+      }),
+      'utf8'
+    );
+
+    await expect(runCli(['localize', '--', '--manifest', manifestPath, '--base-url', 'http://127.0.0.1:8787'])).resolves.toBe(0);
   });
 });

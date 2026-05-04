@@ -120,10 +120,6 @@
         {{ progressText }}
       </div>
 
-      <div v-if="status?.errorMessage" class="speech-settings__error">
-        {{ status.errorMessage }}
-      </div>
-
       <div class="speech-settings__actions">
         <BButton v-if="status?.state === 'ready'" :disabled="installing" @click="handleInstall">重装</BButton>
         <BButton v-else :disabled="installing" @click="handleInstall">{{ installing ? '安装中...' : '下载' }}</BButton>
@@ -243,7 +239,13 @@ async function handleInstall(): Promise<void> {
     status.value = await getElectronAPI().installSpeechRuntime();
     message.success('语音组件已安装');
   } catch (error) {
-    message.error(error instanceof Error ? error.message : '语音组件安装失败');
+    const errorMessage = error instanceof Error ? error.message : '语音组件安装失败';
+    status.value = {
+      ...(status.value ?? { platform: 'darwin', arch: 'arm64' }),
+      state: 'failed',
+      errorMessage
+    } as ElectronSpeechRuntimeStatus;
+    message.error(errorMessage);
   } finally {
     installing.value = false;
     teardownProgressListener();
@@ -282,7 +284,7 @@ onUnmounted(() => {
 .speech-settings {
   display: flex;
   flex-direction: column;
-  min-height: 100%;
+  height: 100%;
   background: var(--bg-primary);
   border-radius: 8px;
 }
@@ -312,6 +314,7 @@ onUnmounted(() => {
   max-width: 820px;
   padding: 20px;
   margin: 0 auto;
+  overflow: auto;
 }
 
 .speech-settings__overview {

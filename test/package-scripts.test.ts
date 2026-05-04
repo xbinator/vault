@@ -36,8 +36,14 @@ describe('package scripts', () => {
   it('declares speech manifest helper scripts', () => {
     const manifest = readPackageScripts();
 
+    expect(manifest.scripts?.['speech:dev:prepare']).toBe('node ./scripts/speech/dev-runtime.mjs prepare');
+    expect(manifest.scripts?.['speech:dev:serve']).toBe('node ./scripts/speech/dev-runtime.mjs serve');
+    expect(manifest.scripts?.['speech:dev:start']).toBe(
+      'concurrently -k "pnpm run speech:dev:serve" "cross-env TIBIS_SPEECH_RUNTIME_MANIFEST_URL=http://127.0.0.1:8787/manifest.json pnpm dev"'
+    );
     expect(manifest.scripts?.['speech:manifest:fill']).toBe('node ./scripts/speech/manifest-tool.mjs fill');
     expect(manifest.scripts?.['speech:manifest:hash']).toBe('node ./scripts/speech/manifest-tool.mjs hash');
+    expect(manifest.scripts?.['speech:manifest:localize']).toBe('node ./scripts/speech/manifest-tool.mjs localize');
     expect(manifest.scripts?.['speech:manifest:validate']).toBe('node ./scripts/speech/manifest-tool.mjs validate');
   });
 });

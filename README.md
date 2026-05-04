@@ -97,7 +97,7 @@ node node_modules/.pnpm/electron@34.5.8/node_modules/electron/install.js
 #### 前端开发
 
 ```bash
-pnpm dev
+pnpm serve
 ```
 
 默认启动在 [http://localhost:1420/](http://localhost:1420/)。
@@ -105,7 +105,7 @@ pnpm dev
 #### Electron 桌面开发
 
 ```bash
-pnpm electron:dev
+pnpm dev
 ```
 
 这个命令会并行启动：
@@ -190,6 +190,96 @@ tibis/
 - 所有代码必须通过 ESLint 和 TypeScript 检查
 - 使用 `strict` 模式
 - 每次改动需要补充 changelog
+
+### 语音自动安装本地联调
+
+如果你要在本地开发环境联调“语音组件自动下载与安装”链路，推荐只记一个固定目录和两条命令。
+
+但在此之前，你需要先从 `whisper.cpp` 拿到两个文件：
+
+- 当前机器可执行的 `whisper` 二进制
+- `ggml-base.bin`
+
+最常见做法是先去 `whisper.cpp` 仓库执行：
+
+```bash
+git clone https://github.com/ggml-org/whisper.cpp.git
+cd whisper.cpp
+cmake -B build
+cmake --build build -j --config Release
+sh ./models/download-ggml-model.sh base
+```
+
+执行完成后，通常可以拿到：
+
+- `build/bin/whisper-cli`
+- `models/ggml-base.bin`
+
+回到当前项目后，把这两个文件放到固定位置：
+
+- `.dev-resources/speech/source/whisper-cli`
+- `.dev-resources/speech/source/ggml-base.bin`
+
+这里统一的是本地开发源文件名。
+
+- 本地静态资源目录里统一使用 `whisper-cli`
+- 实际安装到应用运行时目录后，仍会按平台落成 `bin/whisper` 或 `bin/whisper.exe`
+
+注意：
+
+- 请直接复制到 `.dev-resources/speech/source/whisper-cli`
+- 也就是说，项目里的固定开发文件名与 `whisper.cpp` 默认产物保持一致，统一使用 `whisper-cli`
+
+例如：
+
+```bash
+mkdir -p .dev-resources/speech/source
+cp /path/to/whisper.cpp/build/bin/whisper-cli .dev-resources/speech/source/whisper-cli
+cp /path/to/whisper.cpp/models/ggml-base.bin .dev-resources/speech/source/ggml-base.bin
+```
+
+然后再执行下面两条命令。
+
+然后执行准备命令：
+
+```bash
+pnpm run speech:dev:prepare
+```
+
+这个命令会自动完成：
+
+- 复制 `resources/speech/manifest.json`
+- 自动判断当前机器平台
+- 只保留当前平台需要的 manifest 项
+- 把资源地址改成 `http://127.0.0.1:8787/...`
+- 计算当前 `whisper` 和 `ggml-base.bin` 的 `sha256`
+- 生成最终可用的 `.dev-resources/speech/manifest.json`
+
+接着直接启动联调环境：
+
+```bash
+pnpm run speech:dev:start
+```
+
+这个命令会自动：
+
+- 启动 `.dev-resources/speech/` 的本地静态服务
+- 设置 `TIBIS_SPEECH_RUNTIME_MANIFEST_URL=http://127.0.0.1:8787/manifest.json`
+- 启动 Electron 开发环境
+
+这样你就不需要手动传参数、手动改 manifest，或者再单独起 Python 服务了。
+
+如果你只是想快速调通转写逻辑，而不关心自动安装链路，也可以直接使用主进程兜底环境变量：
+
+```bash
+TIBIS_WHISPER_CPP_PATH=/path/to/whisper.cpp/build/bin/whisper-cli \
+TIBIS_WHISPER_MODEL_PATH=/path/to/whisper.cpp/models/ggml-base.bin \
+pnpm dev
+```
+
+更完整的语音模块说明可参考：
+
+- `docs/speech/README.md`
 
 ## 当前状态
 

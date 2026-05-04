@@ -186,16 +186,18 @@ speech-runtime/
 - `model.url`
 - `model.sha256`
 
-发布资源时可以直接使用下面三条命令：
+发布资源时可以直接使用下面四条命令：
 
 - `pnpm run speech:manifest:fill -- --manifest <manifest> --darwin-arm64 <file> --darwin-x64 <file> --win32-x64 <file> --model <file>`
 - `pnpm run speech:manifest:hash -- <file...>`
+- `pnpm run speech:manifest:localize -- --manifest <manifest> --base-url http://127.0.0.1:8787`
 - `pnpm run speech:manifest:validate`
 
 其中：
 
 - `speech:manifest:fill` 用于批量计算四个发布文件的 `sha256` 并直接回填 manifest
 - `speech:manifest:hash` 用于为本地资源文件生成 `sha256`
+- `speech:manifest:localize` 用于把 manifest 中的资源地址切换到本地静态服务，便于开发联调自动安装链路
 - `speech:manifest:validate` 用于校验 `resources/speech/manifest.json` 的结构是否完整
 
 推荐的 GitHub Release 约定：
@@ -215,6 +217,79 @@ speech-runtime/
 3. 如需单独核对某个文件，可额外运行 `pnpm run speech:manifest:hash -- <file>`
 4. 运行 `pnpm run speech:manifest:validate`
 5. 将最终 manifest 发布到 `TIBIS_SPEECH_RUNTIME_MANIFEST_URL` 指向的位置
+
+本地开发联调自动安装时，建议默认使用仓库内的 `.dev-resources/speech/` 目录，并固定两份源文件：
+
+- `.dev-resources/speech/source/whisper-cli`
+- `.dev-resources/speech/source/ggml-base.bin`
+
+这里统一的是本地开发源文件名。
+
+- 本地静态资源目录里统一使用 `whisper-cli`
+- 实际安装到应用运行时目录后，仍会按平台落成 `bin/whisper` 或 `bin/whisper.exe`
+
+注意：
+
+- 如果从 `whisper.cpp` 编译得到的是 `build/bin/whisper-cli`，本地联调时直接复制到 `.dev-resources/speech/source/whisper-cli`
+- `ggml-base.bin` 保持原文件名即可
+
+示例：
+
+```bash
+mkdir -p .dev-resources/speech/source
+cp /path/to/whisper.cpp/build/bin/whisper-cli .dev-resources/speech/source/whisper-cli
+cp /path/to/whisper.cpp/models/ggml-base.bin .dev-resources/speech/source/ggml-base.bin
+```
+
+流程可以收敛成：
+
+1. 运行 `pnpm run speech:dev:prepare`
+2. 运行 `pnpm run speech:dev:start`
+
+其中 `speech:dev:prepare` 会自动完成：
+
+- 复制 manifest 模板到 `.dev-resources/speech/manifest.json`
+- 自动判断当前机器平台
+- 仅保留当前平台所需的 manifest 项
+- 将资源地址切换为本地 `127.0.0.1` 静态服务
+- 回填当前 `whisper` 和 `ggml-base.bin` 的 `sha256`
+
+其中 `speech:dev:start` 会自动完成：
+
+- 启动 `.dev-resources/speech/` 的本地静态服务
+- 设置 `TIBIS_SPEECH_RUNTIME_MANIFEST_URL=http://127.0.0.1:8787/manifest.json`
+- 启动 Electron 开发环境
+
+开发流程图：
+
+```mermaid
+flowchart TD
+  A["准备当前机器 whisper"] --> B["准备 ggml-base.bin"]
+  B --> C["放入 .dev-resources/speech/source/"]
+  C --> D["运行 speech:dev:prepare"]
+  D --> E["自动识别当前平台"]
+  E --> F["生成 .dev-resources/speech/manifest.json"]
+  F --> G["运行 speech:dev:start"]
+  G --> H["自动启动本地静态服务"]
+  H --> I["自动设置 TIBIS_SPEECH_RUNTIME_MANIFEST_URL"]
+  I --> J["自动启动 pnpm dev"]
+  J --> K["点击麦克风"]
+  K --> L["主进程检查 speech runtime 状态"]
+  L --> M{"是否已安装"}
+  M -->|否| N["下载当前平台 whisper + ggml-base.bin"]
+  N --> O["写入 userData/speech-runtime/current"]
+  O --> P["开始录音并分段输出 wav"]
+  M -->|是| P
+  P --> Q["调用 whisper.cpp 转写"]
+  Q --> R["转写文本回写输入框"]
+```
+
+如果只想抓住核心，可以简单理解为：
+
+1. 把两个源文件放进 `.dev-resources/speech/source/`
+2. `speech:dev:prepare` 负责把“本地资源目录”准备好
+3. `speech:dev:start` 负责起服务并启动开发环境
+4. 应用启动后通过 `TIBIS_SPEECH_RUNTIME_MANIFEST_URL` 去下载当前平台所需资源
 
 ## 7. 设置页入口
 
@@ -263,9 +338,9 @@ speech-runtime/
 2. 产出并上传 `whisper-darwin-arm64`、`whisper-darwin-x64`、`whisper-win32-x64.exe`
 3. 用 `speech:manifest:hash` 为发布资源生成真实 `sha256`
 4. 真机验证：
-   - `macOS arm64`
-   - `macOS x64`
-   - `Windows x64`
+  - `macOS arm64`
+  - `macOS x64`
+  - `Windows x64`
 5. 补一次“从点击麦克风到自动安装再到转写成功”的完整联调
 
 ## 参考文档

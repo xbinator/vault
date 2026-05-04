@@ -45,6 +45,13 @@ import { resolve } from 'node:path';
  */
 
 /**
+ * localize 命令所需的参数集合。
+ * @typedef {object} LocalizeManifestOptions
+ * @property {string} manifestPath 目标 manifest 路径。
+ * @property {string} baseUrl 本地静态服务基础地址。
+ */
+
+/**
  * 校验结果。
  * @typedef {object} ManifestValidationResult
  * @property {string[]} errors 结构错误集合。
@@ -67,6 +74,20 @@ function isRecord(value) {
  */
 function containsPlaceholder(value) {
   return value.includes('OWNER/REPO') || value.includes('REPLACE_WITH_');
+}
+
+/**
+ * 判断资源 URL 是否满足校验要求。
+ * 正式发布资源要求 https，本地回环地址允许 http 便于联调。
+ * @param {string} value - 待检查的 URL。
+ * @returns {boolean} 是否为允许的资源 URL。
+ */
+function isAllowedAssetUrl(value) {
+  if (value.startsWith('https://')) {
+    return true;
+  }
+
+  return value.startsWith('http://127.0.0.1:') || value.startsWith('http://localhost:');
 }
 
 /**
@@ -113,8 +134,8 @@ function validateAsset(asset, assetPath, result) {
   }
   if (typeof url !== 'string' || url.length === 0) {
     result.errors.push(`${assetPath}.url 必须是非空字符串`);
-  } else if (!url.startsWith('https://')) {
-    result.errors.push(`${assetPath}.url 必须使用 https://`);
+  } else if (!isAllowedAssetUrl(url)) {
+    result.errors.push(`${assetPath}.url 必须使用 https://，本地开发仅允许 http://127.0.0.1 或 http://localhost`);
   } else if (containsPlaceholder(url)) {
     result.warnings.push(`${assetPath}.url 仍包含模板占位符`);
   }
@@ -291,6 +312,25 @@ function parseFillOptions(namedArguments) {
 }
 
 /**
+ * 校验 localize 命令的参数是否齐全。
+ * @param {Map<string, string>} namedArguments - 已解析的命令行参数。
+ * @returns {LocalizeManifestOptions | null} 齐全时返回参数对象，否则返回 null。
+ */
+function parseLocalizeOptions(namedArguments) {
+  const manifestPath = namedArguments.get('--manifest') ?? 'resources/speech/manifest.json';
+  const baseUrl = namedArguments.get('--base-url');
+
+  if (!baseUrl) {
+    return null;
+  }
+
+  return {
+    manifestPath,
+    baseUrl
+  };
+}
+
+/**
  * 以人类可读方式输出 hash 结果。
  * @param {string[]} filePaths - 待计算哈希的文件路径集合。
  * @returns {Promise<number>} 进程退出码。
@@ -377,6 +417,53 @@ export async function runFillCommand(options) {
 }
 
 /**
+ * 将远程资源 URL 改写为指向本地静态服务的 URL。
+ * @param {SpeechManifestDefinition} manifestDefinition - 原始 manifest。
+ * @param {string} baseUrl - 本地静态服务基础地址。
+ * @returns {SpeechManifestDefinition} 改写后的 manifest。
+ */
+export function localizeManifestAssetUrls(manifestDefinition, baseUrl) {
+  const normalizedBaseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
+  const clonedDefinition = /** @type {SpeechManifestDefinition} */ (structuredClone(manifestDefinition));
+  const whisperFileNames = {
+    'darwin-arm64': 'whisper-darwin-arm64',
+    'darwin-x64': 'whisper-darwin-x64',
+    'win32-x64': 'whisper-win32-x64.exe'
+  };
+
+  Object.entries(clonedDefinition.platforms).forEach(([platformKey, platformDefinition]) => {
+    platformDefinition.assets.forEach((asset) => {
+      if (asset.name === 'whisper') {
+        asset.url = `${normalizedBaseUrl}/${whisperFileNames[platformKey] ?? asset.targetRelativePath.split('/').pop()}`;
+      }
+
+      if (asset.name === 'model') {
+        asset.url = `${normalizedBaseUrl}/${asset.targetRelativePath.split('/').pop()}`;
+      }
+    });
+  });
+
+  return clonedDefinition;
+}
+
+/**
+ * 将 manifest 中的资源 URL 本地化为静态服务地址。
+ * @param {LocalizeManifestOptions} options - localize 命令参数。
+ * @returns {Promise<number>} 进程退出码。
+ */
+export async function runLocalizeCommand(options) {
+  const resolvedManifestPath = resolve(process.cwd(), options.manifestPath);
+  const manifestContent = /** @type {SpeechManifestDefinition} */ (await readJsonFile(resolvedManifestPath));
+  const nextManifest = localizeManifestAssetUrls(manifestContent, options.baseUrl);
+
+  await writeFile(resolvedManifestPath, `${JSON.stringify(nextManifest, null, 2)}\n`, 'utf8');
+
+  console.log(`manifest 已切换为本地静态资源地址: ${resolvedManifestPath}`);
+
+  return 0;
+}
+
+/**
  * 脚本主入口。
  * @param {string[]} argv - 传入的命令行参数。
  * @returns {Promise<number>} 进程退出码。
@@ -409,6 +496,19 @@ export async function runCli(argv) {
     }
 
     return runFillCommand(fillOptions);
+  }
+
+  if (command === 'localize') {
+    const namedArguments = parseNamedArguments(argumentsList);
+    const localizeOptions = parseLocalizeOptions(namedArguments);
+
+    if (!localizeOptions) {
+      console.error('localize 命令需要提供 --base-url 参数');
+      printHelp();
+      return 1;
+    }
+
+    return runLocalizeCommand(localizeOptions);
   }
 
   console.error(`未知命令: ${command}`);

@@ -30,3 +30,6 @@ types/components.d.ts
 
 # Local git worktrees
 .worktrees/
+
+# Local development resources
+.dev-resources/
