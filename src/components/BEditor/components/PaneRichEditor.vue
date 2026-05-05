@@ -137,6 +137,10 @@ function getSelection(): EditorSelectionRange | null {
   };
 }
 
+/**
+ * 在光标位置插入 Markdown 内容
+ * @param content - 要插入的 Markdown 文本
+ */
 async function insertAtCursor(content: string): Promise<void> {
   const instance = editorInstance.value;
   if (!instance) {
@@ -144,9 +148,14 @@ async function insertAtCursor(content: string): Promise<void> {
   }
 
   const { selection } = instance.state;
-  instance.chain().focus().insertContentAt({ from: selection.from, to: selection.to }, content).run();
+  instance.chain().focus().insertContentAt({ from: selection.from, to: selection.to }, content, { contentType: 'markdown' }).run();
 }
 
+/**
+ * 替换当前选中的内容
+ * @param content - 用于替换的 Markdown 文本
+ * @throws {Error} 当没有选中内容时抛出 NO_SELECTION 错误
+ */
 async function replaceSelection(content: string): Promise<void> {
   const instance = editorInstance.value;
   if (!instance) {
@@ -158,16 +167,20 @@ async function replaceSelection(content: string): Promise<void> {
     throw new Error('NO_SELECTION');
   }
 
-  instance.chain().focus().insertContentAt({ from: selection.from, to: selection.to }, content).run();
+  instance.chain().focus().insertContentAt({ from: selection.from, to: selection.to }, content, { contentType: 'markdown' }).run();
 }
 
+/**
+ * 替换整个文档内容
+ * @param content - 新的 Markdown 文档内容
+ */
 async function replaceDocument(content: string): Promise<void> {
   const instance = editorInstance.value;
   if (!instance) {
     return;
   }
 
-  instance.commands.setContent(content);
+  instance.commands.setContent(content, { contentType: 'markdown' });
 }
 
 function getSearchState(): EditorSearchState {
