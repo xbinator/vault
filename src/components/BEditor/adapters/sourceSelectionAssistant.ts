@@ -245,15 +245,37 @@ export function createSourceSelectionAssistantAdapter(
      */
     bindSelectionEvents(handlers): () => void {
       const { dom } = view;
+      let pointerSelecting = false;
 
       const handleSelectionChange = (): void => {
         handlers.onSelectionChange();
       };
       const handlePointerDown = (event: PointerEvent): void => {
+        pointerSelecting = true;
+        handlers.onPointerSelectionStart?.(event);
         handlers.onPointerDownInsideEditor?.(event);
+      };
+      const handleDocumentPointerMove = (event: PointerEvent): void => {
+        if (!pointerSelecting) {
+          return;
+        }
+
+        if ((event.buttons & 1) !== 1) {
+          pointerSelecting = false;
+          return;
+        }
+
+        handlers.onSelectionChange();
+      };
+      const handleDocumentPointerUp = (event: PointerEvent): void => {
+        if (pointerSelecting) {
+          handlers.onPointerSelectionEnd?.(event);
+        }
+        pointerSelecting = false;
       };
       const handleDocumentPointerDown = (event: PointerEvent): void => {
         if (!dom.contains(event.target as Node | null)) {
+          pointerSelecting = false;
           handlers.onPointerDownOutsideEditor?.(event);
         }
       };
@@ -269,6 +291,8 @@ export function createSourceSelectionAssistantAdapter(
       dom.addEventListener('keydown', handleKeydown);
       dom.addEventListener('focus', handlers.onFocus);
       dom.addEventListener('blur', handlers.onBlur as EventListener);
+      document.addEventListener('pointermove', handleDocumentPointerMove, true);
+      document.addEventListener('pointerup', handleDocumentPointerUp, true);
       document.addEventListener('pointerdown', handleDocumentPointerDown, true);
 
       return () => {
@@ -278,6 +302,8 @@ export function createSourceSelectionAssistantAdapter(
         dom.removeEventListener('keydown', handleKeydown);
         dom.removeEventListener('focus', handlers.onFocus);
         dom.removeEventListener('blur', handlers.onBlur as EventListener);
+        document.removeEventListener('pointermove', handleDocumentPointerMove, true);
+        document.removeEventListener('pointerup', handleDocumentPointerUp, true);
         document.removeEventListener('pointerdown', handleDocumentPointerDown, true);
       };
     },

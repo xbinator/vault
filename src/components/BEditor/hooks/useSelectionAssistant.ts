@@ -45,6 +45,7 @@ export function useSelectionAssistant(options: UseSelectionAssistantOptions) {
   const stickyHighlightRange = ref<SelectionAssistantRange | null>(null);
   const capabilities = ref<SelectionAssistantCapabilities>({ actions: {} });
   const awaitingSelectionSyncAfterFocus = ref(false);
+  const pointerSelectionActive = ref(false);
 
   // ---- 派生状态 ----
   /** 工具栏是否可见 */
@@ -84,12 +85,14 @@ export function useSelectionAssistant(options: UseSelectionAssistantOptions) {
       onBlur() {
         handleBlur();
       },
+      onPointerSelectionStart(event) {
+        handlePointerSelectionStart(event);
+      },
+      onPointerSelectionEnd(event) {
+        handlePointerSelectionEnd(event);
+      },
       onPointerDownInsideEditor() {
-        // source 模式复用 rich 模式"编辑器面板内其他区域"语义
-        if (status.value === 'reference-highlight') {
-          clearStickyHighlight();
-          transitionTo('idle');
-        }
+        handlePointerDownInsideEditor();
       },
       onPointerDownOutsideEditor() {
         // 点击编辑器外部不立即清理粘性高亮
@@ -150,6 +153,12 @@ export function useSelectionAssistant(options: UseSelectionAssistantOptions) {
     // 更新缓存
     cachedSelectionRange.value = { ...selection };
 
+    if (pointerSelectionActive.value) {
+      adapter.showSelectionHighlight(selection);
+      recomputeToolbarPosition();
+      return;
+    }
+
     if (awaitingSelectionSyncAfterFocus.value) {
       awaitingSelectionSyncAfterFocus.value = false;
       clearStickyHighlight();
@@ -201,6 +210,77 @@ export function useSelectionAssistant(options: UseSelectionAssistantOptions) {
    */
   function handleBlur(): void {
     // 预留：未来可用于统一关闭非粘性工具栏
+  }
+
+  /**
+   * 处理 source 模式拖拽选区开始。
+   * 拖拽过程中保留高亮同步，但隐藏工具栏，避免 toolbar 在 selection 尚未完成时持续显示。
+   */
+  function handlePointerSelectionStart(_event: PointerEvent): void {
+    pointerSelectionActive.value = true;
+
+    if (status.value === 'toolbar-visible') {
+      transitionTo('idle');
+      toolbarPosition.value = null;
+    }
+  }
+
+  /**
+   * 处理 source 模式拖拽选区结束。
+   * 此时以最终真实选区为准决定是否显示 toolbar。
+   */
+  function handlePointerSelectionEnd(_event: PointerEvent): void {
+    pointerSelectionActive.value = false;
+
+    const adapter = options.adapter();
+    if (!adapter) {
+      return;
+    }
+
+    const selection = adapter.getSelection();
+    if (!selection) {
+      return;
+    }
+
+    cachedSelectionRange.value = { ...selection };
+    adapter.showSelectionHighlight(selection);
+    recomputeToolbarPosition();
+    transitionTo('toolbar-visible');
+  }
+
+  /**
+   * 处理编辑器内部 pointerdown。
+   * source 模式开始新一轮拖选时，先撤掉上一轮持久高亮，
+   * 避免旧高亮残留到下一次 mouseup/selectionChange 才清除。
+   */
+  function handlePointerDownInsideEditor(): void {
+    const adapter = options.adapter();
+    if (!adapter) {
+      return;
+    }
+
+    switch (status.value) {
+      case 'reference-highlight':
+        clearStickyHighlight();
+        transitionTo('idle');
+        cachedSelectionRange.value = null;
+        toolbarPosition.value = null;
+        panelPosition.value = null;
+        break;
+      case 'toolbar-visible':
+        adapter.clearSelectionHighlight();
+        transitionTo('idle');
+        cachedSelectionRange.value = null;
+        toolbarPosition.value = null;
+        break;
+      case 'ai-input-visible':
+      case 'ai-streaming':
+        // AI 面板保持打开，但先撤掉旧高亮，等待新的 selectionChange 同步新范围。
+        adapter.clearSelectionHighlight();
+        break;
+      case 'idle':
+        break;
+    }
   }
 
   // ---- 动作 ----
@@ -377,6 +457,7 @@ export function useSelectionAssistant(options: UseSelectionAssistantOptions) {
     panelPosition.value = null;
     stickyHighlightRange.value = null;
     awaitingSelectionSyncAfterFocus.value = false;
+    pointerSelectionActive.value = false;
   }
 
   // ---- 生命周期 ----

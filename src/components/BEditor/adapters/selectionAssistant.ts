@@ -110,6 +110,8 @@ export interface SelectionAssistantAdapter {
     /** 仅供编排层同步高亮与显隐，不承载 rich 模式的 BubbleMenu 恢复策略 */
     onBlur: (event?: FocusEvent) => void;
     onPointerDownInsideEditor?: (event: PointerEvent) => void;
+    onPointerSelectionStart?: (event: PointerEvent) => void;
+    onPointerSelectionEnd?: (event: PointerEvent) => void;
     onPointerDownOutsideEditor?: (event: PointerEvent) => void;
     onEscape?: () => void;
   }): () => void;
