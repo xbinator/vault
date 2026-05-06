@@ -12,7 +12,7 @@ import type {
 } from './selectionAssistant';
 import type { Editor } from '@tiptap/vue-3';
 import { TextSelection } from '@tiptap/pm/state';
-import { clearAISelectionHighlight, setAISelectionHighlight } from '../extensions/AISelectionHighlight';
+import { clearAISelectionHighlight, setAISelectionHighlight } from '../extensions/aiRangeHighlight';
 import { getSelectionSourceLineRange, getSelectionSourceLineRangeFromMarkdown } from './sourceLineMapping';
 
 /**

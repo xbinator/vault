@@ -1,4 +1,4 @@
-import type { SearchScrollContext } from '../extensions/Search';
+import type { SearchScrollContext } from '../extensions/editorSearch';
 import type { Ref } from 'vue';
 import { ref, watch } from 'vue';
 import { TextSelection } from '@tiptap/pm/state';

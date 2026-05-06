@@ -44,7 +44,7 @@
 <script setup lang="ts">
 import type { SelectionAssistantAdapter, SelectionToolbarAction } from '../adapters/selectionAssistant';
 import type { EditorController, EditorSearchState, EditorSelection as EditorSelectionRange } from '../adapters/types';
-import type { SearchScrollContext } from '../extensions/Search';
+import type { SearchScrollContext } from '../extensions/editorSearch';
 import type { FrontMatterData } from '../hooks/useFrontMatter';
 import type { EditorState } from '../types';
 import { computed, onBeforeUnmount, ref, shallowRef, toRef, watch } from 'vue';
@@ -53,8 +53,8 @@ import { useEventListener } from '@vueuse/core';
 import { useNavigate } from '@/hooks/useNavigate';
 import { createRichSelectionAssistantAdapter } from '../adapters/richSelectionAssistant';
 import { mapSourceLineRangeToProseMirrorRange } from '../adapters/sourceLineMapping';
-import { setAISelectionHighlight } from '../extensions/AISelectionHighlight';
-import { getSearchSnapshot } from '../extensions/Search';
+import { setAISelectionHighlight } from '../extensions/aiRangeHighlight';
+import { getSearchSnapshot } from '../extensions/editorSearch';
 import { useFrontMatter } from '../hooks/useFrontMatter';
 import { useRichEditor } from '../hooks/useRichEditor';
 import { useSelectionAssistant } from '../hooks/useSelectionAssistant';

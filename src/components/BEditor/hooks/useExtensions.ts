@@ -36,8 +36,8 @@ import { VueNodeViewRenderer } from '@tiptap/vue-3';
 import { common, createLowlight } from 'lowlight';
 import { captureSourceLineRange, createSourceLineTracker, resetSourceLineTracker } from '../adapters/sourceLineMapping';
 import CodeBlockView from '../components/CodeBlock.vue';
-import { AISelectionHighlight } from '../extensions/AISelectionHighlight';
-import { Search, type SearchScrollContext } from '../extensions/Search';
+import { AISelectionHighlight } from '../extensions/aiRangeHighlight';
+import { Search, type SearchScrollContext } from '../extensions/editorSearch';
 
 const lowlight = createLowlight(common);
 

@@ -3,7 +3,7 @@ import type { Node as PMNode } from '@tiptap/pm/model';
 import { Extension } from '@tiptap/core';
 import { Plugin, PluginKey, TextSelection } from '@tiptap/pm/state';
 import { DecorationSet } from '@tiptap/pm/view';
-import { createInlineDecorationSet, type DecorationRange } from './decoration-utils';
+import { createInlineDecorationSet, type DecorationRange } from './editorDecorations';
 
 export type SearchMatch = DecorationRange;
 
