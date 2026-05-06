@@ -33,6 +33,7 @@ export interface EditorController {
   insertAtCursor: (content: string) => Promise<void>;
   replaceSelection: (content: string) => Promise<void>;
   replaceDocument: (content: string) => Promise<void>;
+  selectLineRange: (startLine: number, endLine: number) => boolean | Promise<boolean>;
   getSearchState: () => EditorSearchState;
   scrollToAnchor: (anchorId: string) => boolean;
   getActiveAnchorId: (scrollContainer: HTMLElement, thresholdPx: number) => string;
@@ -67,6 +68,9 @@ export function createNoopEditorController(): EditorController {
     },
     async replaceDocument(): Promise<void> {
       return undefined;
+    },
+    selectLineRange(): boolean {
+      return false;
     },
     getSearchState(): EditorSearchState {
       return { ...EMPTY_SEARCH_STATE };

@@ -137,7 +137,7 @@ export interface FileReferenceNavigationTarget {
 
 ### 2. 统一导航模块
 
-导航模块不应放在聊天侧边栏目录下，其职责已超出聊天组件范畴（未来助手消息引用、搜索结果、日志定位等都会用到），后者去反向依赖 `BChatSidebar` 会造成结构污染。
+导航入口应落在通用 hooks 层，而不是继续新增一个仅服务聊天引用的 composable。原因是这条能力后续不仅会被 `BChatSidebar` 使用，也会自然扩展到搜索结果、日志定位、命令面板等入口。
 
 建议模块路径：
 
@@ -145,8 +145,9 @@ export interface FileReferenceNavigationTarget {
 src/utils/fileReference/
   types.ts                      # 类型定义
   parseToken.ts                 # 纯解析函数，不依赖任何运行时上下文
-src/hooks/useFileReferenceNavigation.ts # Vue composable，封装导航副作用
-src/stores/fileReferenceNavigation.ts   # pending 状态 store
+src/hooks/useNavigate.ts        # 通用导航入口，新增 openFile(options)
+src/views/editor/hooks/useFileSelection.ts # editor 页面消费一次性定位意图
+src/stores/fileSelectionIntent.ts          # 一次性定位意图状态
 ```
 
 #### 2a. 统一解析入口
@@ -201,43 +202,55 @@ export function parseFileReferenceToken(tokenContent: string): ParsedFileReferen
 
 `lineText` 字段仅负责展示，**不作为导航数据源**。导航使用 `startLine`/`endLine` 数值字段。
 
-#### 2b. 导航 Composable
+#### 2b. 通用导航 Hook
 
-`navigateToFileReference` 不应该是普通函数直接调用 `useOpenFile()`，因为后者依赖 Vue composable 上下文（`useRouter()` 等）。CodeMirror widget 的 `toDOM()` 事件环境不在 Vue setup 上下文中，直接调用会出错。
+通用入口直接收口到 `src/hooks/useNavigate.ts`。该 hook 已经承载 Markdown/富文本链接跳转，继续在这里补充“打开文件，可选附带行范围定位”最自然，也能避免引入新的专用 composable。
 
-建议做成 composable，在 Vue 层初始化后通过参数传给 widget：
+建议扩展为：
 
 ```ts
-// src/hooks/useFileReferenceNavigation.ts
-
-import { useOpenFile } from '@/hooks/useOpenFile'
-import { useFileReferenceNavigationStore } from '@/stores/fileReferenceNavigation'
-import { parseFileReferenceToken } from '@/utils/fileReference/parseToken'
-import type { FileReferenceNavigationTarget } from '@/utils/fileReference/types'
+// src/hooks/useNavigate.ts
 
 /**
- * 文件引用导航 composable。
- * 必须在 Vue setup 上下文中调用。
+ * 文件选区范围
  */
-export function useFileReferenceNavigation() {
-  const openFile = useOpenFile()
-  const pendingStore = useFileReferenceNavigationStore()
+export interface FileSelectionRange {
+  /** 起始行号（1-based） */
+  startLine: number;
+  /** 结束行号（1-based） */
+  endLine: number;
+}
+
+/**
+ * 打开文件参数
+ */
+export interface OpenFileOptions {
+  /** 文件绝对路径；已保存文件优先使用 */
+  filePath?: string | null;
+  /** 文件 ID；未保存草稿或已知文件记录时使用 */
+  fileId?: string | null;
+  /** 展示用文件名，便于日志或错误提示 */
+  fileName?: string;
+  /** 打开后可选定位到的源码行范围 */
+  range?: FileSelectionRange;
+}
+
+export function useNavigate() {
+  // 现有 onLink(event) ...
 
   /**
-   * 导航到文件引用，包含打开文件、写入 pending 状态等副作用。
-   * @param target - 待导航的文件引用目标
+   * 打开文件；如提供 range，则在 editor 就绪后补一次选区定位。
+   * @param options - 打开文件参数
    */
-  async function navigateToFileReference(target: FileReferenceNavigationTarget): Promise<void> {
-    // 1. 打开文件
-    // 2. 写入 pending store（含 navigationId）
-    // 3. 失败时 toast
+  async function openFile(options: OpenFileOptions): Promise<void> {
+    // 1. 通过 filePath / fileId 打开文件
+    // 2. 如存在 range，则写入一次性 fileSelectionIntent
+    // 3. 失败时统一 toast
   }
 
   return {
-    /** 执行文件引用导航 */
-    navigateToFileReference,
-    /** 纯解析函数，供外部直接使用 */
-    parseFileReferenceToken,
+    onLink,
+    openFile,
   }
 }
 ```
@@ -246,30 +259,50 @@ export function useFileReferenceNavigation() {
 
 **`BubblePartUserInput.vue`**（Vue 组件上下文）：
 ```ts
-const { navigateToFileReference, parseFileReferenceToken } = useFileReferenceNavigation()
+const { openFile } = useNavigate()
 
 function onChipClick(rawPath: string, startLine: number, endLine: number) {
   const target = buildNavigationTarget(rawPath, startLine, endLine)
-  if (target) navigateToFileReference(target)
+  if (!target) return
+
+  openFile({
+    filePath: target.filePath,
+    fileId: target.fileId,
+    fileName: target.fileName,
+    range: {
+      startLine: target.startLine,
+      endLine: target.endLine,
+    },
+  })
 }
 ```
 
 **`chipResolver.ts`**（CodeMirror widget，非 Vue 上下文）：
 ```ts
-// 不要直接 import useFileReferenceNavigation
+// 不要直接在 widget 中处理 router/filesStore
 // 改为通过参数注入，在 Vue 层传入：
 
 export function createFileRefExtension(options: {
-  onNavigateFileReference: (target: FileReferenceNavigationTarget) => void
+  onOpenFile: (target: FileReferenceNavigationTarget) => void
 }) {
-  // FileRefWidget.toDOM() 中通过闭包调用 options.onNavigateFileReference
+  // FileRefWidget.toDOM() 中通过闭包调用 options.onOpenFile
 }
 ```
 
 Vue 层初始化时注入：
 ```ts
-const { navigateToFileReference } = useFileReferenceNavigation()
-const extension = createFileRefExtension({ onNavigateFileReference: navigateToFileReference })
+const { openFile } = useNavigate()
+const extension = createFileRefExtension({
+  onOpenFile: (target) => openFile({
+    filePath: target.filePath,
+    fileId: target.fileId,
+    fileName: target.fileName,
+    range: {
+      startLine: target.startLine,
+      endLine: target.endLine,
+    },
+  }),
+})
 ```
 
 这样 widget 不直接依赖 Vue 运行时上下文，边界干净。
@@ -279,14 +312,14 @@ const extension = createFileRefExtension({ onNavigateFileReference: navigateToFi
 ```
 点击 chip → parseFileReferenceToken(tokenContent)
          → 组装 FileReferenceNavigationTarget（rawPath, kind, filePath, fileId, startLine, endLine）
-         → navigateToFileReference(target)
-           → openFile.openFileByPath(path) 或 openFile.openFileById(id)
-           → pendingStore.setPending({ navigationId, fileId, startLine, endLine })
+         → useNavigate.openFile({ filePath, fileId, fileName, range })
+           → useOpenFile.openFileByPath(path) 或 useOpenFile.openFileById(id)
+           → fileSelectionIntentStore.setIntent({ intentId, fileId, startLine, endLine })
 ```
 
 ### 3. useOpenFile 收口打开行为
 
-文件打开必须复用 `src/hooks/useOpenFile.ts`，避免每个调用点自行拼装 `filesStore + router`。
+文件打开的底层链路仍必须复用 `src/hooks/useOpenFile.ts`，避免每个调用点自行拼装 `filesStore + router`。`useNavigate.ts` 只负责对外统一入口，不重复实现打开逻辑。
 
 建议在 `useOpenFile.ts` 中新增：
 
@@ -305,7 +338,7 @@ openFileByPath: (path: string) => Promise<StoredFile | null>;
 - 只有 `fileId` 时，调用 `openFileById(id)`。
 - 两者都没有时，视为非法引用并提示错误。
 
-这样聊天模块只依赖 `useOpenFile`，而不直接触碰 `filesStore`。
+这样聊天模块、搜索模块等调用方都只依赖 `useNavigate().openFile()`，而 `useNavigate` 内部再依赖 `useOpenFile`。
 
 #### 实现细节
 
@@ -318,7 +351,7 @@ openFileByPath: (path: string) => Promise<StoredFile | null>;
  * 返回前保证：
  * 1. StoredFile 已进入 filesStore
  * 2. 路由跳转已完成（或至少已发起）
- * 3. 返回的 StoredFile.id 可直接用于 pending navigation
+ * 3. 返回的 `StoredFile.id` 可直接用于写入文件选区意图
  *
  * @param path - 文件绝对路径
  * @returns 打开的文件记录；失败时返回 null
@@ -334,17 +367,17 @@ async function openFileByPath(path: string): Promise<StoredFile | null> {
 
 `filesStore.openOrCreateByPath(path)` 内部有 `inflightPaths` 去重机制：如果同一路径正在打开中，后续调用会直接返回。当用户快速连续点击同一个文件引用 chip 时，第二次点击在第一次尚未完成前触发，`openOrCreateByPath` 会返回 `null`。**这种行为是正确的**——无需额外重试，因为第一次导航已经生效。
 
-### 4. 一次性待跳转范围状态
+### 4. 一次性文件选区意图状态
 
-需要一个轻量、一次性消费的导航状态，建议新增独立 store 或模块级状态，例如：
+需要一个轻量、一次性消费的定位状态，建议新增独立 store 或模块级状态，例如：
 
 ```ts
 /**
- * 待消费的文件引用导航
+ * 待消费的文件选区意图
  */
-export interface PendingFileReferenceNavigation {
-  /** 本次导航唯一标识，防止同值不同次的 watch 遗漏 */
-  navigationId: string;
+export interface FileSelectionIntent {
+  /** 本次意图唯一标识，防止同值不同次的 watch 遗漏 */
+  intentId: string;
   /** 目标文件 ID */
   fileId: string;
   /** 起始行号（1-based） */
@@ -354,11 +387,11 @@ export interface PendingFileReferenceNavigation {
 }
 ```
 
-`navigationId` 用于防止用户连续点击同一文件同一行号时，watch 因值相同而不触发的问题。每次写入 pending 时生成新 ID。
+`intentId` 用于防止用户连续点击同一文件同一行号时，watch 因值相同而不触发的问题。每次写入意图时生成新 ID。
 
 状态语义：
 
-- 只保留一条最近的待消费导航。
+- 只保留一条最近的待消费意图。
 - 打开文件成功后写入。
 - editor 页面命中对应 `fileId` 且处理完成后立即清空。
 - 如果文件打开失败，不写入该状态。
@@ -370,22 +403,22 @@ export interface PendingFileReferenceNavigation {
 
 ### 竞争处理
 
-当用户快速连续点击不同文件的 chip 时，存在 pending 状态被覆盖的风险：
+当用户快速连续点击不同文件的 chip 时，存在一次性意图被覆盖的风险：
 
 - 点击文件 A → 写入 `{ fileId: A, ... }` → 路由跳转中
 - 点击文件 B → 覆盖为 `{ fileId: B, ... }` → 路由跳转
-- 文件 A 的 editor 挂载 → `pending.fileId` 是 B，不匹配，**A 的跳转意图丢失**
+- 文件 A 的 editor 挂载 → 当前 `intent.fileId` 已是 B，不匹配，**A 的跳转意图丢失**
 
-**方案**：在导航函数 `navigateToFileReference` 中引入轻量锁，当前导航未完成时忽略新的导航请求。实现方式：
+**方案**：在 `useNavigate().openFile()` 中引入轻量锁，当前打开流程未完成时忽略新的请求。实现方式：
 
 ```ts
 let navigating = false
 
-export async function navigateToFileReference(target: FileReferenceNavigationTarget): Promise<void> {
+export async function openFile(options: OpenFileOptions): Promise<void> {
   if (navigating) return // 忽略连续点击
   navigating = true
   try {
-    // ... 打开文件、写入 pending
+    // ... 打开文件、写入 fileSelectionIntent
   } finally {
     navigating = false
   }
@@ -397,38 +430,39 @@ export async function navigateToFileReference(target: FileReferenceNavigationTar
 - 加锁实现极简，无需处理队列清空、超时等边缘场景。
 - `navigating` 锁的持有时间很短（openOrCreateByPath + router.push），用户体感上几乎感知不到。
 
-### 5. editor 页面消费导航意图
+### 5. editor 页面消费文件选区意图
 
-`src/views/editor/index.vue` 负责在两个条件同时满足时消费导航。**重要**：editor 页面在 `<keep-alive>` 中缓存，`onMounted` 仅触发一次，不能在其中消费 pending 状态。应使用 `watch` 监听条件变化：
+消费逻辑不应散落在 `src/views/editor/index.vue` 中，而应封装为 editor 页面专属 hook，保持与 `src/views/editor/hooks` 现有风格一致。建议新增 `src/views/editor/hooks/useFileSelection.ts`，在其中负责 watch 与消费。**重要**：editor 页面在 `<keep-alive>` 中缓存，`onMounted` 仅触发一次，不能在其中消费意图。应使用 `watch` 监听条件变化：
 
 ```ts
-// 同时监听：当前文件 ID、pending navigationId、editor ready 状态、editorRef 实例
+// src/views/editor/hooks/useFileSelection.ts
+// 同时监听：当前文件 ID、intentId、editor ready 状态、editorRef 实例
 watch(
   [
     () => fileState.value?.id,
-    () => pendingNavigation.value?.navigationId,
+    () => fileSelectionIntent.value?.intentId,
     () => isEditorReady.value,
     editorRef,
   ],
-  async ([currentFileId, pendingId, editorReady, editorInstance]) => {
-    const pending = pendingNavigation.value
+  async ([currentFileId, intentId, editorReady, editorInstance]) => {
+    const intent = fileSelectionIntent.value
 
-    if (!pending) return
+    if (!intent) return
     if (!editorReady) return
     if (!editorInstance) return
-    if (currentFileId !== pending.fileId) return
+    if (currentFileId !== intent.fileId) return
 
     // 等待 DOM 更新，确保 editor 内部已完成渲染
     await nextTick()
 
     const consumed = await editorInstance.selectLineRange(
-      pending.startLine,
-      pending.endLine,
+      intent.startLine,
+      intent.endLine,
     )
 
     if (consumed) {
-      // 按 navigationId 清除，避免误清用户后续点击产生的新 pending
-      clearPendingNavigation(pending.navigationId)
+      // 按 intentId 清除，避免误清用户后续点击产生的新意图
+      clearFileSelectionIntent(intent.intentId)
     }
   },
   { immediate: true },
@@ -437,23 +471,23 @@ watch(
 
 消费需同时满足：
 
-- 当前 editor 的 `fileState.id` 等于 `pending.fileId`
+- 当前 editor 的 `fileState.id` 等于 `intent.fileId`
 - `isEditorReady` 为 true（BEditor 已 emit ready 事件）
-- `pendingNavigation.value.navigationId` 已变化（watch 依赖 navigationId 确保同值重入也能触发）
+- `fileSelectionIntent.value.intentId` 已变化（watch 依赖 intentId 确保同值重入也能触发）
 - `nextTick()` 后再调用 `selectLineRange`，确保 CodeMirror/Tiptap 内部 DOM 已就绪
 
 消费动作：
 
 ```ts
-editorRef.value?.selectLineRange(pending.startLine, pending.endLine)
+editorRef.value?.selectLineRange(intent.startLine, intent.endLine)
 ```
 
-消费完成后立即按 `navigationId` 清空 pending 状态，避免：
+消费完成后立即按 `intentId` 清空状态，避免：
 
 - 组件重渲染时重复选中
 - tab keepalive 激活时再次触发
 - 用户已经开始编辑后又被旧意图打断
-- 误清除用户后续点击新文件产生的新 pending
+- 误清除用户后续点击新文件产生的新意图
 
 ## BEditor 公共接口设计
 
@@ -473,7 +507,7 @@ export interface BEditorPublicInstance {
 }
 ```
 
-返回布尔值的目的：editor 页面需要知道 pending 是否已被成功消费。Rich 模式映射失败时返回 `false`，由消费方决定是否保留 pending 以便重试。
+返回布尔值的目的：editor 页面需要知道文件选区意图是否已被成功消费。Rich 模式映射失败时返回 `false`，由消费方决定是否保留该意图以便重试。
 
 `BEditor` 内部只负责分发：
 
@@ -629,7 +663,7 @@ rich 模式当前已经有“真实选区”和“AI 高亮”两套视觉语义
 
 1. **`parseSegments()` 改用统一解析函数** `parseFileReferenceToken()`，不再从 `lineText` 字符串反推行号。`lineText` 仅用于展示回退。
 2. **扩展 `FileRefSegment` 类型**，新增数值字段和 `fileId`（见下方类型定义）。
-3. **chip 点击时调用 composable** `useFileReferenceNavigation().navigateToFileReference(target)`。
+3. **chip 点击时调用通用入口** `useNavigate().openFile(options)`。
 
 新类型定义：
 
@@ -656,11 +690,21 @@ interface FileRefSegment {
 集成方式（Vue 组件上下文）：
 
 ```ts
-const { navigateToFileReference, parseFileReferenceToken } = useFileReferenceNavigation()
+const { openFile } = useNavigate()
 
 function onChipClick(segment: FileRefSegment) {
   const target = buildNavigationTargetFromSegment(segment)
-  if (target) navigateToFileReference(target)
+  if (!target) return
+
+  openFile({
+    filePath: target.filePath,
+    fileId: target.fileId,
+    fileName: target.fileName,
+    range: {
+      startLine: target.startLine,
+      endLine: target.endLine,
+    },
+  })
 }
 ```
 
@@ -672,13 +716,13 @@ function onChipClick(segment: FileRefSegment) {
 
 ### chipResolver.ts
 
-`FileRefWidget` 也要复用同一个导航函数，但**不能直接 import composable**，因为 widget 不在 Vue setup 上下文中。
+`FileRefWidget` 也要复用同一个通用打开函数，但**不能直接在 widget 内处理路由与文件存储**。
 
 采用参数注入方式：
 
 ```ts
 // chipResolver.ts 改造：通过闭包接收导航回调
-export function createFileRefChipResolver(onNavigateFileReference: (target: FileReferenceNavigationTarget) => void): ChipResolver {
+export function createFileRefChipResolver(onOpenFile: (target: FileReferenceNavigationTarget) => void): ChipResolver {
   return (content) => {
     if (!content.startsWith('#')) return null
 
@@ -690,7 +734,7 @@ export function createFileRefChipResolver(onNavigateFileReference: (target: File
         location: parsed,
         onNavigate: () => {
           const target = buildNavigationTarget(parsed)
-          if (target) onNavigateFileReference(target)
+          if (target) onOpenFile(target)
         }
       })
     }
@@ -700,8 +744,16 @@ export function createFileRefChipResolver(onNavigateFileReference: (target: File
 
 Vue 层初始化时注入：
 ```ts
-const { navigateToFileReference } = useFileReferenceNavigation()
-const extension = createFileRefChipResolver(navigateToFileReference)
+const { openFile } = useNavigate()
+const extension = createFileRefChipResolver((target) => openFile({
+  filePath: target.filePath,
+  fileId: target.fileId,
+  fileName: target.fileName,
+  range: {
+    startLine: target.startLine,
+    endLine: target.endLine,
+  },
+}))
 ```
 
 注意点：
@@ -716,7 +768,7 @@ const extension = createFileRefChipResolver(navigateToFileReference)
   dom.addEventListener('click', async (event) => {
     event.preventDefault()
     event.stopPropagation()
-    await onNavigateFileReference(target)
+    await onOpenFile(target)
   })
   ```
 - **键盘可访问性**：widget 也需补齐，与 `BubblePartUserInput` 保持一致。
@@ -726,17 +778,17 @@ const extension = createFileRefChipResolver(navigateToFileReference)
   dom.addEventListener('keydown', (event) => {
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault()
-      onNavigateFileReference(target)
+      onOpenFile(target)
     }
   })
   ```
-- 不允许在 widget 内直接写 router/filesStore 逻辑，只调用共享导航入口 `onNavigateFileReference`（通过参数注入，见第 2 节）
+- 不允许在 widget 内直接写 router/filesStore 逻辑，只调用共享打开入口 `onOpenFile`（通过参数注入，见第 2 节）
 
 ## 错误处理
 
-**错误反馈由导航工具层统一负责**，遵循以下原则：
+**错误反馈由通用打开入口统一负责**，遵循以下原则：
 
-- **可恢复的用户错误**（文件不存在、草稿丢失）→ `navigateToFileReference` 中 toast 提示，不抛异常。
+- **可恢复的用户错误**（文件不存在、草稿丢失）→ `useNavigate().openFile()` 中 toast 提示，不抛异常。
 - **降级场景**（行号越界、映射失败）→ 静默降级，不 toast。这些场景下文件已成功打开，用户可以看到目标文件，只是选区未精确命中。
 - **编程错误**（非法参数）→ `resolveFileReferenceTarget` 返回 null，调用方据此判断。
 
@@ -766,7 +818,7 @@ type FileReferenceNavigationError =
 
 处理：
 
-- 不写入 pending 状态
+- 不写入文件选区意图
 - 通过统一 toast 提示“未找到引用文件”
 
 ### 行号异常
@@ -797,16 +849,16 @@ type FileReferenceNavigationError =
 ## 实现步骤
 
 1. **抽取统一文件引用解析器** `parseFileReferenceToken()`，覆盖 saved path 和 `unsaved://id/fileName`，替代 `BubblePartUserInput.vue` 和 `chipResolver.ts` 各自维护的解析逻辑。
-2. **新增 pending navigation store**，状态带 `navigationId`，支持按 ID 精确清空。
-3. 在 `useOpenFile.ts` 中补充 `openFileByPath()`，明确返回语义（路由跳转完成后 StoredFile.id 可直接用于 pending）。
-4. **新增 `useFileReferenceNavigation()` composable**，内部调用 `useOpenFile()` 和 pending store，封装完整的"打开文件 → 写入 pending → 错误 toast"流程。
-5. 改造 `BubblePartUserInput.vue`：`parseSegments()` 改用统一解析器，chip 点击调用 composable 的 `navigateToFileReference`。
-6. 改造 `chipResolver.ts`：通过参数注入 `onNavigateFileReference`，widget 绑定 mousedown/click/keydown 事件。
+2. **新增 `fileSelectionIntent` 状态**，带 `intentId`，支持按 ID 精确清空。
+3. 在 `useOpenFile.ts` 中补充 `openFileByPath()`，明确返回语义（路由跳转完成后 `StoredFile.id` 可直接用于定位意图）。
+4. **扩展 `useNavigate.ts`**，新增通用 `openFile(options)`，内部调用 `useOpenFile()` 和 `fileSelectionIntent`，封装完整的“打开文件 → 写入意图 → 错误 toast”流程。
+5. 改造 `BubblePartUserInput.vue`：`parseSegments()` 改用统一解析器，chip 点击调用 `openFile(options)`。
+6. 改造 `chipResolver.ts`：通过参数注入 `onOpenFile`，widget 绑定 `mousedown` / `click` / `keydown` 事件。
 7. （前置）在 `sourceLineMapping.ts` 中新增反向映射函数 `mapSourceLineRangeToProseMirrorRange()`，返回 `LineRangeMappingResult | null`，区分精确覆盖和回退定位。
 8. 为 `BEditor` 暴露 `selectLineRange(startLine, endLine): boolean | Promise<boolean>` 公共方法，同步更新 `types.ts`、`editorPublicInstance` computed、`defineExpose` 和 `createNoopEditorController()`。
 9. Source 模式实现 CodeMirror 行号选区和滚动。
 10. Rich 模式基于步骤 7 的反向映射，实现源码行号到 ProseMirror range 的转换、真实选区设置与 AI 高亮。**强依赖步骤 7 的输出，应在反向映射通过单元测试后再开始**。
-11. `src/views/editor/index.vue` 中 watch 当前文件ID、pending navigationId、editor ready 状态，通过 `nextTick()` 后调用 `selectLineRange`，成功消费后按 `navigationId` 清空。
+11. **新增 `src/views/editor/hooks/useFileSelection.ts`**，在其中 watch 当前文件 ID、`intentId`、editor ready 状态，通过 `nextTick()` 后调用 `selectLineRange`，成功消费后按 `intentId` 清空。
 12. 补充交互与回归测试。
 
 ## 测试建议
@@ -816,21 +868,22 @@ type FileReferenceNavigationError =
 - 点击 `unsaved://` 草稿 chip，能打开对应草稿并选中对应行。
 - 行号超出范围时，能裁剪到最后一行且不报错。
 - rich/source 两种模式下都能正确滚动到可见区域。
-- 消费一次 pending 状态后，再次切回同文件不会重复触发导航。
+- 消费一次文件选区意图后，再次切回同文件不会重复触发定位。
 - 打开失败时只提示错误，不会错误路由到其他文件。
 - **（新增）`parseFileReferenceToken` 单元测试**：覆盖 saved path、`unsaved://id/fileName`、非法格式等边界用例。
 - **（新增）`mapSourceLineRangeToProseMirrorRange` 单元测试**：验证在普通段落、代码块、front matter、嵌套列表、空行等场景下返回正确的 LineRangeMappingResult。
 
 ## 影响范围
 
+- `src/hooks/useNavigate.ts` — 新增通用 `openFile(options)` 文件打开入口
 - `src/hooks/useOpenFile.ts` — 新增 `openFileByPath`
 - `src/utils/fileReference/`（新增目录）
   - `types.ts` — 类型定义
   - `parseToken.ts` — 统一解析器
-- `src/hooks/useFileReferenceNavigation.ts` — 导航 composable
-- `src/stores/fileReferenceNavigation.ts` — pending 状态 store
+- `src/stores/fileSelectionIntent.ts` — 一次性文件选区意图状态
 - `src/components/BChatSidebar/components/MessageBubble/BubblePartUserInput.vue`
 - `src/components/BChatSidebar/utils/chipResolver.ts`
+- `src/views/editor/hooks/useFileSelection.ts`
 - `src/views/editor/index.vue`
 - `src/components/BEditor/adapters/types.ts`
 - `src/components/BEditor/adapters/sourceLineMapping.ts`
@@ -844,9 +897,9 @@ type FileReferenceNavigationError =
 
 1. **🔴 高：Rich 模式反向映射缺失** — `sourceLineMapping.ts` 当前仅有正向映射，反向映射 `mapSourceLineRangeToProseMirrorRange` 需从零实现。这是整个特性中工作量最大、风险最高的部分。复杂块结构（代码块、表格、嵌套列表）和 front matter 场景下可能存在行号对齐偏差。
 2. **🟡 中：输入框 widget 焦点干扰** — CodeMirror widget 的事件处理（mousedown preventDefault + click 导航）需要验证点击后编辑器焦点和光标行为正常。
-3. **🟡 中：keep-alive 下的 pending 消费时序** — 需确保 `watch` 依赖 `navigationId`、`isEditorReady`、`nextTick()` 后的 `selectLineRange` 调用能在页面激活和 editor 实例就绪时正确消费。
+3. **🟡 中：keep-alive 下的意图消费时序** — 需确保 `watch` 依赖 `intentId`、`isEditorReady`、`nextTick()` 后的 `selectLineRange` 调用能在页面激活和 editor 实例就绪时正确消费。
 4. **🟡 中：Source 模式空行高亮不明显** — 当目标行为空行时，CodeMirror 选区为零宽（`line.from === line.to`），视觉高亮可能不可见。当前阶段接受此限制，后续可引入行级 decoration 解决。
-5. **🟢 低：inflightPaths 重复点击** — `filesStore.openOrCreateByPath` 的去重机制使快速连续点击同一文件时第二次调用返回 `null`，导航 composable 的 `navigating` 锁进一步保证串行，无需额外处理。
+5. **🟢 低：inflightPaths 重复点击** — `filesStore.openOrCreateByPath` 的去重机制使快速连续点击同一文件时第二次调用返回 `null`，`useNavigate().openFile()` 的 `navigating` 锁进一步保证串行，无需额外处理。
 
 ### 后续可扩展方向
 

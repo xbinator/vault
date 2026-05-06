@@ -52,6 +52,8 @@ import { EditorContent } from '@tiptap/vue-3';
 import { useEventListener } from '@vueuse/core';
 import { useNavigate } from '@/hooks/useNavigate';
 import { createRichSelectionAssistantAdapter } from '../adapters/richSelectionAssistant';
+import { mapSourceLineRangeToProseMirrorRange } from '../adapters/sourceLineMapping';
+import { setAISelectionHighlight } from '../extensions/AISelectionHighlight';
 import { getSearchSnapshot } from '../extensions/Search';
 import { useFrontMatter } from '../hooks/useFrontMatter';
 import { useRichEditor } from '../hooks/useRichEditor';
@@ -383,6 +385,35 @@ function getSearchState(): EditorSearchState {
 }
 
 /**
+ * 按源码行号选中并滚动到对应范围。
+ * @param startLine - 起始行号（1-based）
+ * @param endLine - 结束行号（1-based）
+ * @returns 是否成功设置选区
+ */
+async function selectLineRange(startLine: number, endLine: number): Promise<boolean> {
+  const instance = editorInstance.value;
+  if (!instance) {
+    return false;
+  }
+
+  const mappedRange = mapSourceLineRangeToProseMirrorRange(instance.state.doc, startLine, endLine, instance.getMarkdown());
+  if (!mappedRange) {
+    return false;
+  }
+
+  instance.commands.setTextSelection({
+    from: mappedRange.from,
+    to: mappedRange.to
+  });
+  setAISelectionHighlight(instance, {
+    from: mappedRange.from,
+    to: mappedRange.to
+  });
+  instance.commands.focus();
+  return true;
+}
+
+/**
  * 滚动到锚点
  * @returns 是否成功滚动
  */
@@ -413,6 +444,7 @@ const controller: EditorController & { setContent: (text: string) => void } = {
   insertAtCursor,
   replaceSelection,
   replaceDocument,
+  selectLineRange,
   getSearchState,
   scrollToAnchor,
   getActiveAnchorId,

@@ -3,7 +3,16 @@
     <div :class="bem('text')">
       <template v-for="(segment, index) in segments" :key="index">
         <span v-if="segment.type === 'text'">{{ segment.text }}</span>
-        <span v-else :class="bem('chip')" :title="segment.fullPath">
+        <span
+          v-else
+          :class="bem('chip')"
+          :title="segment.fullPath ?? segment.fileName"
+          role="button"
+          tabindex="0"
+          @click="onChipClick(segment)"
+          @keydown.enter.prevent="onChipClick(segment)"
+          @keydown.space.prevent="onChipClick(segment)"
+        >
           <span :class="bem('chip-filename')">{{ segment.fileName }}</span>
           <span :class="bem('chip-lines')">{{ segment.lineText }}</span>
         </span>
@@ -19,6 +28,8 @@
  */
 import type { ChatMessageTextPart } from 'types/chat';
 import { computed } from 'vue';
+import { useNavigate } from '@/hooks/useNavigate';
+import { parseFileReferenceToken } from '@/utils/fileReference/parseToken';
 import { createNamespace } from '@/utils/namespace';
 import { MESSAGE_REF_PATTERN } from '../../utils/fileReferenceContext';
 
@@ -29,6 +40,7 @@ interface Props {
 }
 
 const props = defineProps<Props>();
+const { openFile } = useNavigate();
 
 const [name, bem] = createNamespace('', 'message-bubble-user-input');
 
@@ -41,21 +53,18 @@ interface TextSegment {
 
 interface FileRefSegment {
   type: 'fileRef';
-  fullPath: string;
+  fullPath: string | null;
+  fileId: string | null;
   fileName: string;
   lineText: string;
+  startLine: number;
+  endLine: number;
+  isUnsaved: boolean;
 }
 
 type Segment = TextSegment | FileRefSegment;
 
 // ─── 工具函数 ────────────────────────────────────────────────────────────────
-
-/**
- * 从路径字符串中提取文件名。
- */
-function extractFileName(filePath: string): string {
-  return filePath.split(/[\\/]/).filter(Boolean).at(-1) ?? filePath;
-}
 
 /**
  * 将原始文本解析为纯文本与文件引用片段的交替序列。
@@ -74,7 +83,19 @@ function parseSegments(text: string): Segment[] {
       result.push({ type: 'text', text: text.slice(lastIndex, matchStart) });
     }
 
-    result.push({ type: 'fileRef', fullPath: filePath, fileName: extractFileName(filePath), lineText: `${startLine}-${endLine}` });
+    const parsed = parseFileReferenceToken(`#${filePath} ${startLine}-${endLine}`);
+    if (parsed) {
+      result.push({
+        type: 'fileRef',
+        fullPath: parsed.filePath,
+        fileId: parsed.fileId,
+        fileName: parsed.fileName,
+        lineText: parsed.lineText,
+        startLine: parsed.startLine,
+        endLine: parsed.endLine,
+        isUnsaved: parsed.isUnsaved
+      });
+    }
 
     lastIndex = matchStart + match[0].length;
   }
@@ -84,6 +105,22 @@ function parseSegments(text: string): Segment[] {
   }
 
   return result;
+}
+
+/**
+ * 处理文件引用 chip 的点击与键盘打开行为。
+ * @param segment - 被触发的文件引用片段
+ */
+function onChipClick(segment: FileRefSegment): void {
+  openFile({
+    filePath: segment.fullPath,
+    fileId: segment.fileId,
+    fileName: segment.fileName,
+    range: {
+      startLine: segment.startLine,
+      endLine: segment.endLine
+    }
+  });
 }
 
 // ─── 计算属性 ────────────────────────────────────────────────────────────────
@@ -112,11 +149,16 @@ const segments = computed<Segment[]>(() => parseSegments(props.part.text ?? ''))
     font-size: 12px;
     vertical-align: middle;
     color: var(--text-primary);
-    cursor: default;
+    cursor: pointer;
     background-color: var(--bg-secondary);
     border: 1px solid var(--border-secondary);
     border-radius: 4px;
     transition: background-color 0.15s ease, border-color 0.15s ease;
+
+    &:hover {
+      background-color: var(--bg-tertiary, var(--bg-secondary));
+      border-color: var(--border-primary, var(--border-secondary));
+    }
   }
 
   &__chip-filename {

@@ -52,7 +52,7 @@
             v-model:value="inputContent"
             placeholder="输入消息..."
             :max-height="200"
-            :chip-resolver="chipResolver"
+            :chip-resolver="promptChipResolver"
             :on-paste-files="fileReference.onPasteFiles"
             :on-paste-images="imageUpload.onPasteImages"
             :can-accept-images="imageUpload.canAcceptImages"
@@ -94,6 +94,7 @@ import { getDefaultChatToolNames } from '@/ai/tools/policy';
 import BButton from '@/components/BButton/index.vue';
 import BPromptEditor from '@/components/BPromptEditor/index.vue';
 import type { SlashCommandOption } from '@/components/BPromptEditor/types';
+import { useNavigate } from '@/hooks/useNavigate';
 import { useChatStore } from '@/stores/chat';
 import { useFilesStore } from '@/stores/files';
 import { useSettingStore } from '@/stores/setting';
@@ -111,7 +112,7 @@ import { useImageUpload } from './hooks/useImageUpload';
 import { useModelSelection } from './hooks/useModelSelection';
 import { useSession } from './hooks/useSession';
 import { useUsagePanel } from './hooks/useUsagePanel';
-import { chipResolver } from './utils/chipResolver';
+import { createFileRefChipResolver } from './utils/chipResolver';
 import { createChatConfirmationController } from './utils/confirmationController';
 import { create, userChoice, buildMessageReferences } from './utils/messageHelper';
 import { chatSlashCommands } from './utils/slashCommands';
@@ -123,6 +124,8 @@ const settingStore = useSettingStore();
 
 /** 输入框编辑器引用 */
 const promptEditorRef = ref<InstanceType<typeof BPromptEditor>>();
+/** 通用文件打开导航能力 */
+const { openFile } = useNavigate();
 /** 模型选择器程序化打开入口 */
 const modelSelectorRef = ref<InstanceType<typeof InputToolbar>>();
 /** 对话视图引用 */
@@ -142,6 +145,25 @@ const confirmationController = createChatConfirmationController({
 function focusInput(): void {
   promptEditorRef.value?.focus();
 }
+
+/**
+ * 处理输入框中的文件引用 chip 打开动作。
+ * @param target - 文件导航目标
+ */
+function handleOpenPromptFileReference(target: { filePath: string | null; fileId: string | null; fileName: string; startLine: number; endLine: number }): void {
+  openFile({
+    filePath: target.filePath,
+    fileId: target.fileId,
+    fileName: target.fileName,
+    range: {
+      startLine: target.startLine,
+      endLine: target.endLine
+    }
+  });
+}
+
+/** PromptEditor 使用的文件引用 chip resolver。 */
+const promptChipResolver = createFileRefChipResolver(handleOpenPromptFileReference);
 
 /** 保存输入框光标位置 */
 function saveCursorPosition(): void {

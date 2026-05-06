@@ -25,6 +25,7 @@ function isEditorController(controller: EditorController | SourceEditorFocusCont
     'insertAtCursor' in controller &&
     'replaceSelection' in controller &&
     'replaceDocument' in controller &&
+    'selectLineRange' in controller &&
     'getSearchState' in controller &&
     'scrollToAnchor' in controller &&
     'getActiveAnchorId' in controller
@@ -57,6 +58,9 @@ function createSourceEditorController(sourceEditorPaneRef: SourceEditorPaneRef, 
     },
     async replaceDocument(): Promise<void> {
       return undefined;
+    },
+    selectLineRange(): boolean {
+      return false;
     }
   };
 }

@@ -18,6 +18,7 @@ const createFileId = customAlphabet('0123456789abcdefghijklmnopqrstuvwxyz_', 8);
 export function useOpenFile(): {
   openFile: (file: StoredFile) => Promise<StoredFile>;
   openFileById: (id: string) => Promise<StoredFile | null>;
+  openFileByPath: (path: string) => Promise<StoredFile | null>;
   openNativeFile: () => Promise<StoredFile | null>;
   createNewFile: () => Promise<StoredFile>;
 } {
@@ -50,6 +51,19 @@ export function useOpenFile(): {
   }
 
   /**
+   * 通过磁盘路径打开文件；若最近文件中不存在，则创建记录后再跳转。
+   * @param path - 文件绝对路径
+   * @returns 打开的文件记录；未命中时返回 null
+   */
+  async function openFileByPath(path: string): Promise<StoredFile | null> {
+    const openedFile = await filesStore.openOrCreateByPath(path);
+    if (!openedFile) return null;
+
+    await router.push({ name: 'editor', params: { id: openedFile.id } });
+    return openedFile;
+  }
+
+  /**
    * 通过原生文件选择器打开文件。
    * @returns 打开的文件记录；用户取消时返回 null
    */
@@ -57,11 +71,7 @@ export function useOpenFile(): {
     const file = await native.openFile();
     if (!file.path) return null;
 
-    const openedFile = await filesStore.openOrCreateByPath(file.path);
-    if (!openedFile) return null;
-
-    await router.push({ name: 'editor', params: { id: openedFile.id } });
-    return openedFile;
+    return openFileByPath(file.path);
   }
 
   /**
@@ -82,5 +92,5 @@ export function useOpenFile(): {
     return createdFile;
   }
 
-  return { openFile, openFileById, openNativeFile, createNewFile };
+  return { openFile, openFileById, openFileByPath, openNativeFile, createNewFile };
 }

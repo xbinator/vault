@@ -9,6 +9,7 @@ import {
   consumeSourceLineToken,
   createSourceLineTracker,
   getNodeSourceLineRange,
+  mapSourceLineRangeToProseMirrorRange,
   getSelectionSourceLineRange,
   resetSourceLineTracker
 } from '@/components/BEditor/adapters/sourceLineMapping';
@@ -96,5 +97,31 @@ describe('sourceLineMapping', () => {
     ]);
 
     expect(getSelectionSourceLineRange(doc, 8, 11)).toEqual({ startLine: 6, endLine: 6 });
+  });
+
+  it('maps source line ranges back to ProseMirror positions', () => {
+    const doc = testSchema.node('doc', undefined, [
+      testSchema.node('paragraph', { sourceLineStart: 5, sourceLineEnd: 6 }, [testSchema.text('alpha\nbeta')])
+    ]);
+
+    expect(mapSourceLineRangeToProseMirrorRange(doc, 6, 6)).toEqual({
+      from: 7,
+      to: 11,
+      exact: true
+    });
+  });
+
+  it('maps source line ranges back to later blocks after implicit blank paragraphs', () => {
+    const doc = testSchema.node('doc', undefined, [
+      testSchema.node('paragraph', { sourceLineStart: 1, sourceLineEnd: 1 }, [testSchema.text('alpha')]),
+      testSchema.node('paragraph'),
+      testSchema.node('paragraph', { sourceLineStart: 2, sourceLineEnd: 2 }, [testSchema.text('beta')])
+    ]);
+
+    expect(mapSourceLineRangeToProseMirrorRange(doc, 3, 3)).toEqual({
+      from: 10,
+      to: 14,
+      exact: true
+    });
   });
 });

@@ -26,6 +26,18 @@ export interface SourceLineRange {
 }
 
 /**
+ * 源码行号范围映射到 ProseMirror 位置的结果。
+ */
+export interface LineRangeMappingResult {
+  /** ProseMirror 文档起始位置 */
+  from: number;
+  /** ProseMirror 文档结束位置 */
+  to: number;
+  /** 是否精确覆盖目标源码行范围 */
+  exact: boolean;
+}
+
+/**
  * 顶层块节点在文档中的位置信息。
  */
 interface TopLevelBlockInfo {
@@ -239,6 +251,80 @@ function getPreciseBlockSelectionSourceLineRange(node: ProseMirrorNode, pos: num
 }
 
 /**
+ * 将块内相对行号转换为文本偏移范围。
+ * @param text - 块节点的纯文本内容
+ * @param startLineOffset - 相对起始行号偏移（0-based）
+ * @param endLineOffset - 相对结束行号偏移（0-based）
+ * @returns 文本偏移范围
+ */
+function getLineOffsetsInText(text: string, startLineOffset: number, endLineOffset: number): { from: number; to: number } {
+  const lines = text.split('\n');
+  let cursor = 0;
+  let from = 0;
+  let to = text.length;
+
+  lines.forEach((line, index) => {
+    if (index === startLineOffset) {
+      from = cursor;
+    }
+
+    cursor += line.length;
+
+    if (index === endLineOffset) {
+      to = cursor;
+    }
+
+    if (index < lines.length - 1) {
+      cursor += 1;
+    }
+  });
+
+  return { from, to };
+}
+
+/**
+ * 根据源码行号范围，在单个块节点中反向定位 ProseMirror 位置。
+ * @param node - 目标块节点
+ * @param pos - 目标块节点在文档中的起始位置
+ * @param startLine - 目标源码起始行号（1-based）
+ * @param endLine - 目标源码结束行号（1-based）
+ * @returns 块内命中的 ProseMirror 位置范围；未命中时返回 null
+ */
+function mapBlockSourceLineRangeToOffsets(
+  node: ProseMirrorNode,
+  pos: number,
+  startLine: number,
+  endLine: number,
+  blockRange: SourceLineRange
+): LineRangeMappingResult | null {
+  if (blockRange.startLine > endLine || blockRange.endLine < startLine) {
+    return null;
+  }
+
+  const contentStart = pos + 1;
+  const contentEnd = pos + node.content.size + 1;
+  const text = node.textBetween(0, node.content.size, '\n', '\n');
+
+  if (!text) {
+    return {
+      from: contentStart,
+      to: contentEnd,
+      exact: false
+    };
+  }
+
+  const relativeStartLine = Math.max(startLine, blockRange.startLine) - blockRange.startLine;
+  const relativeEndLine = Math.min(endLine, blockRange.endLine) - blockRange.startLine;
+  const offsets = getLineOffsetsInText(text, relativeStartLine, relativeEndLine);
+
+  return {
+    from: contentStart + offsets.from,
+    to: Math.max(contentStart + offsets.from, contentStart + offsets.to),
+    exact: true
+  };
+}
+
+/**
  * 构建顶层 Markdown token 的源码行号范围列表，包含对独立空行的行号推进。
  * @param markdown - 原始 Markdown 文本
  * @returns 顶层非 space token 的源码行号范围列表
@@ -282,6 +368,83 @@ function getTopLevelBlocks(doc: ProseMirrorNode): TopLevelBlockInfo[] {
   });
 
   return blocks;
+}
+
+/**
+ * 聚合多个块节点命中的 ProseMirror 范围。
+ * @param current - 当前已聚合的范围
+ * @param next - 新命中的范围
+ * @returns 合并后的范围
+ */
+function mergeMappedLineRange(current: LineRangeMappingResult | null, next: LineRangeMappingResult | null): LineRangeMappingResult | null {
+  if (!next) {
+    return current;
+  }
+
+  if (!current) {
+    return next;
+  }
+
+  return {
+    from: Math.min(current.from, next.from),
+    to: Math.max(current.to, next.to),
+    exact: current.exact && next.exact
+  };
+}
+
+/**
+ * 基于顶层 Markdown token 的真实行号，修正一个顶层块子树内所有带 attrs 的块节点范围。
+ * 这样即使导入阶段忽略了 space token，也能恢复空行后的真实源码行号。
+ * @param blockInfo - 顶层块节点及其位置
+ * @param tokenRange - 对齐后的顶层 Markdown token 行号范围
+ * @param startLine - 目标源码起始行号
+ * @param endLine - 目标源码结束行号
+ * @returns 命中的 ProseMirror 范围；未命中时返回 null
+ */
+function mapTopLevelBlockSourceLineRangeToOffsets(
+  blockInfo: TopLevelBlockInfo,
+  tokenRange: SourceLineRange,
+  startLine: number,
+  endLine: number
+): LineRangeMappingResult | null {
+  const { node, pos } = blockInfo;
+  let subtreeDelta: number | null = null;
+  let mappedRange: LineRangeMappingResult | null = null;
+
+  /**
+   * 使用同一个顶层块子树内的统一 delta 修正块节点源码行号。
+   * @param blockNode - 当前块节点
+   * @param blockPos - 当前块节点在文档中的绝对位置
+   */
+  function visitBlockNode(blockNode: ProseMirrorNode, blockPos: number): void {
+    const rawRange = getNodeSourceLineRange(blockNode);
+    if (!rawRange) {
+      return;
+    }
+
+    if (subtreeDelta === null) {
+      subtreeDelta = tokenRange.startLine - rawRange.startLine;
+    }
+
+    const adjustedRange: SourceLineRange = {
+      startLine: rawRange.startLine + subtreeDelta,
+      endLine: rawRange.endLine + subtreeDelta
+    };
+
+    mappedRange = mergeMappedLineRange(mappedRange, mapBlockSourceLineRangeToOffsets(blockNode, blockPos, startLine, endLine, adjustedRange));
+  }
+
+  visitBlockNode(node, pos);
+
+  node.descendants((childNode, childPos) => {
+    if (!childNode.isBlock) {
+      return;
+    }
+
+    visitBlockNode(childNode, pos + childPos + 1);
+  });
+
+  return mappedRange;
 }
 
 /**
@@ -367,4 +530,83 @@ export function getSelectionSourceLineRange(doc: ProseMirrorNode, from: number, 
   }
 
   return { startLine, endLine };
+}
+
+/**
+ * 根据源码行号范围，在 ProseMirror 文档中反向查找对应的位置范围。
+ * @param doc - 当前 ProseMirror 文档
+ * @param startLine - 源码起始行号（1-based）
+ * @param endLine - 源码结束行号（1-based）
+ * @returns 映射结果；无法定位时返回 null
+ */
+export function mapSourceLineRangeToProseMirrorRange(
+  doc: ProseMirrorNode,
+  startLine: number,
+  endLine: number,
+  markdown?: string
+): LineRangeMappingResult | null {
+  if (typeof markdown === 'string' && markdown.trim()) {
+    const topLevelBlocks = getTopLevelBlocks(doc);
+    const tokenRanges = getTopLevelMarkdownTokenLineRanges(markdown);
+    const alignedCount = Math.min(topLevelBlocks.length, tokenRanges.length);
+    let mappedRange: LineRangeMappingResult | null = null;
+
+    topLevelBlocks.slice(0, alignedCount).forEach((blockInfo, index) => {
+      const tokenRange = tokenRanges[index];
+      if (!tokenRange) {
+        return;
+      }
+
+      mappedRange = mergeMappedLineRange(mappedRange, mapTopLevelBlockSourceLineRangeToOffsets(blockInfo, tokenRange, startLine, endLine));
+    });
+
+    if (mappedRange) {
+      return mappedRange;
+    }
+  }
+
+  let mappedFrom: number | null = null;
+  let mappedTo: number | null = null;
+  let isExact = true;
+  let blankLineOffset = 0;
+
+  doc.descendants((node, pos) => {
+    if (!node.isBlock) {
+      return;
+    }
+
+    if (isImplicitBlankParagraph(node)) {
+      blankLineOffset++;
+      return;
+    }
+
+    const rawRange = getNodeSourceLineRange(node);
+    if (!rawRange) {
+      return;
+    }
+
+    const adjustedRange: SourceLineRange = {
+      startLine: rawRange.startLine + blankLineOffset,
+      endLine: rawRange.endLine + blankLineOffset
+    };
+
+    const mappedRange = mapBlockSourceLineRangeToOffsets(node, pos, startLine, endLine, adjustedRange);
+    if (!mappedRange) {
+      return;
+    }
+
+    mappedFrom = mappedFrom === null ? mappedRange.from : Math.min(mappedFrom, mappedRange.from);
+    mappedTo = mappedTo === null ? mappedRange.to : Math.max(mappedTo, mappedRange.to);
+    isExact = isExact && mappedRange.exact;
+  });
+
+  if (mappedFrom === null || mappedTo === null) {
+    return null;
+  }
+
+  return {
+    from: mappedFrom,
+    to: mappedTo,
+    exact: isExact
+  };
 }

@@ -21,13 +21,14 @@
 </template>
 
 <script setup lang="ts">
-import { onActivated, onBeforeUnmount, onDeactivated, ref, watch } from 'vue';
+import { computed, onActivated, onBeforeUnmount, onDeactivated, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { editorToolContextRegistry } from '@/ai/tools/editor-context';
 import BEditor from '@/components/BEditor/index.vue';
 import type { BEditorPublicInstance } from '@/components/BEditor/types';
 import { useSettingStore } from '@/stores/setting';
 import { useBindings } from './hooks/useBindings';
+import { useFileSelection } from './hooks/useFileSelection';
 import { useSession } from './hooks/useSession';
 
 const route = useRoute();
@@ -39,8 +40,14 @@ const settingStore = useSettingStore();
 
 const editorRef = ref<BEditorPublicInstance | null>(null);
 const isActive = ref(true);
+const isEditorReady = computed<boolean>(() => editorRef.value !== null);
 
 useBindings(fileId, { fileState, actions, editorInstance: editorRef });
+useFileSelection({
+  fileState,
+  isEditorReady,
+  editorInstance: editorRef
+});
 
 /**
  * 注销当前编辑器工具上下文。

@@ -302,6 +302,32 @@ function getSearchState(): EditorSearchState {
   return view ? getSourceEditorSearchState(view.state) : { currentIndex: 0, matchCount: 0, term: '' };
 }
 
+/**
+ * 按源码行号选中并滚动到对应范围。
+ * @param startLine - 起始行号（1-based）
+ * @param endLine - 结束行号（1-based）
+ * @returns 是否成功设置选区
+ */
+function selectLineRange(startLine: number, endLine: number): boolean {
+  const view = getView();
+  if (!view) {
+    return false;
+  }
+
+  const totalLines = view.state.doc.lines;
+  const safeStartLine = Math.min(Math.max(1, startLine), totalLines);
+  const safeEndLine = Math.min(Math.max(safeStartLine, endLine), totalLines);
+  const fromLine = view.state.doc.line(safeStartLine);
+  const toLine = view.state.doc.line(safeEndLine);
+
+  view.dispatch({
+    selection: EditorSelection.range(fromLine.from, toLine.to),
+    scrollIntoView: true
+  });
+  view.focus();
+  return true;
+}
+
 function scrollHostToAnchor(hostElement: HTMLElement, anchorId: string, fallbackOffsetTop: number): void {
   props.onAnchorScroll?.(hostElement, getRenderedSourceAnchorOffsetTop(hostElement, anchorId) ?? fallbackOffsetTop);
 }
@@ -461,6 +487,7 @@ const controller: EditorController = {
   insertAtCursor,
   replaceSelection,
   replaceDocument,
+  selectLineRange,
   getSearchState,
   scrollToAnchor,
   getActiveAnchorId

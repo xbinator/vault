@@ -7,7 +7,7 @@ import { resolve } from 'node:path';
 import { ref, type Ref } from 'vue';
 import { Editor } from '@tiptap/core';
 import { describe, expect, test } from 'vitest';
-import { getSelectionSourceLineRangeFromMarkdown } from '@/components/BEditor/adapters/sourceLineMapping';
+import { getSelectionSourceLineRangeFromMarkdown, mapSourceLineRangeToProseMirrorRange } from '@/components/BEditor/adapters/sourceLineMapping';
 import { useExtensions } from '@/components/BEditor/hooks/useExtensions';
 
 /**
@@ -63,6 +63,42 @@ describe('source line mapping integration', () => {
       startLine: 7,
       endLine: 7
     });
+
+    editor.destroy();
+  });
+
+  test('maps imported markdown source lines back to a rich-text range', () => {
+    const markdown = '# Title\n\nParagraph line 1\nParagraph line 2\n';
+    const editor = createMarkdownEditor();
+
+    editor.commands.setContent(markdown, {
+      contentType: 'markdown'
+    });
+
+    expect(mapSourceLineRangeToProseMirrorRange(editor.state.doc, 3, 4, markdown)).toMatchObject({
+      exact: true
+    });
+
+    editor.destroy();
+  });
+
+  test('maps the spec document line 9 back to the matching list item in rich text', () => {
+    const markdown = loadFixture('docs/superpowers/specs/2026-05-05-chat-file-reference-navigation-design.md');
+    const editor = createMarkdownEditor();
+
+    editor.commands.setContent(markdown, {
+      contentType: 'markdown'
+    });
+
+    const range = mapSourceLineRangeToProseMirrorRange(editor.state.doc, 9, 9, markdown);
+
+    expect(range).not.toBeNull();
+    expect(range?.exact).toBe(true);
+
+    const selectedText = editor.state.doc.textBetween(range!.from, range!.to, '\n', '\0');
+
+    expect(selectedText).toContain('两处都没有统一的点击导航能力。');
+    expect(selectedText).not.toContain('这导致用户在聊天中引用了某段文档后');
 
     editor.destroy();
   });

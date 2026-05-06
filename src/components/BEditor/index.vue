@@ -241,6 +241,16 @@ function getSearchState(): EditorSearchState {
   return editorController.value.getSearchState();
 }
 
+/**
+ * 按源码行号选中并滚动到对应范围。
+ * @param startLine - 起始行号（1-based）
+ * @param endLine - 结束行号（1-based）
+ * @returns 是否成功设置选区
+ */
+async function selectLineRange(startLine: number, endLine: number): Promise<boolean> {
+  return editorController.value.selectLineRange(startLine, endLine);
+}
+
 const editorPublicInstance = computed<BEditorPublicInstance>(() => ({
   undo,
   redo,
@@ -251,6 +261,7 @@ const editorPublicInstance = computed<BEditorPublicInstance>(() => ({
   insertAtCursor,
   replaceSelection,
   replaceDocument,
+  selectLineRange,
   setSearchTerm,
   findNext,
   findPrevious,
@@ -273,6 +284,7 @@ defineExpose({
   insertAtCursor,
   replaceSelection,
   replaceDocument,
+  selectLineRange,
   getSearchState
 });
 </script>
