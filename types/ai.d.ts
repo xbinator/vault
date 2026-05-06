@@ -283,6 +283,19 @@ export interface AITransportTool {
   parameters: JSONSchema7;
 }
 
+/**
+ * AI 输出配置。
+ * @description 使用 AI SDK 的 output/object schema 能力约束返回结果。
+ */
+export interface AIOutputOptions {
+  /** JSON Schema 定义。 */
+  schema: JSONSchema7;
+  /** 可选的结构化输出名称。 */
+  name?: string;
+  /** 可选的结构化输出描述。 */
+  description?: string;
+}
+
 export interface AIRequestOptions {
   /** Request identifier. */
   requestId?: string;
@@ -302,6 +315,8 @@ export interface AIRequestOptions {
   tools?: AITransportTool[];
   /** Previous tool results. */
   toolResults?: AITransportToolResult[];
+  /** 输出配置。 */
+  output?: AIOutputOptions;
 }
 
 export interface AIStreamToolCallChunk {
@@ -411,6 +426,7 @@ export interface AIUsage {
 
 export interface AIInvokeResult {
   text: string;
+  output?: unknown;
   usage?: AIUsage;
 }
 
