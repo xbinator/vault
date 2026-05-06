@@ -32,17 +32,17 @@ describe('chipResolver', () => {
   describe('存储格式（#path 行号）', () => {
     test('范围引用优先显示 render 行号', () => {
       const dom = resolveWidgetDom(createFileRefChipResolver(noopOpenFile)('#src/demo.ts 12-14|20-24'));
-      expect(dom?.textContent).toBe('demo.ts:20-24');
+      expect(dom?.textContent).toBe('demo.ts20-24');
     });
 
     test('旧格式缺少 render 行号时回退到源码行号', () => {
       const dom = resolveWidgetDom(createFileRefChipResolver(noopOpenFile)('#src/demo.ts 12-14'));
-      expect(dom?.textContent).toBe('demo.ts:12-14');
+      expect(dom?.textContent).toBe('demo.ts12-14');
     });
 
     test('支持未保存草稿引用', () => {
       const dom = resolveWidgetDom(createFileRefChipResolver(noopOpenFile)('#unsaved://draft123/draft.md 3-5|8-10'));
-      expect(dom?.textContent).toBe('draft.md:8-10');
+      expect(dom?.textContent).toBe('draft.md8-10');
     });
   });
 
@@ -59,12 +59,12 @@ describe('chipResolver', () => {
   describe('FileRefWidget DOM 渲染', () => {
     test('toDOM 单行渲染回退到源码行号', () => {
       const dom = resolveWidgetDom(createFileRefChipResolver(noopOpenFile)('#src/demo.ts 5-5'));
-      expect(dom?.textContent).toBe('demo.ts:5');
+      expect(dom?.textContent).toBe('demo.ts5');
     });
 
     test('toDOM 存储格式优先显示 render 行号', () => {
       const dom = resolveWidgetDom(createFileRefChipResolver(noopOpenFile)('#src/demo.ts 12-14|20-24'));
-      expect(dom?.textContent).toBe('demo.ts:20-24');
+      expect(dom?.textContent).toBe('demo.ts20-24');
     });
 
     test('点击 widget 时触发 onOpenFile', () => {
@@ -90,6 +90,15 @@ describe('chipResolver', () => {
       dom?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
 
       expect(onOpenFile).toHaveBeenCalledTimes(1);
+    });
+
+    test('toDOM 使用统一的文件名与行号子节点结构', () => {
+      const dom = resolveWidgetDom(createFileRefChipResolver(noopOpenFile)('#src/demo.ts 12-14|20-24'));
+
+      expect(dom?.className).toBe('b-file-ref-chip');
+      expect(dom?.getAttribute('title')).toBe('src/demo.ts');
+      expect(dom?.querySelector('.b-file-ref-chip__filename')?.textContent).toBe('demo.ts');
+      expect(dom?.querySelector('.b-file-ref-chip__lines')?.textContent).toBe('20-24');
     });
   });
 });

@@ -5,16 +5,16 @@
         <span v-if="segment.type === 'text'">{{ segment.text }}</span>
         <span
           v-else
-          :class="bem('chip')"
-          :title="segment.fullPath ?? segment.fileName"
+          :class="segment.presentation.rootClass"
+          :title="segment.presentation.title"
           role="button"
           tabindex="0"
           @click="onChipClick(segment)"
           @keydown.enter.prevent="onChipClick(segment)"
           @keydown.space.prevent="onChipClick(segment)"
         >
-          <span :class="bem('chip-filename')">{{ segment.fileName }}</span>
-          <span :class="bem('chip-lines')">{{ segment.lineText }}</span>
+          <span :class="segment.presentation.fileNameClass">{{ segment.presentation.fileName }}</span>
+          <span :class="segment.presentation.lineTextClass">{{ segment.presentation.lineText }}</span>
         </span>
       </template>
     </div>
@@ -28,6 +28,8 @@
  */
 import type { ChatMessageTextPart } from 'types/chat';
 import { computed } from 'vue';
+import type { FileRefChipPresentation } from '@/components/BChatSidebar/components/FileRefChip';
+import { createFileRefChipPresentation } from '@/components/BChatSidebar/components/FileRefChip';
 import { useNavigate } from '@/hooks/useNavigate';
 import { parseFileReferenceToken } from '@/utils/fileReference/parseToken';
 import { createNamespace } from '@/utils/namespace';
@@ -55,11 +57,10 @@ interface FileRefSegment {
   type: 'fileRef';
   fullPath: string | null;
   fileId: string | null;
-  fileName: string;
-  lineText: string;
   startLine: number;
   endLine: number;
   isUnsaved: boolean;
+  presentation: FileRefChipPresentation;
 }
 
 type Segment = TextSegment | FileRefSegment;
@@ -85,15 +86,21 @@ function parseSegments(text: string): Segment[] {
 
     const parsed = parseFileReferenceToken(`#${filePath} ${startLine}-${endLine}`);
     if (parsed) {
+      const presentation = createFileRefChipPresentation({
+        title: parsed.filePath ?? parsed.fileName,
+        fileName: parsed.fileName,
+        startLine: parsed.startLine,
+        endLine: parsed.endLine
+      });
+
       result.push({
         type: 'fileRef',
         fullPath: parsed.filePath,
         fileId: parsed.fileId,
-        fileName: parsed.fileName,
-        lineText: parsed.lineText,
         startLine: parsed.startLine,
         endLine: parsed.endLine,
-        isUnsaved: parsed.isUnsaved
+        isUnsaved: parsed.isUnsaved,
+        presentation
       });
     }
 
@@ -115,7 +122,7 @@ function onChipClick(segment: FileRefSegment): void {
   openFile({
     filePath: segment.fullPath,
     fileId: segment.fileId,
-    fileName: segment.fileName,
+    fileName: segment.presentation.fileName,
     range: {
       startLine: segment.startLine,
       endLine: segment.endLine
@@ -129,6 +136,8 @@ const segments = computed<Segment[]>(() => parseSegments(props.part.text ?? ''))
 </script>
 
 <style scoped lang="less">
+@import url('../FileRefChip/index.less');
+
 .message-bubble-user-input {
   word-break: normal;
   white-space: pre-wrap;
@@ -136,42 +145,6 @@ const segments = computed<Segment[]>(() => parseSegments(props.part.text ?? ''))
   &__text {
     word-break: normal;
     white-space: pre-wrap;
-  }
-
-  &__chip {
-    display: inline-flex;
-    gap: 4px;
-    align-items: center;
-    max-width: 240px;
-    height: 20px;
-    padding: 0 6px;
-    font-family: inherit;
-    font-size: 12px;
-    vertical-align: middle;
-    color: var(--text-primary);
-    cursor: pointer;
-    background-color: var(--bg-secondary);
-    border: 1px solid var(--border-secondary);
-    border-radius: 4px;
-    transition: background-color 0.15s ease, border-color 0.15s ease;
-
-    &:hover {
-      background-color: var(--bg-tertiary, var(--bg-secondary));
-      border-color: var(--border-primary, var(--border-secondary));
-    }
-  }
-
-  &__chip-filename {
-    max-width: 120px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  &__chip-lines {
-    flex-shrink: 0;
-    color: var(--text-secondary, var(--text-primary));
-    opacity: 0.7;
   }
 }
 </style>

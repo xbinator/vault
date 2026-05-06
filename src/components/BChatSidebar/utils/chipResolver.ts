@@ -3,6 +3,7 @@
  * @description 聊天输入框 Chip 解析器，将 file-ref token 解析为渲染 Widget。
  */
 import { WidgetType } from '@codemirror/view';
+import { createFileRefChipElement, createFileRefChipPresentation } from '@/components/BChatSidebar/components/FileRefChip';
 import type { ChipResolver } from '@/components/BPromptEditor/extensions/variableChip';
 import { parseFileReferenceToken } from '@/utils/fileReference/parseToken';
 import type { FileReferenceNavigationTarget, ParsedFileReference } from '@/utils/fileReference/types';
@@ -43,32 +44,30 @@ class FileRefWidget extends WidgetType {
   }
 
   toDOM(): HTMLElement {
-    const span = document.createElement('span');
-    span.className = 'b-prompt-chip b-prompt-chip--file';
-    span.tabIndex = 0;
-    span.setAttribute('role', 'button');
+    const presentation = createFileRefChipPresentation({
+      title: this.location.filePath ?? this.location.fileName,
+      fileName: this.location.fileName,
+      startLine: this.location.renderStartLine,
+      endLine: this.location.renderEndLine
+    });
+    const chip = createFileRefChipElement(presentation);
 
-    const { fileName, renderStartLine, renderEndLine } = this.location;
-
-    const lineText = renderStartLine === renderEndLine ? `${renderStartLine}` : `${renderStartLine}-${renderEndLine}`;
-
-    span.textContent = `${fileName}:${lineText}`;
-    span.addEventListener('mousedown', (event) => {
+    chip.addEventListener('mousedown', (event) => {
       event.preventDefault();
     });
-    span.addEventListener('click', (event) => {
+    chip.addEventListener('click', (event) => {
       event.preventDefault();
       event.stopPropagation();
       this.onOpenFile(toNavigationTarget(this.location));
     });
-    span.addEventListener('keydown', (event) => {
+    chip.addEventListener('keydown', (event) => {
       if (event.key === 'Enter' || event.key === ' ') {
         event.preventDefault();
         this.onOpenFile(toNavigationTarget(this.location));
       }
     });
 
-    return span;
+    return chip;
   }
 
   ignoreEvent(): boolean {

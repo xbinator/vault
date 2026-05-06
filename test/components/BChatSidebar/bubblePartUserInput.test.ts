@@ -46,6 +46,9 @@ describe('BubblePartUserInput', () => {
     expect(wrapper.text()).toContain('demo.ts');
     expect(wrapper.text()).toContain('12-14');
     expect(wrapper.text()).toContain('now');
+    expect(wrapper.get('.b-file-ref-chip').attributes('title')).toBe('src/demo.ts');
+    expect(wrapper.get('.b-file-ref-chip__filename').text()).toBe('demo.ts');
+    expect(wrapper.get('.b-file-ref-chip__lines').text()).toBe('12-14');
   });
 
   test('renders unsaved file reference segments', () => {
@@ -57,6 +60,7 @@ describe('BubblePartUserInput', () => {
 
     expect(wrapper.text()).toContain('draft.md');
     expect(wrapper.text()).toContain('3-5');
+    expect(wrapper.get('.b-file-ref-chip').attributes('title')).toBe('draft.md');
   });
 
   test('keeps plain text when no file reference exists', () => {

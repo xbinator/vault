@@ -1,0 +1,41 @@
+/**
+ * @file index.less
+ * @description 文件引用 Chip 共享样式。
+ */
+
+.b-file-ref-chip {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  max-width: 240px;
+  height: 20px;
+  padding: 0 6px;
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 20px;
+  vertical-align: middle;
+  color: var(--text-primary);
+  cursor: pointer;
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-secondary, var(--border-primary));
+  border-radius: 4px;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+
+  &:hover {
+    background-color: var(--bg-tertiary, var(--bg-secondary));
+    border-color: var(--border-primary, var(--border-secondary));
+  }
+}
+
+.b-file-ref-chip__filename {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.b-file-ref-chip__lines {
+  flex-shrink: 0;
+  color: var(--text-secondary, var(--text-primary));
+  opacity: 0.7;
+}
