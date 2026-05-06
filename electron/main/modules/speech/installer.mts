@@ -212,10 +212,11 @@ function assertSpeechRuntimeAssetChecksum(asset: SpeechRuntimeAsset, bytes: Buff
  */
 export async function installSpeechRuntime(options: InstallSpeechRuntimeOptions): Promise<void> {
   const runtimeRoot = getSpeechRuntimeRoot({ userDataPath: options.userDataPath });
-  const tempDir = join(runtimeRoot, 'tmp', `${Date.now()}`);
+  const tempDir = join(runtimeRoot, 'temp', `${Date.now()}`);
   const stagedDir = join(runtimeRoot, `runtime-${options.manifest.version}`);
   const currentDir = join(runtimeRoot, 'current');
 
+  // 清理上次安装可能残留的临时目录，避免同名冲突
   await rm(tempDir, { recursive: true, force: true });
   await mkdir(tempDir, { recursive: true });
 
