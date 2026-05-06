@@ -726,6 +726,7 @@ defineExpose({
 
 <style lang="less">
 @import url('@/assets/styles/scrollbar.less');
+@import url('@/components/BChatSidebar/components/FileRefChip/index.less');
 
 .b-prompt-editor-shell {
   position: relative;
@@ -789,23 +790,4 @@ defineExpose({
   }
 }
 
-.b-prompt-chip {
-  display: inline-flex;
-  gap: 4px;
-  align-items: center;
-  height: 20px;
-  padding: 0 6px;
-  font-family: inherit;
-  font-size: 12px;
-  line-height: 20px;
-  color: var(--color-primary, #4080ff);
-  background-color: rgb(var(--color-primary-value, 64, 128, 255), 0.1);
-  border-radius: 4px;
-}
-
-.b-prompt-chip--file {
-  color: var(--text-primary);
-  background-color: var(--bg-secondary);
-  border: 1px solid var(--border-primary);
-}
 </style>
