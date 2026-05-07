@@ -92,19 +92,9 @@ const STRUCTURED_SUMMARY_SCHEMA: JSONSchema7 = {
  */
 function buildSummaryUserPrompt(input: GenerateStructuredSummaryInput): string {
   const conversationText = input.items.map((item) => `[${item.role}]: ${item.trimmedText}`).join('\n\n');
-  const previousSummaryText = input.previousSummary
-    ? `${input.previousSummary.summaryText}\n${JSON.stringify(input.previousSummary.structuredSummary)}`
-    : '无';
+  const previousSummaryText = input.previousSummary ? `${input.previousSummary.summaryText}\n${JSON.stringify(input.previousSummary.structuredSummary)}` : '无';
 
-  return [
-    'PREVIOUS_SUMMARY:',
-    previousSummaryText,
-    '',
-    'CONVERSATION_CONTENT:',
-    conversationText,
-    '',
-    '请生成 JSON 格式的结构化摘要。'
-  ].join('\n');
+  return ['PREVIOUS_SUMMARY:', previousSummaryText, '', 'CONVERSATION_CONTENT:', conversationText, '', '请生成 JSON 格式的结构化摘要。'].join('\n');
 }
 
 /**

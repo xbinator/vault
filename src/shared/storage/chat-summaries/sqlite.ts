@@ -93,8 +93,13 @@ function parseStructuredSummary(row: ChatSessionSummaryRow): StructuredConversat
 
   // 验证数组字段类型（防止畸形数据导致后续运行时错误）
   const arrayFields: (keyof StructuredConversationSummary)[] = [
-    'userPreferences', 'constraints', 'decisions',
-    'importantFacts', 'fileContext', 'openQuestions', 'pendingActions'
+    'userPreferences',
+    'constraints',
+    'decisions',
+    'importantFacts',
+    'fileContext',
+    'openQuestions',
+    'pendingActions'
   ];
   for (const field of arrayFields) {
     if (!Array.isArray(parsed[field])) {
@@ -149,16 +154,23 @@ export const chatSummariesStorage: SummaryStorage = {
   async getValidSummary(sessionId: string): Promise<ConversationSummaryRecord | undefined> {
     if (isDatabaseAvailable()) {
       const rows = await dbSelect<ChatSessionSummaryRow>(SELECT_VALID_SUMMARY_SQL, [sessionId]);
-      // 尝试解析每一行，解析失败则标记无效并跳过
+
+      const invalidRowIds: string[] = [];
+      let validSummary: ConversationSummaryRecord | undefined;
+
       for (const row of rows) {
         const parsed = mapRowToSummary(row);
         if (parsed) {
-          return parsed;
+          validSummary = parsed;
+          break;
         }
-        // 解析失败：标记该行为 invalid
-        await chatSummariesStorage.updateSummaryStatus(row.id, 'invalid', 'unsupported_schema_version');
+        invalidRowIds.push(row.id);
       }
-      return undefined;
+
+      // 并行更新所有解析失败的行
+      await Promise.all(invalidRowIds.map((id) => chatSummariesStorage.updateSummaryStatus(id, 'invalid', 'unsupported_schema_version')));
+
+      return validSummary;
     }
 
     // 降级到本地存储，过滤 schema_version 不匹配的摘要
