@@ -13,7 +13,7 @@
  */
 import type { SelectionAssistantPosition, SelectionToolbarAction } from '../adapters/selectionAssistant';
 import type { CSSProperties } from 'vue';
-import { nextTick, onBeforeUnmount, ref, watch } from 'vue';
+import { nextTick, onBeforeUnmount, ref, shallowRef, watch } from 'vue';
 import { useEventListener, useResizeObserver } from '@vueuse/core';
 import SelectionToolbar from './SelectionToolbar.vue';
 
@@ -50,6 +50,8 @@ defineEmits<{
   (e: 'format', command: SelectionToolbarAction): void;
 }>();
 
+// ─── 常量 ────────────────────────────────────────────────────────────────────
+
 /**
  * 工具栏浮层与选区之间的间距。
  */
@@ -60,11 +62,45 @@ const TOOLBAR_GAP = 8;
  */
 const TOOLBAR_PADDING = 8;
 
+const TOOLBAR_Z_INDEX = 100;
+
+/** 隐藏时复用同一个对象，避免重复创建 */
+const HIDDEN_STYLE: CSSProperties = { display: 'none' };
+
+/** DOM 未测量时占位，visibility:hidden 保证不可见但可测量尺寸 */
+const MEASURING_STYLE: CSSProperties = {
+  position: 'absolute',
+  top: '0px',
+  left: '0px',
+  visibility: 'hidden',
+  zIndex: TOOLBAR_Z_INDEX
+};
+
+// ─── 状态 ────────────────────────────────────────────────────────────────────
+
 const toolbarRef = ref<HTMLElement | null>(null);
-const style = ref<CSSProperties>({ display: 'none' });
+const style = shallowRef<CSSProperties>(HIDDEN_STYLE);
 const hasMeasuredPosition = ref(false);
 const pointerPressActive = ref(false);
 let cleanupOverlayPointerListeners: (() => void) | null = null;
+
+// ─── 工具函数 ─────────────────────────────────────────────────────────────────
+
+/**
+ * 判断是否应该隐藏工具栏。
+ * @returns 是否应该隐藏
+ */
+function shouldHide(): boolean {
+  return pointerPressActive.value || !props.visible || !props.position;
+}
+
+/**
+ * 隐藏工具栏。
+ */
+function hide(): void {
+  hasMeasuredPosition.value = false;
+  style.value = HIDDEN_STYLE;
+}
 
 /**
  * 计算工具栏定位约束所需的容器尺寸。
@@ -72,158 +108,130 @@ let cleanupOverlayPointerListeners: (() => void) | null = null;
  * @returns 归一化后的容器矩形
  */
 function resolveContainerRect(position: SelectionAssistantPosition): { top: number; left: number; width: number; height: number } {
-  if (position.containerRect) {
-    return position.containerRect;
-  }
-
-  return {
-    top: 0,
-    left: 0,
-    width: props.overlayRoot?.clientWidth ?? 0,
-    height: props.overlayRoot?.clientHeight ?? 0
-  };
+  return (
+    position.containerRect ?? {
+      top: 0,
+      left: 0,
+      width: props.overlayRoot?.clientWidth ?? 0,
+      height: props.overlayRoot?.clientHeight ?? 0
+    }
+  );
 }
+
+// ─── 定位计算 ─────────────────────────────────────────────────────────────────
 
 /**
  * 基于当前锚点、工具栏尺寸和容器边界同步最终定位。
- * 顶部空间不足时会翻转到选区下方，左右位置则会被约束在容器内。
+ * 顶部空间不足时翻转到选区下方，左右位置约束在容器内。
  */
 function syncStyle(): void {
-  if (pointerPressActive.value) {
-    hasMeasuredPosition.value = false;
-    style.value = { display: 'none' };
-    return;
-  }
-
-  if (!props.visible || !props.position) {
-    hasMeasuredPosition.value = false;
-    style.value = { display: 'none' };
+  if (shouldHide()) {
+    hide();
     return;
   }
 
   const { position } = props;
-  const toolbarElement = toolbarRef.value;
-  const toolbarRect = toolbarElement?.getBoundingClientRect();
-  const toolbarWidth = toolbarRect?.width ?? toolbarElement?.offsetWidth ?? 0;
-  const toolbarHeight = toolbarRect?.height ?? toolbarElement?.offsetHeight ?? 0;
+  const toolbarEl = toolbarRef.value;
+  const toolbarRect = toolbarEl?.getBoundingClientRect();
+  const toolbarWidth = toolbarRect?.width ?? toolbarEl?.offsetWidth ?? 0;
+  const toolbarHeight = toolbarRect?.height ?? toolbarEl?.offsetHeight ?? 0;
+
+  // 尚未挂载或尺寸未就绪：切换到占位样式等待下一次测量
   if (toolbarWidth <= 0 || toolbarHeight <= 0) {
     hasMeasuredPosition.value = false;
-    style.value = {
-      position: 'absolute',
-      top: '0px',
-      left: '0px',
-      visibility: 'hidden',
-      zIndex: 100
-    };
+    style.value = MEASURING_STYLE;
     return;
   }
 
-  const containerRect = resolveContainerRect(position);
-  const anchorCenterX = position.anchorRect.left + position.anchorRect.width / 2;
+  const containerRect = resolveContainerRect(position!);
+  const anchorCenterX = position!.anchorRect.left + position!.anchorRect.width / 2;
 
+  // 水平：居中对齐锚点，并约束在容器内
   const minLeft = containerRect.left + TOOLBAR_PADDING;
   const maxLeft = containerRect.left + containerRect.width - toolbarWidth - TOOLBAR_PADDING;
-  const preferredLeft = anchorCenterX - toolbarWidth / 2;
-  const left = maxLeft >= minLeft ? Math.min(Math.max(preferredLeft, minLeft), maxLeft) : minLeft;
+  const left = maxLeft >= minLeft ? Math.min(Math.max(anchorCenterX - toolbarWidth / 2, minLeft), maxLeft) : minLeft;
 
-  const preferredTop = position.anchorRect.top - toolbarHeight - TOOLBAR_GAP;
-  const fallbackTop = position.anchorRect.top + position.lineHeight + TOOLBAR_GAP;
+  // 垂直：优先显示在选区上方，空间不足时翻转到下方
+  const topAbove = position!.anchorRect.top - toolbarHeight - TOOLBAR_GAP;
+  const topBelow = position!.anchorRect.top + position!.lineHeight + TOOLBAR_GAP;
+  const minTop = containerRect.top + TOOLBAR_PADDING;
   const maxTop = containerRect.top + containerRect.height - toolbarHeight - TOOLBAR_PADDING;
-  const top = preferredTop >= containerRect.top + TOOLBAR_PADDING ? preferredTop : Math.min(fallbackTop, Math.max(containerRect.top + TOOLBAR_PADDING, maxTop));
+  const top = topAbove >= minTop ? topAbove : Math.min(topBelow, Math.max(minTop, maxTop));
 
   style.value = {
     position: 'absolute',
     top: `${top}px`,
     left: `${left}px`,
     visibility: 'visible',
-    zIndex: 100
+    zIndex: TOOLBAR_Z_INDEX
   };
   hasMeasuredPosition.value = true;
 }
 
 /**
- * 在 DOM 更新后重新测量工具栏尺寸并同步定位。
- * 适用于显隐切换、锚点变化和内容尺寸变化后的重排。
+ * 等 DOM 更新后重新测量并同步定位。
+ * 适用于显隐切换、锚点变化、内容尺寸变化后的重排。
  */
 function syncStyleOnNextTick(): void {
-  if (pointerPressActive.value || !props.visible || !props.position) {
-    style.value = { display: 'none' };
-    hasMeasuredPosition.value = false;
+  if (shouldHide()) {
+    hide();
     return;
   }
 
   if (!hasMeasuredPosition.value) {
-    style.value = {
-      position: 'absolute',
-      top: '0px',
-      left: '0px',
-      visibility: 'hidden',
-      zIndex: 100
-    };
+    style.value = MEASURING_STYLE;
   }
 
-  nextTick(() => {
-    syncStyle();
-  });
+  nextTick(syncStyle);
 }
+
+// ─── 指针监听 ─────────────────────────────────────────────────────────────────
 
 /**
  * 绑定 overlayRoot 上的指针按下/抬起监听。
- * 按下编辑区时立即隐藏 toolbar，避免上一轮 toolbar 在拖拽开始瞬间闪现。
+ * 按下编辑区时立即隐藏 toolbar，避免拖拽开始瞬间闪现。
  */
 function bindOverlayPointerListeners(): void {
   cleanupOverlayPointerListeners?.();
   const { overlayRoot } = props;
-  if (!overlayRoot) {
-    return;
-  }
+  if (!overlayRoot) return;
 
-  const handlePointerDown = (event: PointerEvent): void => {
-    const target = event.target as Node | null;
-    const toolbarElement = toolbarRef.value;
-    if (toolbarElement?.contains(target)) {
-      return;
-    }
-
+  const onPointerDown = (event: PointerEvent): void => {
+    if (toolbarRef.value?.contains(event.target as Node)) return;
     pointerPressActive.value = true;
-    hasMeasuredPosition.value = false;
-    style.value = { display: 'none' };
+    hide();
   };
 
-  const handlePointerUp = (): void => {
-    if (!pointerPressActive.value) {
-      return;
-    }
-
+  const onPointerUp = (): void => {
+    if (!pointerPressActive.value) return;
     pointerPressActive.value = false;
     syncStyleOnNextTick();
   };
 
-  overlayRoot.addEventListener('pointerdown', handlePointerDown, true);
-  document.addEventListener('pointerup', handlePointerUp, true);
+  overlayRoot.addEventListener('pointerdown', onPointerDown, true);
+  document.addEventListener('pointerup', onPointerUp, true);
 
   cleanupOverlayPointerListeners = (): void => {
-    overlayRoot.removeEventListener('pointerdown', handlePointerDown, true);
-    document.removeEventListener('pointerup', handlePointerUp, true);
+    overlayRoot.removeEventListener('pointerdown', onPointerDown, true);
+    document.removeEventListener('pointerup', onPointerUp, true);
   };
 }
 
-watch(() => props.visible, syncStyleOnNextTick, { immediate: true });
-watch(() => props.position, syncStyleOnNextTick, { deep: true });
-watch(() => props.formatButtons, syncStyleOnNextTick, { deep: true });
+// ─── 侦听器 & 生命周期 ────────────────────────────────────────────────────────
+
+watch([() => props.visible, () => props.position, () => props.formatButtons], syncStyleOnNextTick, {
+  deep: true,
+  immediate: true
+});
+
 watch(() => props.overlayRoot, bindOverlayPointerListeners, { immediate: true });
 
-useResizeObserver(toolbarRef, (): void => {
-  syncStyle();
-});
-
-useEventListener(window, 'resize', (): void => {
-  syncStyle();
-});
+useResizeObserver(toolbarRef, syncStyle);
+useEventListener(window, 'resize', syncStyle);
 
 onBeforeUnmount((): void => {
   cleanupOverlayPointerListeners?.();
   cleanupOverlayPointerListeners = null;
-  style.value = { display: 'none' };
+  style.value = HIDDEN_STYLE;
 });
 </script>

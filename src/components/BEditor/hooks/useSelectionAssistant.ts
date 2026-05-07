@@ -13,7 +13,7 @@ import type {
   SelectionAssistantPosition,
   SelectionAssistantRange
 } from '../adapters/selectionAssistant';
-import { computed, onBeforeUnmount, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, ref, shallowRef, watch } from 'vue';
 import { emitChatFileReferenceInsert } from '@/shared/chat/fileReference';
 
 /**
@@ -39,11 +39,11 @@ export interface UseSelectionAssistantOptions {
 export function useSelectionAssistant(options: UseSelectionAssistantOptions) {
   // ---- 核心状态 ----
   const status = ref<SelectionAssistantStatus>('idle');
-  const cachedSelectionRange = ref<SelectionAssistantRange | null>(null);
-  const toolbarPosition = ref<SelectionAssistantPosition | null>(null);
-  const panelPosition = ref<SelectionAssistantPosition | null>(null);
-  const stickyHighlightRange = ref<SelectionAssistantRange | null>(null);
-  const capabilities = ref<SelectionAssistantCapabilities>({ actions: {} });
+  const cachedSelectionRange = shallowRef<SelectionAssistantRange | null>(null);
+  const toolbarPosition = shallowRef<SelectionAssistantPosition | null>(null);
+  const panelPosition = shallowRef<SelectionAssistantPosition | null>(null);
+  const stickyHighlightRange = shallowRef<SelectionAssistantRange | null>(null);
+  const capabilities = shallowRef<SelectionAssistantCapabilities>({ actions: {} });
   const awaitingSelectionSyncAfterFocus = ref(false);
   const pointerSelectionActive = ref(false);
 
@@ -60,6 +60,24 @@ export function useSelectionAssistant(options: UseSelectionAssistantOptions) {
   /** 引用按钮是否可用 */
   const isReferenceActionAvailable = computed(() => capabilities.value.actions?.reference === true);
 
+  // ---- 工具函数 ----
+  /**
+   * 获取当前 adapter 实例。
+   * @returns adapter 实例或 null
+   */
+  function getAdapter(): SelectionAssistantAdapter | null {
+    return options.adapter();
+  }
+
+  /**
+   * 清理选区相关的位置状态。
+   */
+  function clearPositions(): void {
+    cachedSelectionRange.value = null;
+    toolbarPosition.value = null;
+    panelPosition.value = null;
+  }
+
   // ---- 事件绑定 ----
   let cleanupAdapterEvents: (() => void) | undefined;
 
@@ -68,7 +86,7 @@ export function useSelectionAssistant(options: UseSelectionAssistantOptions) {
    */
   function bindAdapterEvents(): void {
     cleanupAdapterEvents?.();
-    const adapter = options.adapter();
+    const adapter = getAdapter();
     if (!adapter) {
       return;
     }
@@ -117,7 +135,7 @@ export function useSelectionAssistant(options: UseSelectionAssistantOptions) {
    * 处理选区变化：同步缓存、高亮、定位与状态。
    */
   function handleSelectionChange(): void {
-    const adapter = options.adapter();
+    const adapter = getAdapter();
     if (!adapter) {
       return;
     }
@@ -136,9 +154,7 @@ export function useSelectionAssistant(options: UseSelectionAssistantOptions) {
         awaitingSelectionSyncAfterFocus.value = false;
         clearStickyHighlight();
         transitionTo('idle');
-        cachedSelectionRange.value = null;
-        toolbarPosition.value = null;
-        panelPosition.value = null;
+        clearPositions();
         return;
       }
 
@@ -236,7 +252,7 @@ export function useSelectionAssistant(options: UseSelectionAssistantOptions) {
    * 避免旧高亮残留到下一次 mouseup/selectionChange 才清除。
    */
   function handlePointerDownInsideEditor(): void {
-    const adapter = options.adapter();
+    const adapter = getAdapter();
     if (!adapter) {
       return;
     }
@@ -245,15 +261,12 @@ export function useSelectionAssistant(options: UseSelectionAssistantOptions) {
       case 'reference-highlight':
         clearStickyHighlight();
         transitionTo('idle');
-        cachedSelectionRange.value = null;
-        toolbarPosition.value = null;
-        panelPosition.value = null;
+        clearPositions();
         break;
       case 'toolbar-visible':
         adapter.clearSelectionHighlight();
         transitionTo('idle');
-        cachedSelectionRange.value = null;
-        toolbarPosition.value = null;
+        clearPositions();
         break;
       case 'ai-input-visible':
       case 'ai-streaming':
@@ -276,7 +289,7 @@ export function useSelectionAssistant(options: UseSelectionAssistantOptions) {
       return;
     }
 
-    const adapter = options.adapter();
+    const adapter = getAdapter();
     if (!adapter) {
       return;
     }
@@ -292,12 +305,10 @@ export function useSelectionAssistant(options: UseSelectionAssistantOptions) {
    * 关闭 AI 输入面板，回到 idle。
    */
   function closeAIInput(): void {
-    const adapter = options.adapter();
+    const adapter = getAdapter();
     adapter?.clearSelectionHighlight();
     transitionTo('idle');
-    cachedSelectionRange.value = null;
-    panelPosition.value = null;
-    toolbarPosition.value = null;
+    clearPositions();
   }
 
   /**
@@ -306,7 +317,7 @@ export function useSelectionAssistant(options: UseSelectionAssistantOptions) {
    */
   async function applyAIResult(content: string): Promise<void> {
     const range = cachedSelectionRange.value;
-    const adapter = options.adapter();
+    const adapter = getAdapter();
     if (!range || !adapter) {
       return;
     }
@@ -322,9 +333,7 @@ export function useSelectionAssistant(options: UseSelectionAssistantOptions) {
       // 应用成功后清理高亮，回到 idle
       adapter.clearSelectionHighlight();
       transitionTo('idle');
-      cachedSelectionRange.value = null;
-      panelPosition.value = null;
-      toolbarPosition.value = null;
+      clearPositions();
     } catch (error) {
       transitionTo('ai-input-visible');
     }
@@ -362,7 +371,7 @@ export function useSelectionAssistant(options: UseSelectionAssistantOptions) {
    */
   function insertReference(): void {
     const range = cachedSelectionRange.value;
-    const adapter = options.adapter();
+    const adapter = getAdapter();
     if (!range || !adapter) {
       return;
     }
@@ -387,7 +396,7 @@ export function useSelectionAssistant(options: UseSelectionAssistantOptions) {
    * 重新计算工具栏浮层位置。
    */
   function recomputeToolbarPosition(): void {
-    const adapter = options.adapter();
+    const adapter = getAdapter();
     const range = cachedSelectionRange.value;
     if (!adapter || !range) {
       toolbarPosition.value = null;
@@ -400,7 +409,7 @@ export function useSelectionAssistant(options: UseSelectionAssistantOptions) {
    * 重新计算 AI 面板浮层位置。
    */
   function recomputePanelPosition(): void {
-    const adapter = options.adapter();
+    const adapter = getAdapter();
     const range = cachedSelectionRange.value;
     if (!adapter || !range) {
       panelPosition.value = null;
@@ -422,7 +431,7 @@ export function useSelectionAssistant(options: UseSelectionAssistantOptions) {
    * 仅清理粘性高亮（保留其他状态）。
    */
   function clearStickyHighlight(): void {
-    const adapter = options.adapter();
+    const adapter = getAdapter();
     adapter?.clearSelectionHighlight();
     stickyHighlightRange.value = null;
   }
@@ -431,12 +440,10 @@ export function useSelectionAssistant(options: UseSelectionAssistantOptions) {
    * 清理所有选区工具状态。
    */
   function clearAll(): void {
-    const adapter = options.adapter();
+    const adapter = getAdapter();
     adapter?.clearSelectionHighlight();
     status.value = 'idle';
-    cachedSelectionRange.value = null;
-    toolbarPosition.value = null;
-    panelPosition.value = null;
+    clearPositions();
     stickyHighlightRange.value = null;
     awaitingSelectionSyncAfterFocus.value = false;
     pointerSelectionActive.value = false;
@@ -458,7 +465,7 @@ export function useSelectionAssistant(options: UseSelectionAssistantOptions) {
 
   onBeforeUnmount(() => {
     cleanupAdapterEvents?.();
-    options.adapter()?.dispose?.();
+    getAdapter()?.dispose?.();
   });
 
   return {
