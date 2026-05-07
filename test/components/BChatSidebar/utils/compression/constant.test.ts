@@ -33,8 +33,8 @@ describe('compression constant', () => {
     expect(COMPRESSION_SUMMARY_TEXT_MAX).toBe(4_000);
   });
 
-  it('CURRENT_SCHEMA_VERSION is 1', () => {
-    expect(CURRENT_SCHEMA_VERSION).toBe(1);
+  it('CURRENT_SCHEMA_VERSION is 2', () => {
+    expect(CURRENT_SCHEMA_VERSION).toBe(2);
   });
 
   it('round threshold should be greater than recent preserve', () => {

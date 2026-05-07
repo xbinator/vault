@@ -9,12 +9,14 @@ import type { ModelMessage } from 'ai';
 import type { AIToolExecutor, AIToolContext, AIServiceError, AIStreamFinishChunk, AIStreamToolCallChunk } from 'types/ai';
 import type { AIUserChoiceAnswerData, ChatMessageConfirmationAction } from 'types/chat';
 import { nextTick, ref, shallowRef, type Ref } from 'vue';
+import dayjs from 'dayjs';
 import { getModelToolSupport } from '@/ai/tools/policy';
 import { executeToolCall, toTransportTools, type ExecutedToolCall } from '@/ai/tools/stream';
 import { useChat } from '@/hooks/useChat';
 import { chatSummariesStorage } from '@/shared/storage/chat-summaries';
 import { useServiceModelStore } from '@/stores/serviceModel';
 import { createCompressionCoordinator } from '../utils/compression/coordinator';
+import { CompressionError, emitCompressionEvent, getCompressionErrorMessage } from '../utils/compression/error';
 import { buildChatMessageReferences } from '../utils/fileReferenceContext';
 import { append, convert, create, userChoice, is } from '../utils/messageHelper';
 import { createToolCallTracker, type ToolCallTracker } from '../utils/toolCallTracker';
@@ -154,7 +156,7 @@ export function useChatStream(options: UseChatStreamOptions): UseChatStreamRetur
 
     lastMessage.loading = false;
     lastMessage.finished = true;
-    lastMessage.createdAt ||= new Date().toISOString();
+    lastMessage.createdAt ||= dayjs().toISOString();
     return lastMessage;
   }
 
@@ -280,7 +282,7 @@ export function useChatStream(options: UseChatStreamOptions): UseChatStreamRetur
 
     append.textPart(message, content);
     message.loading = false;
-    message.createdAt ||= new Date().toISOString();
+    message.createdAt ||= dayjs().toISOString();
   }
 
   /**
@@ -292,7 +294,7 @@ export function useChatStream(options: UseChatStreamOptions): UseChatStreamRetur
 
     append.thinkingPart(message, thinking);
     message.loading = false;
-    message.createdAt ||= new Date().toISOString();
+    message.createdAt ||= dayjs().toISOString();
   }
 
   /**
@@ -310,7 +312,7 @@ export function useChatStream(options: UseChatStreamOptions): UseChatStreamRetur
     if (reuseLastAssistant && lastMessage?.role === 'assistant') {
       lastMessage.loading = true;
       lastMessage.finished = false;
-      lastMessage.createdAt ||= new Date().toISOString();
+      lastMessage.createdAt ||= dayjs().toISOString();
       return lastMessage;
     }
 
@@ -333,6 +335,7 @@ export function useChatStream(options: UseChatStreamOptions): UseChatStreamRetur
 
     // 处理文件引用
     const nextMessages = buildChatMessageReferences(sourceMessages);
+    const transportTools = config.toolSupport.supported && Boolean(tools?.length) ? toTransportTools(tools ?? []) : undefined;
 
     // 执行上下文压缩（仅在非复用助手消息时）
     let continuedMessages: ModelMessage[];
@@ -343,7 +346,10 @@ export function useChatStream(options: UseChatStreamOptions): UseChatStreamRetur
           const compressionResult = await compressionCoordinator.prepareMessagesBeforeSend({
             sessionId,
             messages: nextMessages,
-            currentUserMessage: nextMessages[nextMessages.length - 1]
+            currentUserMessage: nextMessages[nextMessages.length - 1],
+            providerId: config.providerId,
+            toolDefinitions: transportTools,
+            modelId: config.modelId
           });
 
           if (compressionResult.compressed) {
@@ -351,6 +357,8 @@ export function useChatStream(options: UseChatStreamOptions): UseChatStreamRetur
             continuedMessages = compressionResult.modelMessages;
             // 清空模型消息缓存，因为消息结构已改变
             currentModelMessageCache = undefined;
+            // 触发自动压缩成功事件
+            emitCompressionEvent({ type: 'auto_compressed' });
           } else {
             // 未压缩，继续原有流程
             currentModelMessageCache = convert.toCachedModelMessages(nextMessages, currentModelMessageCache);
@@ -359,6 +367,12 @@ export function useChatStream(options: UseChatStreamOptions): UseChatStreamRetur
         } catch (error) {
           // 压缩失败时继续使用原始消息
           console.error('[useChatStream] Compression failed, using original messages:', error);
+          if (error instanceof CompressionError) {
+            emitCompressionEvent({
+              type: 'auto_compress_failed',
+              message: getCompressionErrorMessage(error.stage)
+            });
+          }
           currentModelMessageCache = convert.toCachedModelMessages(nextMessages, currentModelMessageCache);
           continuedMessages = [...currentModelMessageCache.modelMessages];
         }
@@ -372,8 +386,6 @@ export function useChatStream(options: UseChatStreamOptions): UseChatStreamRetur
       currentModelMessageCache = convert.toCachedModelMessages(nextMessages, currentModelMessageCache);
       continuedMessages = [...currentModelMessageCache.modelMessages];
     }
-
-    const transportTools = config.toolSupport.supported && Boolean(tools?.length) ? toTransportTools(tools ?? []) : undefined;
 
     agent.stream({ messages: continuedMessages, modelId: config.modelId, providerId: config.providerId, tools: transportTools });
   }

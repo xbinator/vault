@@ -230,62 +230,117 @@ describe('Compression Integration', () => {
     });
   });
 
-  describe('End-to-end compression flow', () => {
-    it('handles compression coordinator initialization', async () => {
-      const { createCompressionCoordinator } = await import('@/components/BChatSidebar/utils/compression/coordinator');
+  describe('useCompression.loadSummary', () => {
+    it('loads valid summary from storage', async () => {
+      localStorage.clear();
       const { chatSummariesStorage } = await import('@/shared/storage/chat-summaries');
+      const { useCompression } = await import('@/components/BChatSidebar/hooks/useCompression');
 
-      const coordinator = createCompressionCoordinator(chatSummariesStorage);
-      expect(coordinator).toBeDefined();
-      expect(typeof coordinator.prepareMessagesBeforeSend).toBe('function');
-    });
-
-    it('prepares messages without compression when under threshold', async () => {
-      const { createCompressionCoordinator } = await import('@/components/BChatSidebar/utils/compression/coordinator');
-      const { chatSummariesStorage } = await import('@/shared/storage/chat-summaries');
-
-      // Create only 10 messages (5 rounds)
-      const messages: Message[] = [];
-      for (let i = 0; i < 10; i++) {
-        const role = i % 2 === 0 ? 'user' : 'assistant';
-        messages.push(createTestMessage(`m${i + 1}`, role, `Message ${i + 1}`));
-      }
-
-      const coordinator = createCompressionCoordinator(chatSummariesStorage);
-      const result = await coordinator.prepareMessagesBeforeSend({
+      // 创建一个有效摘要
+      await chatSummariesStorage.createSummary({
         sessionId: 'session-1',
-        messages,
-        currentUserMessage: messages[messages.length - 1]
+        buildMode: 'incremental',
+        coveredStartMessageId: 'm1',
+        coveredEndMessageId: 'm10',
+        coveredUntilMessageId: 'm10',
+        sourceMessageIds: ['m1'],
+        preservedMessageIds: [],
+        summaryText: 'loaded summary',
+        structuredSummary: {
+          goal: 'test',
+          recentTopic: 'testing',
+          userPreferences: [],
+          constraints: [],
+          decisions: [],
+          importantFacts: [],
+          fileContext: [],
+          openQuestions: [],
+          pendingActions: []
+        },
+        triggerReason: 'message_count',
+        messageCountSnapshot: 10,
+        charCountSnapshot: 1000,
+        schemaVersion: 1,
+        status: 'valid',
+        invalidReason: undefined
       });
 
-      // Should not compress because under threshold
-      expect(result.compressed).toBe(false);
-      // Model messages may include system message, so just check it's greater than 0
-      expect(result.modelMessages.length).toBeGreaterThan(0);
-    });
-
-    it('degrades manual full rebuild to incremental when trim input exceeds the hard limit', async () => {
-      const { createCompressionCoordinator } = await import('@/components/BChatSidebar/utils/compression/coordinator');
-      const { chatSummariesStorage } = await import('@/shared/storage/chat-summaries');
-
-      const coordinator = createCompressionCoordinator(chatSummariesStorage);
-
-      // 创建大量超长消息，确保 ruleTrim 超过 COMPRESSION_INPUT_CHAR_LIMIT (32,000)
-      // 注意：每条消息内容需不同，否则 ruleTrim 的去重逻辑会合并连续相同内容
-      const messages: Message[] = [];
-      for (let i = 1; i <= 200; i += 1) {
-        const role = i % 2 === 1 ? 'user' : 'assistant';
-        messages.push(createTestMessage(`m${i}`, role, `Message ${i} `.padEnd(1000, 'X')));
-      }
-
-      const summary = await coordinator.compressSessionManually({
-        sessionId: 'session-1',
-        messages
+      const compression = useCompression({
+        getSessionId: () => 'session-1',
+        getMessages: () => []
       });
 
-      // 手动压缩降级时 buildMode 仍为 full_rebuild（用户意图），通过 degradeReason 标记执行层降级
-      expect(summary?.buildMode).toBe('full_rebuild');
-      expect(summary?.degradeReason).toBe('degraded_to_incremental');
+      await compression.loadSummary();
+      expect(compression.currentSummary.value).toBeDefined();
+      expect(compression.currentSummary.value?.summaryText).toBe('loaded summary');
+    });
+
+    it('handles storage error gracefully', async () => {
+      const { useCompression } = await import('@/components/BChatSidebar/hooks/useCompression');
+      // 使用不存在的 sessionId，不应抛出异常
+      const compression = useCompression({
+        getSessionId: () => undefined,
+        getMessages: () => []
+      });
+
+      await compression.loadSummary();
+      expect(compression.currentSummary.value).toBeUndefined();
+    });
+  });
+
+  describe('useCompression.compress flow', () => {
+    it('calls loadSummary after successful compression', async () => {
+      const { useCompression } = await import('@/components/BChatSidebar/hooks/useCompression');
+
+      const messages: Message[] = [];
+      for (let i = 1; i <= 14; i += 1) {
+        messages.push(createTestMessage(`m${i}`, i % 2 === 1 ? 'user' : 'assistant', `Message ${i}`));
+      }
+
+      const compression = useCompression({
+        getSessionId: () => 'session-1',
+        getMessages: () => messages
+      });
+
+      const success = await compression.compress();
+      expect(success).toBe(true);
+      // 压缩成功后应自动加载摘要
+      expect(compression.currentSummary.value).toBeDefined();
+    });
+  });
+
+  describe('CompressionButton component', () => {
+    it('emits compress event when compress action clicked', async () => {
+      const { mount } = await import('@vue/test-utils');
+      const CompressionButton = (await import('@/components/BChatSidebar/components/CompressionButton.vue')).default;
+
+      const wrapper = mount(CompressionButton, {
+        props: {
+          disabled: false,
+          compressing: false
+        },
+        global: {
+          stubs: {
+            BDropdown: {
+              template: '<div class="b-dropdown"><slot name="overlay" /></div>',
+              props: ['open', 'align']
+            },
+            BModal: {
+              template: '<div class="b-modal"><slot /></div>',
+              props: ['open', 'title', 'footer', 'width']
+            },
+            Icon: true,
+            SummaryModal: true
+          }
+        }
+      });
+
+      // 找到压缩菜单项并点击
+      const compressItem = wrapper.find('.compression-menu__item');
+      expect(compressItem.exists()).toBe(true);
+      await compressItem.trigger('click');
+
+      expect(wrapper.emitted('compress')).toHaveLength(1);
     });
   });
 });

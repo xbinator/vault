@@ -6,6 +6,7 @@ import type { AssembledContext, AssemblerInput, ConversationSummaryRecord } from
 import type { ModelMessage } from 'ai';
 import { isEmpty } from 'lodash-es';
 import { convert } from '@/components/BChatSidebar/utils/messageHelper';
+import { buildMultiSegmentSummarySystemMessage } from './segmentRecall';
 
 /**
  * 生成摘要注入的 system message 内容。
@@ -38,7 +39,11 @@ export function assembleContext(input: AssemblerInput): AssembledContext {
   }
 
   // 2. 会话历史摘要（system message）
-  if (input.summaryRecord) {
+  // 优先使用多段摘要，否则使用单段摘要
+  if (input.summaryRecords && input.summaryRecords.length > 0) {
+    const multiSegmentContent = buildMultiSegmentSummarySystemMessage(input.summaryRecords);
+    modelMessages.push({ role: 'system', content: multiSegmentContent });
+  } else if (input.summaryRecord) {
     const summaryContent = buildSummarySystemMessage(input.summaryRecord);
     modelMessages.push({ role: 'system', content: summaryContent });
   }

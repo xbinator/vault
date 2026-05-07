@@ -5,6 +5,7 @@
 import type { AIUsage } from 'types/ai';
 import type { ChatMessageHistoryCursor, ChatMessageRecord, ChatSession, ChatSessionType, PaginatedSessionsResult, SessionPaginationParams } from 'types/chat';
 import { defineStore } from 'pinia';
+import dayjs from 'dayjs';
 import { nanoid } from 'nanoid';
 import { is, type PersistableMessage } from '@/components/BChatSidebar/utils/messageHelper';
 import type { Message } from '@/components/BChatSidebar/utils/types';
@@ -17,7 +18,7 @@ import { chatStorage } from '@/shared/storage';
  * @returns 可存储的聊天消息记录。
  */
 function toRecordMessage(sessionId: string, message: PersistableMessage): ChatMessageRecord {
-  const { id, role, content, parts, thinking, files, usage, createdAt = new Date().toISOString() } = message;
+  const { id, role, content, parts, thinking, files, usage, createdAt = dayjs().toISOString() } = message;
 
   return { sessionId, id, role, content, parts, thinking, files, usage, createdAt };
 }
@@ -82,7 +83,7 @@ export const useChatStore = defineStore('chat', {
      * @returns 创建的会话记录。
      */
     async createSession(type: ChatSessionType, { title = '新会话' }: { title?: string } = {}): Promise<ChatSession> {
-      const now = new Date().toISOString();
+      const now = dayjs().toISOString();
       const session: ChatSession = { id: nanoid(), type, title, createdAt: now, updatedAt: now, lastMessageAt: now };
 
       await chatStorage.createSession(session);

@@ -189,10 +189,12 @@ const refInfo = message.references
 - `message.content` 可能包含多个文件引用的混合描述，截断后语义不完整
 - 多个 references 共享同一个 intent 截断，无法区分每个引用的意图
 
-**改进**：每个引用独立提取 intent，优先使用引用自身的 selectedContent 摘要
+**改进**：每个引用独立组织摘要内容。若当前数据结构没有 ref-level intent，则显式保留 message-level intent，同时让每个引用携带自己的 snippet，避免“看起来像 ref-level intent，实际却是共享同一段 message.content 截断”的歧义。
 
 ```ts
 if (message.references?.length) {
+  const messageIntent = extractMessageIntent(message.content);
+
   return message.references
     .map((ref) => {
       const lineInfo = ref.startLine ? `:${ref.startLine}-${ref.endLine}` : '';
@@ -202,14 +204,13 @@ if (message.references?.length) {
           ? `${ref.selectedContent.slice(0, 40)}...${ref.selectedContent.slice(-30)}`
           : ref.selectedContent
         : '';
-      return `[file: ${fileName}${lineInfo}, intent: ${message.content.slice(0, 60)}, snippet: ${snippet}]`;
+      return `[file: ${fileName}${lineInfo}, message_intent: ${messageIntent}, snippet: ${snippet}]`;
     })
     .join('; ');
 }
 ```
 
-注意：这里是 message-level intent，不是 ref-level intent。文件路径使用 `fileName`（不含完整绝对路径），不直接注入 `ref.path` 完整路径。
-```
+注意：这里显式使用 `message_intent` 命名，表示它仍然是 message-level intent，而不是 ref-level intent。文件路径使用 `fileName`（不含完整绝对路径），不直接注入 `ref.path` 完整路径。若后续补齐 ref-level intent 字段，再把 `message_intent` 升级为真正的 `ref_intent`。
 
 #### tool-result 裁剪改进
 
@@ -452,10 +453,13 @@ export function computeCompressionTokenThreshold(
   contextWindow: number,
   reservedOutputTokens: number = 4_096
 ): number {
-  return Math.min(
+  const dynamicThreshold = Math.min(
     contextWindow * 0.65,
     contextWindow - reservedOutputTokens - 1_024 // 1_024 为安全边界
   );
+
+  // 为小上下文窗口模型保留阈值下界，避免出现负数导致“永远触发压缩”
+  return Math.max(1_024, dynamicThreshold);
 }
 
 /** 自动压缩触发——上下文体积阈值（字符数），作为 token 估算不可用时的降级 */
@@ -466,6 +470,7 @@ export const COMPRESSION_CHAR_THRESHOLD = 24_000;
 
 - 若当前模型能拿到上下文窗口元信息，则压缩阈值优先按窗口大小动态计算，建议取 `maxContextTokens * 0.6 ~ 0.7`
 - 若拿不到模型窗口信息，再回退到固定默认值 `8_000`
+- 若模型上下文窗口极小，动态阈值计算结果必须做下界保护，避免出现负数或过小阈值
 
 这样可以避免在小窗口模型上触发过晚，也避免在大窗口模型上过早压缩。
 
@@ -573,16 +578,23 @@ assistant 消息和 user 消息一样，统一基于 `convert.toModelMessages()`
 
 **2. system prompt 的 token**
 
-每次发送都包含 system prompt，可以估算一次后缓存：
+每次发送都包含 system prompt，可以估算后按 encoding 名称缓存，避免模型切换后复用错误的 token 数：
 
 ```ts
-let cachedSystemPromptTokens: number | undefined;
+const systemPromptTokenCache = new Map<string, number>();
 
-function getSystemPromptTokens(tokenEstimator: TokenEstimator): number {
-  if (cachedSystemPromptTokens === undefined) {
-    cachedSystemPromptTokens = tokenEstimator.estimateText(SYSTEM_PROMPT);
+function getSystemPromptTokens(
+  tokenEstimator: TokenEstimator,
+  encodingName: string
+): number {
+  const cached = systemPromptTokenCache.get(encodingName);
+  if (cached !== undefined) {
+    return cached;
   }
-  return cachedSystemPromptTokens;
+
+  const tokenCount = tokenEstimator.estimateText(SYSTEM_PROMPT);
+  systemPromptTokenCache.set(encodingName, tokenCount);
+  return tokenCount;
 }
 ```
 
@@ -728,10 +740,10 @@ onFinish: async ({ usage }: AIStreamFinishChunk): Promise<void> => {
     // 降级：用 tiktoken 估算当前消息的 token
     const currentUserMessage = messages.value.findLast(m => m.role === 'user');
     if (currentUserMessage) {
-      currentUserMessage.tokenCount = await tokenEstimator.estimateText(currentUserMessage.content);
+      currentUserMessage.tokenCount = tokenEstimator.estimateText(currentUserMessage.content);
     }
     if (message.role === 'assistant') {
-      message.tokenCount = await tokenEstimator.estimateText(message.content);
+      message.tokenCount = tokenEstimator.estimateText(message.content);
     }
   }
 }

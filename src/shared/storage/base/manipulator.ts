@@ -1,4 +1,5 @@
 import type { ConverterOptions, StorageData, SetStorage } from './type';
+import dayjs from 'dayjs';
 import { isNull, isNumber } from 'lodash-es';
 
 /**
@@ -79,7 +80,7 @@ export function encodeData<T = unknown>(value: StorageData<T>, options: SetStora
   if (isDate(options.expires)) {
     data.expires = options.expires.getTime();
   } else if (isNumber(options.expires) && Number.isFinite(options.expires)) {
-    data.expires = new Date(Date.now() + options.expires * 1000).getTime();
+    data.expires = dayjs().add(options.expires, 'second').valueOf();
   }
 
   const configs = { isSerialize: true, isEscape: false, ...options };

@@ -7,6 +7,7 @@ import type { Message } from '../utils/types';
 import { ref } from 'vue';
 import { chatSummariesStorage } from '@/shared/storage/chat-summaries';
 import { createCompressionCoordinator } from '../utils/compression/coordinator';
+import { CompressionError, getCompressionErrorMessage } from '../utils/compression/error';
 
 /**
  * 压缩管理 Hook 的依赖项
@@ -93,7 +94,11 @@ export function useCompression(options: CompressionOptions) {
       error.value = '没有可压缩的消息';
       return false;
     } catch (err) {
-      error.value = err instanceof Error ? err.message : '压缩失败';
+      if (err instanceof CompressionError) {
+        error.value = getCompressionErrorMessage(err.stage);
+      } else {
+        error.value = err instanceof Error ? err.message : '压缩失败';
+      }
       return false;
     } finally {
       compressing.value = false;

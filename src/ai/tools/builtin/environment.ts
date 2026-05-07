@@ -3,6 +3,7 @@
  * @description 内置环境只读工具实现。
  */
 import type { AIToolExecutor } from 'types/ai';
+import dayjs from 'dayjs';
 import { createToolSuccessResult } from '../results';
 
 /**
@@ -45,12 +46,12 @@ export function createBuiltinEnvironmentTools(): BuiltinEnvironmentTools {
         parameters: { type: 'object', properties: {}, additionalProperties: false }
       },
       async execute() {
-        const now = new Date();
+        const now = dayjs();
 
         return createToolSuccessResult(GET_CURRENT_TIME_TOOL_NAME, {
           iso: now.toISOString(),
-          timestamp: now.getTime(),
-          locale: now.toLocaleString()
+          timestamp: now.valueOf(),
+          locale: now.format('YYYY-MM-DD HH:mm:ss')
         });
       }
     }

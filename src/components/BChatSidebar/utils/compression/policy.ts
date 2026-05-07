@@ -2,12 +2,38 @@
  * @file policy.ts
  * @description 压缩策略判断：上下文字符体积估算、双阈值触发判断。
  */
-import type { CompressionPolicyResult, ConversationSummaryRecord, TriggerReason } from './types';
+import type { CompressionPolicyResult, ContextBudgetSnapshot, ConversationSummaryRecord, TriggerReason } from './types';
 import type { ModelMessage } from 'ai';
 import { sumBy } from 'lodash-es';
 import { convert } from '@/components/BChatSidebar/utils/messageHelper';
 import type { Message } from '@/components/BChatSidebar/utils/types';
 import { COMPRESSION_CHAR_THRESHOLD, COMPRESSION_ROUND_THRESHOLD, COMPRESSION_SUMMARY_TEXT_MAX } from './constant';
+
+/** 自动压缩触发——上下文体积阈值（token 数），优先按模型上下文窗口动态计算 */
+export const COMPRESSION_TOKEN_THRESHOLD = 8_000;
+
+/**
+ * 按模型上下文窗口动态计算压缩阈值。
+ * 对小窗口模型使用比例化保留，避免固定阈值超过窗口本身。
+ * @param contextWindow - 模型上下文窗口大小
+ * @param reservedOutputTokens - 预留输出 token 数
+ * @returns 用于触发压缩的 token 阈值
+ */
+export function computeCompressionTokenThreshold(contextWindow: number, reservedOutputTokens: number = 4_096): number {
+  if (contextWindow <= 0) {
+    return COMPRESSION_TOKEN_THRESHOLD;
+  }
+
+  const safetyMargin = Math.min(1_024, Math.floor(contextWindow * 0.15));
+  const effectiveReservedOutput = Math.min(reservedOutputTokens, Math.floor(contextWindow * 0.5));
+  const availableBudget = contextWindow - effectiveReservedOutput - safetyMargin;
+
+  if (availableBudget <= 0) {
+    return Math.max(1, Math.floor(contextWindow * 0.5));
+  }
+
+  return Math.max(1, Math.min(Math.floor(contextWindow * 0.65), availableBudget));
+}
 
 /**
  * 估算单条 ModelMessage 的字符数。
@@ -102,6 +128,43 @@ ${summaryOverhead}
 }
 
 /**
+ * 基于 ContextBudgetSnapshot 判断是否应该触发压缩。
+ * @param snapshot - 上下文预算快照
+ * @returns 压缩策略判断结果
+ */
+export function evaluateFromSnapshot(snapshot: ContextBudgetSnapshot): CompressionPolicyResult {
+  const roundExceeded = snapshot.roundCount >= COMPRESSION_ROUND_THRESHOLD;
+  const tokenThreshold = snapshot.tokenThreshold ?? COMPRESSION_TOKEN_THRESHOLD;
+
+  // 优先使用 token 阈值（如果可用），否则降级到字符阈值
+  let charExceeded = false;
+  if (snapshot.tokenCount !== undefined) {
+    charExceeded = snapshot.tokenCount >= tokenThreshold;
+  } else {
+    charExceeded = snapshot.charCount >= COMPRESSION_CHAR_THRESHOLD;
+  }
+
+  let shouldCompress = false;
+  let triggerReason: TriggerReason = 'message_count';
+
+  if (roundExceeded) {
+    shouldCompress = true;
+    triggerReason = 'message_count';
+  } else if (charExceeded) {
+    shouldCompress = true;
+    triggerReason = 'context_size';
+  }
+
+  return {
+    shouldCompress,
+    triggerReason,
+    roundCount: snapshot.roundCount,
+    charCount: snapshot.charCount,
+    tokenCount: snapshot.tokenCount
+  };
+}
+
+/**
  * 判断是否应该触发压缩。
  * 基于双阈值：消息轮数和上下文字符体积，任一超限即触发。
  * 如果有有效摘要，会计算摘要注入 + preserved passthrough + 近期消息的总和。
@@ -127,25 +190,5 @@ export function evaluateCompression(messages: Message[], currentSummary?: Conver
     roundCount = countMessageRounds(messages);
   }
 
-  const roundExceeded = roundCount >= COMPRESSION_ROUND_THRESHOLD;
-  const charExceeded = charCount >= COMPRESSION_CHAR_THRESHOLD;
-
-  let shouldCompress = false;
-  let triggerReason: TriggerReason = 'message_count';
-
-  if (roundExceeded) {
-    shouldCompress = true;
-    triggerReason = 'message_count';
-  } else if (charExceeded) {
-    shouldCompress = true;
-    triggerReason = 'context_size';
-  }
-
-  return {
-    shouldCompress,
-    triggerReason,
-    roundCount,
-    charCount,
-    currentSummary
-  };
+  return evaluateFromSnapshot({ charCount, roundCount });
 }

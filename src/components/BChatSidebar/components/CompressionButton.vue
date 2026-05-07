@@ -4,14 +4,19 @@
 -->
 <template>
   <BDropdown v-model:open="open" :align="{ offset: [-45, 0] }">
-    <span class="compression-trigger" :class="{ 'is-disabled': disabled || compressing }">
+    <span class="compression-trigger" :class="{ 'is-disabled': disabled || compressing, 'has-summary': !!currentSummary }">
       <Icon v-if="compressing" icon="lucide:loader-2" width="16" height="16" class="is-spinning" />
       <Icon v-else icon="lucide:layers" width="16" height="16" />
+      <span v-if="autoCompressedVisible" class="auto-compressed-label">已自动压缩</span>
     </span>
 
     <template #overlay>
       <div class="compression-menu" @click.stop>
-        <div class="compression-menu__item" @click="handleCompress">
+        <div v-if="currentSummary" class="compression-menu__item" @click="handleRecompress">
+          <Icon icon="lucide:refresh-cw" width="14" height="14" />
+          <span>{{ compressing ? '压缩中...' : '重新压缩' }}</span>
+        </div>
+        <div v-else class="compression-menu__item" @click="handleCompress">
           <Icon icon="lucide:compress" width="14" height="14" />
           <span>{{ compressing ? '压缩中...' : '压缩上下文' }}</span>
         </div>
@@ -39,9 +44,10 @@
 
 <script setup lang="ts">
 import type { ConversationSummaryRecord } from '../utils/compression/types';
-import { ref } from 'vue';
+import { onUnmounted, ref } from 'vue';
 import { Icon } from '@iconify/vue';
 import BDropdown from '@/components/BDropdown/index.vue';
+import { onCompressionEvent } from '../utils/compression/error';
 import SummaryModal from './SummaryModal.vue';
 
 /**
@@ -74,10 +80,38 @@ const open = ref(false);
 /** 摘要模态框可见性 */
 const summaryModalVisible = ref(false);
 
+/** 自动压缩标签可见性 */
+const autoCompressedVisible = ref(false);
+let autoCompressedTimer: ReturnType<typeof setTimeout> | null = null;
+
+// 监听自动压缩事件
+const unsubscribe = onCompressionEvent((event) => {
+  if (event.type === 'auto_compressed') {
+    autoCompressedVisible.value = true;
+    if (autoCompressedTimer) clearTimeout(autoCompressedTimer);
+    autoCompressedTimer = setTimeout(() => {
+      autoCompressedVisible.value = false;
+    }, 1500);
+  }
+});
+
+onUnmounted(() => {
+  unsubscribe();
+  if (autoCompressedTimer) clearTimeout(autoCompressedTimer);
+});
+
 /**
  * 处理压缩操作
  */
 function handleCompress(): void {
+  open.value = false;
+  emit('compress');
+}
+
+/**
+ * 处理重新压缩操作
+ */
+function handleRecompress(): void {
   open.value = false;
   emit('compress');
 }
@@ -94,9 +128,11 @@ function handleViewSummary(): void {
 <style scoped lang="less">
 .compression-trigger {
   display: inline-flex;
+  gap: 4px;
   align-items: center;
   justify-content: center;
-  width: 28px;
+  width: auto;
+  min-width: 28px;
   height: 28px;
   cursor: pointer;
   border-radius: 4px;
@@ -110,6 +146,46 @@ function handleViewSummary(): void {
     pointer-events: none;
     cursor: not-allowed;
     opacity: 0.4;
+  }
+
+  &.has-summary {
+    position: relative;
+
+    &::after {
+      position: absolute;
+      top: 2px;
+      right: 2px;
+      width: 6px;
+      height: 6px;
+      content: '';
+      background: var(--success-color, #52c41a);
+      border-radius: 50%;
+    }
+  }
+}
+
+.auto-compressed-label {
+  font-size: 11px;
+  color: var(--text-color-secondary);
+  white-space: nowrap;
+  animation: fade-in-out 1.5s ease-in-out;
+}
+
+@keyframes fade-in-out {
+  0% {
+    opacity: 0;
+  }
+
+  20% {
+    opacity: 1;
+  }
+
+  80% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
   }
 }
 

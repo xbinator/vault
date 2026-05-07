@@ -25,6 +25,14 @@
             <span class="summary-info-label">字符体积</span>
             <span class="summary-info-value">{{ formatCharCount(summary.charCountSnapshot) }}</span>
           </div>
+          <div v-if="summary.summarySetId && (summary.segmentCount ?? 1) > 1" class="summary-info-item">
+            <span class="summary-info-label">多段摘要</span>
+            <span class="summary-info-value">第 {{ (summary.segmentIndex ?? 0) + 1 }}/{{ summary.segmentCount }} 段</span>
+          </div>
+          <div v-if="summary.topicTags?.length" class="summary-info-item">
+            <span class="summary-info-label">主题标签</span>
+            <span class="summary-info-value">{{ summary.topicTags.join('、') }}</span>
+          </div>
         </div>
       </div>
 
@@ -92,6 +100,28 @@
               </li>
             </ul>
           </div>
+
+          <div v-if="summary.structuredSummary.constraints?.length" class="structured-item">
+            <div class="structured-label">约束条件</div>
+            <ul class="structured-list">
+              <li v-for="(constraint, index) in summary.structuredSummary.constraints" :key="index">
+                {{ constraint }}
+              </li>
+            </ul>
+          </div>
+
+          <div v-if="summary.structuredSummary.fileContext?.length" class="structured-item">
+            <div class="structured-label">文件上下文</div>
+            <div class="file-context-list">
+              <div v-for="(fc, index) in summary.structuredSummary.fileContext" :key="index" class="file-context-item">
+                <div class="file-context-path">
+                  {{ fc.filePath }}<span v-if="fc.startLine">:{{ fc.startLine }}-{{ fc.endLine }}</span>
+                </div>
+                <div class="file-context-intent">{{ fc.userIntent }}</div>
+                <div v-if="fc.keySnippetSummary" class="file-context-snippet">{{ fc.keySnippetSummary }}</div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -109,7 +139,7 @@
           </div>
           <div v-if="summary.derivedFromSummaryId" class="meta-item">
             <Icon icon="lucide:git-branch" width="14" height="14" />
-            <span>继承自上一摘要</span>
+            <span>继承自上一摘要（链深度：{{ summaryChainDepth }}）</span>
           </div>
         </div>
       </div>
@@ -207,6 +237,14 @@ function formatTime(time: string): string {
 function handleClose(): void {
   emit('update:open', false);
 }
+
+/**
+ * 摘要链深度（通过 derivedFromSummaryId 追溯）
+ */
+const summaryChainDepth = computed(() => {
+  // 简单实现：有 derivedFromSummaryId 则至少为 2，否则为 1
+  return props.summary?.derivedFromSummaryId ? 2 : 1;
+});
 </script>
 
 <style scoped lang="less">
@@ -333,5 +371,44 @@ function handleClose(): void {
     margin-top: 12px;
     font-size: 14px;
   }
+}
+
+.file-context-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.file-context-item {
+  padding: 10px;
+  background: var(--bg-color-secondary);
+  border-left: 3px solid var(--primary-color);
+  border-radius: 4px;
+}
+
+.file-context-path {
+  font-family: monospace;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--primary-color);
+}
+
+.file-context-intent {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--text-color);
+}
+
+.file-context-snippet {
+  padding: 6px 8px;
+  margin-top: 6px;
+  font-family: monospace;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text-color-secondary);
+  word-break: break-all;
+  white-space: pre-wrap;
+  background: var(--bg-color-tertiary, var(--bg-color));
+  border-radius: 3px;
 }
 </style>

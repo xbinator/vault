@@ -15,6 +15,7 @@ import type {
   SessionCursor,
   SessionPaginationParams
 } from 'types/chat';
+import dayjs from 'dayjs';
 import { local } from '@/shared/storage/base';
 import { dbSelect, dbExecute, isDatabaseAvailable, parseJson, stringifyJson } from '../utils';
 
@@ -361,12 +362,12 @@ export const chatStorage = {
       const index = sessions.findIndex((item) => item.id === sessionId);
       if (index === -1) return;
 
-      sessions[index] = { ...sessions[index], title, updatedAt: new Date().toISOString() };
+      sessions[index] = { ...sessions[index], title, updatedAt: dayjs().toISOString() };
       saveFallbackSessions(sortSessions(sessions));
       return;
     }
 
-    await dbExecute(UPDATE_SESSION_TITLE_SQL, [title, new Date().toISOString(), sessionId]);
+    await dbExecute(UPDATE_SESSION_TITLE_SQL, [title, dayjs().toISOString(), sessionId]);
   },
 
   async addSessionUsage(sessionId: string, usage: AIUsage): Promise<void> {

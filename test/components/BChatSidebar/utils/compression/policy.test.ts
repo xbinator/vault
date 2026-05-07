@@ -133,6 +133,82 @@ describe('estimateContextSize', () => {
   });
 });
 
+describe('countMessageRounds', () => {
+  it('counts user+assistant pairs correctly', async () => {
+    const { countMessageRounds } = await import('@/components/BChatSidebar/utils/compression/policy');
+    const messages: Message[] = [
+      makeMsg({ id: 'm1', role: 'user', content: 'a' }),
+      makeMsg({ id: 'm2', role: 'assistant', content: 'b' }),
+      makeMsg({ id: 'm3', role: 'user', content: 'c' }),
+      makeMsg({ id: 'm4', role: 'assistant', content: 'd' })
+    ];
+    expect(countMessageRounds(messages)).toBe(2);
+  });
+
+  it('counts odd number of messages as one extra round', async () => {
+    const { countMessageRounds } = await import('@/components/BChatSidebar/utils/compression/policy');
+    const messages: Message[] = [
+      makeMsg({ id: 'm1', role: 'user', content: 'a' }),
+      makeMsg({ id: 'm2', role: 'assistant', content: 'b' }),
+      makeMsg({ id: 'm3', role: 'user', content: 'c' })
+    ];
+    expect(countMessageRounds(messages)).toBe(2);
+  });
+
+  it('ignores system messages in round count', async () => {
+    const { countMessageRounds } = await import('@/components/BChatSidebar/utils/compression/policy');
+    const messages: Message[] = [
+      makeMsg({ id: 'm1', role: 'user', content: 'a' }),
+      makeMsg({ id: 'm2', role: 'assistant', content: 'b' })
+    ];
+    expect(countMessageRounds(messages)).toBe(1);
+  });
+});
+
+describe('evaluateCompression threshold logic', () => {
+  it('computeCompressionTokenThreshold keeps threshold inside small context window budget', async () => {
+    const { computeCompressionTokenThreshold } = await import('@/components/BChatSidebar/utils/compression/policy');
+
+    expect(computeCompressionTokenThreshold(4_000, 2_048)).toBeLessThan(4_000);
+    expect(computeCompressionTokenThreshold(4_000, 2_048)).toBeGreaterThan(0);
+  });
+
+  it('returns shouldCompress false when under threshold', async () => {
+    const { evaluateCompression } = await import('@/components/BChatSidebar/utils/compression/policy');
+    const messages: Message[] = [
+      makeMsg({ id: 'm1', role: 'user', content: 'short', parts: [{ type: 'text', text: 'short' } as never] }),
+      makeMsg({ id: 'm2', role: 'assistant', content: 'ok', parts: [{ type: 'text', text: 'ok' } as never] })
+    ];
+    const result = evaluateCompression(messages);
+    expect(result.shouldCompress).toBe(false);
+  });
+
+  it('returns message_count trigger when round threshold exceeded', async () => {
+    const { evaluateCompression } = await import('@/components/BChatSidebar/utils/compression/policy');
+    const messages: Message[] = [];
+    for (let i = 1; i <= 62; i += 1) {
+      const role = i % 2 === 1 ? 'user' : 'assistant';
+      messages.push(makeMsg({ id: `m${i}`, role, content: `msg ${i}`, parts: [{ type: 'text', text: `msg ${i}` } as never] }));
+    }
+    const result = evaluateCompression(messages);
+    expect(result.shouldCompress).toBe(true);
+    expect(result.triggerReason).toBe('message_count');
+  });
+
+  it('returns context_size trigger when char threshold exceeded but rounds under limit', async () => {
+    const { evaluateCompression } = await import('@/components/BChatSidebar/utils/compression/policy');
+    // 少量轮数但单条消息很长
+    const longText = 'A'.repeat(25000);
+    const messages: Message[] = [
+      makeMsg({ id: 'm1', role: 'user', content: longText, parts: [{ type: 'text', text: longText } as never] }),
+      makeMsg({ id: 'm2', role: 'assistant', content: longText, parts: [{ type: 'text', text: longText } as never] })
+    ];
+    const result = evaluateCompression(messages);
+    expect(result.shouldCompress).toBe(true);
+    expect(result.triggerReason).toBe('context_size');
+  });
+});
+
 describe('evaluateCompression with effective context', () => {
   it('counts summary overhead and preserved passthrough messages when evaluating compression', async () => {
     const { evaluateCompression } = await import('@/components/BChatSidebar/utils/compression/policy');

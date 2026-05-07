@@ -241,4 +241,48 @@ describe('planner - classifyMessages', () => {
     expect(result.fileSemanticMessages.map((m) => m.id)).toContain('m1');
     expect(result.compressibleMessages.map((m) => m.id)).not.toContain('m1');
   });
+
+  it('classifies all messages as older when preserveRounds is 0', async () => {
+    const { planCompression } = await import('@/components/BChatSidebar/utils/compression/planner');
+    const messages: Message[] = [
+      makeMsg({ id: 'm1', role: 'user', content: 'msg 1' }),
+      makeMsg({ id: 'm2', role: 'assistant', content: 'reply 1' }),
+      makeMsg({ id: 'm3', role: 'user', content: 'msg 2' }),
+      makeMsg({ id: 'm4', role: 'assistant', content: 'reply 2' })
+    ];
+
+    const result = planCompression(messages, 0);
+    expect(result.preservedMessages).toHaveLength(0);
+    expect(result.compressibleMessages.length).toBeGreaterThan(0);
+  });
+
+  it('excludes additional IDs beyond currentUserMessageId', async () => {
+    const { planCompression } = await import('@/components/BChatSidebar/utils/compression/planner');
+    const messages: Message[] = [
+      makeMsg({ id: 'm1', role: 'user', content: 'old' }),
+      makeMsg({ id: 'm2', role: 'assistant', content: 'old reply' }),
+      makeMsg({ id: 'm3', role: 'user', content: 'recent' }),
+      makeMsg({ id: 'm4', role: 'assistant', content: 'recent reply' })
+    ];
+
+    const result = planCompression(messages, 1, undefined, ['m1']);
+    // m1 被排除，不应出现在任何分类中
+    expect(result.compressibleMessages.map((m) => m.id)).not.toContain('m1');
+    expect(result.preservedMessages.map((m) => m.id)).not.toContain('m1');
+  });
+
+  it('never classifies user role messages as mustPreserve', async () => {
+    const { planCompression } = await import('@/components/BChatSidebar/utils/compression/planner');
+    // user 消息即使在旧区间也不应进入 preservedMessageIds
+    const messages: Message[] = [
+      makeMsg({ id: 'm1', role: 'user', content: 'old user msg' }),
+      makeMsg({ id: 'm2', role: 'assistant', content: 'old reply' }),
+      makeMsg({ id: 'm3', role: 'user', content: 'recent' }),
+      makeMsg({ id: 'm4', role: 'assistant', content: 'recent reply' })
+    ];
+
+    const result = planCompression(messages, 1);
+    // user 消息不会进入 preservedMessageIds（只有含未完成交互的 assistant 消息才会）
+    expect(result.preservedMessageIds).not.toContain('m1');
+  });
 });

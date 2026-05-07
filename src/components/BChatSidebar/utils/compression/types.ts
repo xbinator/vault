@@ -16,7 +16,7 @@ export type SummaryBuildMode = 'incremental' | 'full_rebuild';
 export type CompressionStatus = 'idle' | 'compressing';
 
 /** 摘要记录状态 */
-export type SummaryRecordStatus = 'valid' | 'superseded' | 'invalid';
+export type SummaryRecordStatus = 'draft' | 'valid' | 'superseded' | 'invalid';
 
 // ─── 触发原因 ─────────────────────────────────────────────────────────────────
 
@@ -103,6 +103,8 @@ export interface ConversationSummaryRecord {
   messageCountSnapshot: number;
   /** 生成时的字符体积快照 */
   charCountSnapshot: number;
+  /** 生成时的 token 体积快照（第三阶段） */
+  tokenCountSnapshot?: number;
   /** 摘要 schema 版本 */
   schemaVersion: number;
   /** 摘要状态 */
@@ -115,6 +117,36 @@ export interface ConversationSummaryRecord {
   createdAt: string;
   /** 更新时间 */
   updatedAt: string;
+  /** 摘要集标识，同一次生成的多个 segment 共享同一个 summarySetId（多段摘要） */
+  summarySetId?: string;
+  /** 摘要分段索引，从 0 开始，同一摘要集内按时间顺序递增（多段摘要） */
+  segmentIndex?: number;
+  /** 本次摘要集的总段数（多段摘要） */
+  segmentCount?: number;
+  /** 摘要主题标签，由 AI 摘要模型生成（多段摘要） */
+  topicTags?: string[];
+  /** 摘要相关性向量（预留） */
+  relevanceEmbedding?: number[];
+}
+
+/** token 计数来源 */
+export type TokenCountSource = 'estimated' | 'usage_observed';
+
+/**
+ * 上下文预算快照，用于 policy 判断。
+ * 由 coordinator 在 prepareMessagesBeforeSend 中产出，传给 policy 评估。
+ */
+export interface ContextBudgetSnapshot {
+  /** 字符级体积估算 */
+  charCount: number;
+  /** token 级体积估算（可选，tokenizer 不可用时为 undefined） */
+  tokenCount?: number;
+  /** 本次评估使用的 token 阈值（可选，优先于默认固定阈值） */
+  tokenThreshold?: number;
+  /** token 估算精度等级 */
+  tokenAccuracy?: 'native_like' | 'approximate' | 'char_fallback';
+  /** 消息轮数 */
+  roundCount: number;
 }
 
 // ─── 压缩计划 ─────────────────────────────────────────────────────────────────
@@ -131,6 +163,8 @@ export interface CompressionPolicyResult {
   roundCount: number;
   /** 当前上下文字符估算体积 */
   charCount: number;
+  /** 当前上下文 token 估算体积（第三阶段） */
+  tokenCount?: number;
   /** 有效摘要（若有） */
   currentSummary?: ConversationSummaryRecord;
 }
@@ -149,6 +183,18 @@ export interface MessageClassificationResult {
   compressibleMessages: Message[];
   /** 必须原文穿透的消息 ID 列表（在压缩覆盖区间内但必须保留原文） */
   preservedMessageIds: string[];
+}
+
+// ─── 摘要构建结果 ─────────────────────────────────────────────────────────────
+
+/**
+ * buildSummaryRecord / buildMultiSegmentSummary 的返回值类型。
+ */
+export interface BuildSummaryResult {
+  /** 新生成的摘要记录 */
+  summaryRecord: ConversationSummaryRecord;
+  /** 消息分类结果 */
+  classification: MessageClassificationResult;
 }
 
 // ─── 规则裁剪 ─────────────────────────────────────────────────────────────────
@@ -197,6 +243,8 @@ export interface AssemblerInput {
   systemPrompt?: string;
   /** 会话摘要记录（若有有效摘要） */
   summaryRecord?: ConversationSummaryRecord;
+  /** 多段摘要记录列表（多段摘要模式） */
+  summaryRecords?: ConversationSummaryRecord[];
   /** 穿透的历史原文消息列表 */
   preservedMessages: Message[];
   /** coveredUntilMessageId 之后的近期原文消息列表 */
@@ -227,6 +275,12 @@ export interface PrepareMessagesInput {
   currentUserMessage: Message;
   /** 需要在压缩时排除的消息 ID 列表 */
   excludeMessageIds?: string[];
+  /** 当前提供商 ID（用于读取模型上下文窗口） */
+  providerId?: string;
+  /** 当前模型 ID（用于 token 估算） */
+  modelId?: string;
+  /** 本次请求附带的工具定义（用于预算估算） */
+  toolDefinitions?: unknown[];
 }
 
 /**

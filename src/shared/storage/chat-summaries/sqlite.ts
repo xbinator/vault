@@ -2,13 +2,16 @@
  * @file sqlite.ts
  * @description 聊天会话摘要的 SQLite 存储实现。
  */
+import dayjs from 'dayjs';
 import { cloneDeep, orderBy } from 'lodash-es';
 import { CURRENT_SCHEMA_VERSION } from '@/components/BChatSidebar/utils/compression/constant';
 import type {
   ConversationSummaryRecord,
   StructuredConversationSummary,
+  SummaryBuildMode,
   SummaryRecordStatus,
-  SummaryStorage
+  SummaryStorage,
+  TriggerReason
 } from '@/components/BChatSidebar/utils/compression/types';
 import { local } from '@/shared/storage/base';
 import { dbSelect, dbExecute, isDatabaseAvailable, parseJson, stringifyJson } from '../utils';
@@ -29,10 +32,11 @@ const INSERT_SUMMARY_SQL = `
     covered_start_message_id, covered_end_message_id, covered_until_message_id,
     source_message_ids_json, preserved_message_ids_json,
     summary_text, structured_summary_json,
-    trigger_reason, message_count_snapshot, char_count_snapshot,
+    trigger_reason, message_count_snapshot, char_count_snapshot, token_count_snapshot,
     schema_version, status, invalid_reason, degrade_reason,
+    summary_set_id, segment_index, segment_count, topic_tags_json,
     created_at, updated_at
-  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `;
 
 const UPDATE_SUMMARY_STATUS_SQL = `
@@ -63,21 +67,27 @@ interface ChatSessionSummaryRow {
   trigger_reason: string;
   message_count_snapshot: number;
   char_count_snapshot: number;
+  token_count_snapshot: number | null;
   schema_version: number;
   status: string;
   invalid_reason: string | null;
   degrade_reason: string | null;
   created_at: string;
   updated_at: string;
+  summary_set_id: string | null;
+  segment_index: number | null;
+  segment_count: number | null;
+  topic_tags_json: string | null;
 }
 
 /**
  * 解析并验证结构化摘要 JSON。
  * schema_version 不匹配或 JSON 格式错误时返回 null。
+ * v1 记录会被 normalize 为 v2 格式。
  */
 function parseStructuredSummary(row: ChatSessionSummaryRow): StructuredConversationSummary | null {
-  // schema 版本校验
-  if (row.schema_version !== CURRENT_SCHEMA_VERSION) {
+  // schema 版本校验：v1 记录做 normalize，其他不支持的版本返回 null
+  if (row.schema_version !== CURRENT_SCHEMA_VERSION && row.schema_version !== 1) {
     return null;
   }
 
@@ -112,6 +122,7 @@ function parseStructuredSummary(row: ChatSessionSummaryRow): StructuredConversat
 
 /**
  * 将数据库行映射为摘要记录对象，解析并验证结构化摘要。
+ * v1 记录会被 normalize 为 v2 格式（补充 segmentIndex/segmentCount/summarySetId/topicTags）。
  * 返回 null 表示该行数据无效应被跳过。
  */
 function mapRowToSummary(row: ChatSessionSummaryRow): ConversationSummaryRecord | null {
@@ -120,10 +131,13 @@ function mapRowToSummary(row: ChatSessionSummaryRow): ConversationSummaryRecord 
     return null;
   }
 
+  // v1 → v2 normalize：补充多段摘要字段
+  const isV1 = row.schema_version === 1;
+
   return {
     id: row.id,
     sessionId: row.session_id,
-    buildMode: row.build_mode as 'incremental' | 'full_rebuild',
+    buildMode: row.build_mode as SummaryBuildMode,
     derivedFromSummaryId: row.derived_from_summary_id ?? undefined,
     coveredStartMessageId: row.covered_start_message_id,
     coveredEndMessageId: row.covered_end_message_id,
@@ -132,15 +146,22 @@ function mapRowToSummary(row: ChatSessionSummaryRow): ConversationSummaryRecord 
     preservedMessageIds: parseJson<string[]>(row.preserved_message_ids_json) ?? [],
     summaryText: row.summary_text,
     structuredSummary: parsedSummary,
-    triggerReason: row.trigger_reason as 'message_count' | 'context_size' | 'manual',
+    triggerReason: row.trigger_reason as TriggerReason,
     messageCountSnapshot: row.message_count_snapshot,
     charCountSnapshot: row.char_count_snapshot,
-    schemaVersion: row.schema_version,
-    status: row.status as SummaryRecordStatus,
+    tokenCountSnapshot: row.token_count_snapshot ?? undefined,
+    schemaVersion: CURRENT_SCHEMA_VERSION,
+    status: isV1 ? 'valid' : (row.status as SummaryRecordStatus),
     invalidReason: row.invalid_reason ?? undefined,
     degradeReason: (row.degrade_reason as 'degraded_to_incremental' | null) ?? undefined,
     createdAt: row.created_at,
-    updatedAt: row.updated_at
+    updatedAt: row.updated_at,
+    // v1 normalize: 补充多段摘要默认值
+    summarySetId: row.summary_set_id ?? row.id,
+    segmentIndex: row.segment_index ?? 0,
+    segmentCount: row.segment_count ?? 1,
+    topicTags: parseJson<string[]>(row.topic_tags_json) ?? [],
+    relevanceEmbedding: undefined
   };
 }
 
@@ -174,9 +195,10 @@ export const chatSummariesStorage: SummaryStorage = {
     }
 
     // 降级到本地存储，过滤 schema_version 不匹配的摘要
+    // 兼容 v1 记录：v1 和 v2 都视为有效
     const allSummaries = local.getItem<ConversationSummaryRecord[]>(CHAT_SUMMARIES_STORAGE_KEY) ?? [];
     const validSummaries = allSummaries.filter((s: ConversationSummaryRecord) => {
-      return s.sessionId === sessionId && s.status === 'valid' && s.schemaVersion === CURRENT_SCHEMA_VERSION;
+      return s.sessionId === sessionId && s.status === 'valid' && (s.schemaVersion === CURRENT_SCHEMA_VERSION || s.schemaVersion === 1);
     });
     const [latestSummary] = orderBy(validSummaries, ['createdAt'], ['desc']);
     return latestSummary;
@@ -186,10 +208,10 @@ export const chatSummariesStorage: SummaryStorage = {
    * 创建摘要记录。
    */
   async createSummary(record: Omit<ConversationSummaryRecord, 'id' | 'createdAt' | 'updatedAt'>): Promise<ConversationSummaryRecord> {
-    const now = new Date().toISOString();
+    const now = dayjs().toISOString();
     const newRecord: ConversationSummaryRecord = {
       ...record,
-      id: `summary-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+      id: `summary-${dayjs().valueOf()}-${Math.random().toString(36).slice(2, 9)}`,
       createdAt: now,
       updatedAt: now
     };
@@ -210,10 +232,15 @@ export const chatSummariesStorage: SummaryStorage = {
         newRecord.triggerReason,
         newRecord.messageCountSnapshot,
         newRecord.charCountSnapshot,
+        newRecord.tokenCountSnapshot ?? null,
         newRecord.schemaVersion,
         newRecord.status,
         newRecord.invalidReason ?? null,
         newRecord.degradeReason ?? null,
+        newRecord.summarySetId ?? null,
+        newRecord.segmentIndex ?? null,
+        newRecord.segmentCount ?? null,
+        stringifyJson(newRecord.topicTags ?? []),
         newRecord.createdAt,
         newRecord.updatedAt
       ]);
@@ -231,7 +258,7 @@ export const chatSummariesStorage: SummaryStorage = {
    * 更新摘要状态。
    */
   async updateSummaryStatus(id: string, status: SummaryRecordStatus, invalidReason?: string): Promise<void> {
-    const now = new Date().toISOString();
+    const now = dayjs().toISOString();
 
     if (isDatabaseAvailable()) {
       await dbExecute(UPDATE_SUMMARY_STATUS_SQL, [status, invalidReason ?? null, now, id]);

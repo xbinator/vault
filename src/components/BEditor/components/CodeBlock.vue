@@ -46,6 +46,7 @@ import { Icon } from '@iconify/vue';
 import { NodeViewContent, NodeViewWrapper, nodeViewProps } from '@tiptap/vue-3';
 import { useClipboard, useDebounceFn } from '@vueuse/core';
 import { message } from 'ant-design-vue';
+import mermaid from 'mermaid';
 import BSelect from '@/components/BSelect/index.vue';
 
 // ─── 类型 ────────────────────────────────────────────────────────────────────
@@ -96,7 +97,6 @@ const LANGUAGE_OPTIONS = [
 
 let mermaidInitialized = false;
 let mermaidCurrentTheme = '';
-let mermaidModulePromise: Promise<typeof import('mermaid')> | null = null;
 const themeChangeCallbacks = new Set<() => void>();
 
 /**
@@ -114,17 +114,7 @@ if (typeof window !== 'undefined') {
   });
 }
 
-async function loadMermaidModule(): Promise<typeof import('mermaid')> {
-  if (!mermaidModulePromise) {
-    mermaidModulePromise = import('mermaid');
-  }
-
-  return mermaidModulePromise;
-}
-
-async function initMermaid(): Promise<typeof import('mermaid').default> {
-  const mermaidModule = await loadMermaidModule();
-  const mermaid = mermaidModule.default;
+async function initMermaid(): Promise<typeof mermaid> {
   const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
   const theme = isDark ? 'dark' : 'default';
 
@@ -215,9 +205,9 @@ async function renderMermaid(): Promise<void> {
   if (renderIndex !== mermaidRenderIndex) return;
 
   try {
-    const mermaid = await initMermaid();
+    const mermaidInstance = await initMermaid();
     const mermaidId = `mermaid-${Date.now()}-${renderIndex}`;
-    const { svg } = await mermaid.render(mermaidId, code);
+    const { svg } = await mermaidInstance.render(mermaidId, code);
 
     // 提前退出：渲染完成后再次检查是否仍是最新请求
     if (!mermaidPreviewRef.value || renderIndex !== mermaidRenderIndex) return;

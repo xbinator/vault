@@ -156,4 +156,77 @@ describe('summarizer - ruleTrim', () => {
     // Should contain line range
     expect(text).toMatch(/1-30/);
   });
+
+  it('handles confirmation part with status', async () => {
+    const { ruleTrim } = await import('@/components/BChatSidebar/utils/compression/summarizer');
+    const messages: Message[] = [
+      makeMsg({
+        id: 'm1',
+        role: 'assistant',
+        content: 'confirm action',
+        parts: [
+          {
+            type: 'confirmation',
+            confirmationId: 'cf-1',
+            toolName: 'write_file',
+            title: 'Write file?',
+            description: 'Need confirmation',
+            riskLevel: 'write',
+            confirmationStatus: 'approved',
+            executionStatus: 'success'
+          } as never
+        ]
+      })
+    ];
+
+    const result = ruleTrim(messages);
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0].trimmedText).toContain('confirmation');
+    expect(result.items[0].trimmedText).toContain('Write file?');
+  });
+
+  it('only deduplicates consecutive duplicate messages', async () => {
+    const { ruleTrim } = await import('@/components/BChatSidebar/utils/compression/summarizer');
+    const messages: Message[] = [
+      makeMsg({ id: 'm1', role: 'user', content: 'same text' }),
+      makeMsg({ id: 'm2', role: 'assistant', content: 'other' }),
+      makeMsg({ id: 'm3', role: 'user', content: 'same text' })
+    ];
+
+    const result = ruleTrim(messages);
+    // 非连续重复不应被去重
+    expect(result.items).toHaveLength(3);
+  });
+
+  it('handles empty references array', async () => {
+    const { ruleTrim } = await import('@/components/BChatSidebar/utils/compression/summarizer');
+    const messages: Message[] = [
+      makeMsg({
+        id: 'm1',
+        role: 'user',
+        content: 'Check this file',
+        references: []
+      })
+    ];
+
+    const result = ruleTrim(messages);
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0].trimmedText).toBe('Check this file');
+  });
+});
+
+describe('summarizer - truncateSummaryText', () => {
+  it('returns original text when under limit', async () => {
+    const { truncateSummaryText } = await import('@/components/BChatSidebar/utils/compression/summarizer');
+    const text = 'Short summary';
+    expect(truncateSummaryText(text)).toBe(text);
+  });
+
+  it('truncates and appends ellipsis when over limit', async () => {
+    const { truncateSummaryText } = await import('@/components/BChatSidebar/utils/compression/summarizer');
+    const longText = 'A'.repeat(5000);
+    const result = truncateSummaryText(longText, 100);
+    expect(result.length).toBeLessThanOrEqual(103); // 100 + '...'
+    expect(result).toMatch(/\.\.\.$/);
+  });
 });

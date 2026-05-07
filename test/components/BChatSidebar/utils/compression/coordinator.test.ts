@@ -2,6 +2,7 @@
  * @file coordinator.test.ts
  * @description Coordinator 模块测试：压缩流程编排、并发锁、失败兜底。
  */
+import dayjs from 'dayjs';
 import { describe, expect, it, vi } from 'vitest';
 import type { ConversationSummaryRecord, SummaryStorage } from '@/components/BChatSidebar/utils/compression/types';
 import type { Message } from '@/components/BChatSidebar/utils/types';
@@ -32,7 +33,7 @@ function makeMsg(overrides: Partial<Message> & { id: string }): Message {
     content: '',
     parts: [],
     loading: false,
-    createdAt: new Date().toISOString(),
+    createdAt: dayjs().toISOString(),
     ...overrides
   };
 }
@@ -67,8 +68,8 @@ function makeSummary(overrides: Partial<ConversationSummaryRecord> = {}): Conver
     charCountSnapshot: 2000,
     schemaVersion: 1,
     status: 'valid',
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
+    createdAt: dayjs().toISOString(),
+    updatedAt: dayjs().toISOString(),
     ...overrides
   };
 }
@@ -83,13 +84,45 @@ function createMockStorage(summary?: ConversationSummaryRecord): SummaryStorage 
       Promise.resolve({
         ...record,
         id: 'new-summary-id',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
+        createdAt: dayjs().toISOString(),
+        updatedAt: dayjs().toISOString()
       })
     ),
     updateSummaryStatus: vi.fn().mockResolvedValue(undefined),
     getAllSummaries: vi.fn().mockResolvedValue([])
   };
+}
+
+/**
+ * 创建带时间分段的测试消息，便于触发多段摘要。
+ */
+function createSegmentedMessages(totalMessages: number): Message[] {
+  const messages: Message[] = [];
+  const baseTime = dayjs('2026-05-07T00:00:00.000Z').valueOf();
+
+  for (let i = 1; i <= totalMessages; i += 1) {
+    const role = i % 2 === 1 ? 'user' : 'assistant';
+    let timeOffset = 0;
+    if (i >= 13 && i < 25) {
+      timeOffset = 31 * 60 * 1000;
+    } else if (i >= 25 && i < 37) {
+      timeOffset = 62 * 60 * 1000;
+    } else if (i >= 37) {
+      timeOffset = 63 * 60 * 1000;
+    }
+
+    messages.push(
+      makeMsg({
+        id: `m${i}`,
+        role,
+        content: `Segmented message ${i} with enough text to participate in compression and summary generation`,
+        parts: [{ type: 'text', text: `Segmented message ${i} with enough text to participate in compression and summary generation` } as never],
+        createdAt: dayjs(baseTime + timeOffset + i * 1000).toISOString()
+      })
+    );
+  }
+
+  return messages;
 }
 
 describe('coordinator - prepareMessagesBeforeSend', () => {
@@ -198,8 +231,8 @@ describe('coordinator - prepareMessagesBeforeSend', () => {
       const summary: ConversationSummaryRecord = {
         ...record,
         id: 'new-summary',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
+        createdAt: dayjs().toISOString(),
+        updatedAt: dayjs().toISOString()
       };
       createdSummary = summary;
       return new Promise((resolve) => {
@@ -283,6 +316,93 @@ describe('coordinator - prepareMessagesBeforeSend', () => {
     if (typeof lastMsg.content === 'string') {
       expect(lastMsg.content).toContain('Current');
     }
+  });
+
+  it('counts injected summary overhead when deciding whether to compress', async () => {
+    const { createCompressionCoordinator } = await import('@/components/BChatSidebar/utils/compression/coordinator');
+    const currentSummary = makeSummary({
+      summaryText: 'S'.repeat(26_000),
+      coveredEndMessageId: 'm2',
+      coveredUntilMessageId: 'm2'
+    });
+    const mockStorage = createMockStorage(currentSummary);
+    const coordinator = createCompressionCoordinator(mockStorage);
+
+    const messages: Message[] = [
+      makeMsg({ id: 'm1', role: 'user', content: 'hello', parts: [{ type: 'text', text: 'hello' } as never] }),
+      makeMsg({ id: 'm2', role: 'assistant', content: 'world', parts: [{ type: 'text', text: 'world' } as never] })
+    ];
+    for (let i = 3; i <= 16; i += 1) {
+      const role = i % 2 === 1 ? 'user' : 'assistant';
+      messages.push(
+        makeMsg({
+          id: `m${i}`,
+          role,
+          content: `recent ${i}`,
+          parts: [{ type: 'text', text: `recent ${i}` } as never]
+        })
+      );
+    }
+    const currentUserMessage = makeMsg({ id: 'current', role: 'user', content: 'next', parts: [{ type: 'text', text: 'next' } as never] });
+
+    const result = await coordinator.prepareMessagesBeforeSend({
+      sessionId: 'session-1',
+      messages,
+      currentUserMessage
+    });
+
+    expect(result.compressed).toBe(true);
+    expect(mockStorage.createSummary).toHaveBeenCalled();
+  });
+
+  it('counts tool schema overhead in token budget before sending', async () => {
+    const { createCompressionCoordinator } = await import('@/components/BChatSidebar/utils/compression/coordinator');
+    const mockStorage = createMockStorage();
+    const coordinator = createCompressionCoordinator(mockStorage);
+
+    const messages: Message[] = [
+      makeMsg({ id: 'm1', role: 'user', content: 'hello', parts: [{ type: 'text', text: 'hello' } as never] }),
+      makeMsg({ id: 'm2', role: 'assistant', content: 'world', parts: [{ type: 'text', text: 'world' } as never] })
+    ];
+    for (let i = 3; i <= 16; i += 1) {
+      const role = i % 2 === 1 ? 'user' : 'assistant';
+      messages.push(
+        makeMsg({
+          id: `m${i}`,
+          role,
+          content: `small ${i}`,
+          parts: [{ type: 'text', text: `small ${i}` } as never]
+        })
+      );
+    }
+    const currentUserMessage = makeMsg({ id: 'current', role: 'user', content: 'next', parts: [{ type: 'text', text: 'next' } as never] });
+    const oversizedToolInput: Parameters<typeof coordinator.prepareMessagesBeforeSend>[0] & {
+      toolDefinitions: Array<{ name: string; description: string; parameters: Record<string, unknown> }>;
+    } = {
+      sessionId: 'session-1',
+      messages,
+      currentUserMessage,
+      toolDefinitions: [
+        {
+          name: 'huge_tool',
+          description: '描'.repeat(26_000),
+          parameters: {
+            type: 'object',
+            properties: {
+              value: {
+                type: 'string',
+                description: '说'.repeat(6_000)
+              }
+            }
+          }
+        }
+      ]
+    };
+
+    const result = await coordinator.prepareMessagesBeforeSend(oversizedToolInput);
+
+    expect(result.compressed).toBe(true);
+    expect(mockStorage.createSummary).toHaveBeenCalled();
   });
 
   it('compresses based on valid summary boundary', async () => {
@@ -463,5 +583,275 @@ describe('coordinator - prepareMessagesBeforeSend', () => {
         coveredStartMessageId: 'm31'
       })
     );
+  });
+
+  it('does not count the current user message twice when evaluating budget', async () => {
+    const { createCompressionCoordinator } = await import('@/components/BChatSidebar/utils/compression/coordinator');
+    const mockStorage = createMockStorage();
+    const coordinator = createCompressionCoordinator(mockStorage);
+
+    const messages: Message[] = [];
+    for (let i = 1; i <= 10; i += 1) {
+      messages.push(
+        makeMsg({
+          id: `m${i}`,
+          role: i % 2 === 1 ? 'user' : 'assistant',
+          content: 'A'.repeat(500),
+          parts: [{ type: 'text', text: 'A'.repeat(500) } as never]
+        })
+      );
+    }
+
+    const currentUserMessage = makeMsg({
+      id: 'current',
+      role: 'user',
+      content: 'B'.repeat(10000),
+      parts: [{ type: 'text', text: 'B'.repeat(10000) } as never]
+    });
+    messages.push(currentUserMessage);
+
+    const result = await coordinator.prepareMessagesBeforeSend({
+      sessionId: 'session-1',
+      messages,
+      currentUserMessage,
+      excludeMessageIds: [currentUserMessage.id]
+    });
+
+    expect(result.compressed).toBe(false);
+    expect(mockStorage.createSummary).not.toHaveBeenCalled();
+  });
+
+  it('limits multi-segment recall instead of injecting the whole summary set', async () => {
+    const { createCompressionCoordinator } = await import('@/components/BChatSidebar/utils/compression/coordinator');
+
+    const multiSegmentSummary = makeSummary({
+      id: 'segment-0',
+      summarySetId: 'set-1',
+      segmentIndex: 0,
+      segmentCount: 5,
+      summaryText: 'alpha summary',
+      topicTags: [],
+      coveredUntilMessageId: 'm5'
+    });
+    const allSegments = [
+      multiSegmentSummary,
+      makeSummary({ id: 'segment-1', summarySetId: 'set-1', segmentIndex: 1, segmentCount: 5, summaryText: 'beta summary', topicTags: [] }),
+      makeSummary({ id: 'segment-2', summarySetId: 'set-1', segmentIndex: 2, segmentCount: 5, summaryText: 'gamma summary', topicTags: [] }),
+      makeSummary({ id: 'segment-3', summarySetId: 'set-1', segmentIndex: 3, segmentCount: 5, summaryText: 'delta summary', topicTags: [] }),
+      makeSummary({ id: 'segment-4', summarySetId: 'set-1', segmentIndex: 4, segmentCount: 5, summaryText: 'epsilon summary', topicTags: [] })
+    ];
+    const mockStorage = createMockStorage(multiSegmentSummary);
+    mockStorage.getAllSummaries = vi.fn().mockResolvedValue(allSegments);
+
+    const coordinator = createCompressionCoordinator(mockStorage);
+    const messages: Message[] = [
+      makeMsg({ id: 'm1', role: 'user', content: 'hello', parts: [{ type: 'text', text: 'hello' } as never] }),
+      makeMsg({ id: 'm2', role: 'assistant', content: 'world', parts: [{ type: 'text', text: 'world' } as never] })
+    ];
+    const currentUserMessage = makeMsg({
+      id: 'current',
+      role: 'user',
+      content: 'please continue beta delta work',
+      parts: [{ type: 'text', text: 'please continue beta delta work' } as never]
+    });
+
+    const result = await coordinator.prepareMessagesBeforeSend({
+      sessionId: 'session-1',
+      messages,
+      currentUserMessage
+    });
+
+    const summarySystemMessage = result.modelMessages.find((message) => message.role === 'system');
+    expect(summarySystemMessage).toBeDefined();
+    const content = typeof summarySystemMessage?.content === 'string' ? summarySystemMessage.content : '';
+    expect(content.match(/<conversation_summary segment="/g)?.length ?? 0).toBe(3);
+    expect(content).toContain('beta summary');
+    expect(content).toContain('delta summary');
+    expect(content).toContain('epsilon summary');
+    expect(content).not.toContain('alpha summary');
+    expect(content).not.toContain('gamma summary');
+  });
+});
+
+describe('coordinator - compressSessionManually', () => {
+  it('creates full_rebuild summary', async () => {
+    const { createCompressionCoordinator } = await import('@/components/BChatSidebar/utils/compression/coordinator');
+    const mockStorage = createMockStorage();
+
+    const coordinator = createCompressionCoordinator(mockStorage);
+    const messages: Message[] = [];
+    for (let i = 1; i <= 14; i += 1) {
+      const role = i % 2 === 1 ? 'user' : 'assistant';
+      messages.push(
+        makeMsg({
+          id: `m${i}`,
+          role,
+          content: `Message ${i}`,
+          parts: [{ type: 'text', text: `Message ${i}` } as never]
+        })
+      );
+    }
+
+    const result = await coordinator.compressSessionManually({
+      sessionId: 'session-1',
+      messages
+    });
+
+    expect(result).toBeDefined();
+    expect(result?.buildMode).toBe('full_rebuild');
+    expect(result?.triggerReason).toBe('manual');
+  });
+
+  it('returns undefined when no compressible messages', async () => {
+    const { createCompressionCoordinator } = await import('@/components/BChatSidebar/utils/compression/coordinator');
+    const mockStorage = createMockStorage();
+
+    const coordinator = createCompressionCoordinator(mockStorage);
+    // 只有少量消息，全部在保留窗口内，无可压缩内容
+    const messages: Message[] = [
+      makeMsg({ id: 'm1', role: 'user', content: 'Hello', parts: [{ type: 'text', text: 'Hello' } as never] }),
+      makeMsg({ id: 'm2', role: 'assistant', content: 'Hi', parts: [{ type: 'text', text: 'Hi' } as never] })
+    ];
+
+    const result = await coordinator.compressSessionManually({
+      sessionId: 'session-1',
+      messages
+    });
+
+    expect(result).toBeUndefined();
+  });
+
+  it('marks old summary as superseded when creating new one', async () => {
+    const { createCompressionCoordinator } = await import('@/components/BChatSidebar/utils/compression/coordinator');
+    const existingSummary = makeSummary({ id: 'old-summary' });
+    const mockStorage = createMockStorage(existingSummary);
+
+    const coordinator = createCompressionCoordinator(mockStorage);
+    const messages: Message[] = [];
+    for (let i = 1; i <= 14; i += 1) {
+      const role = i % 2 === 1 ? 'user' : 'assistant';
+      messages.push(
+        makeMsg({
+          id: `m${i}`,
+          role,
+          content: `Message ${i}`,
+          parts: [{ type: 'text', text: `Message ${i}` } as never]
+        })
+      );
+    }
+
+    await coordinator.compressSessionManually({ sessionId: 'session-1', messages });
+
+    expect(mockStorage.updateSummaryStatus).toHaveBeenCalledWith('old-summary', 'superseded');
+  });
+
+  it('creates multi-segment summaries as draft records before promotion', async () => {
+    const { createCompressionCoordinator } = await import('@/components/BChatSidebar/utils/compression/coordinator');
+    const existingSummary = makeSummary({ id: 'old-summary' });
+    const createdRecords: Array<Parameters<SummaryStorage['createSummary']>[0]> = [];
+    const mockStorage = createMockStorage(existingSummary);
+
+    mockStorage.createSummary = vi.fn().mockImplementation(async (record) => {
+      createdRecords.push(record);
+      if (createdRecords.length === 2) {
+        throw new Error('segment write failed');
+      }
+      return {
+        ...record,
+        id: `summary-${createdRecords.length}`,
+        createdAt: dayjs().toISOString(),
+        updatedAt: dayjs().toISOString()
+      };
+    });
+
+    const coordinator = createCompressionCoordinator(mockStorage);
+
+    await expect(
+      coordinator.compressSessionManually({
+        sessionId: 'session-1',
+        messages: createSegmentedMessages(48)
+      })
+    ).rejects.toThrow();
+
+    expect(createdRecords[0]?.status).toBe('draft');
+    expect(mockStorage.updateSummaryStatus).not.toHaveBeenCalledWith('old-summary', 'superseded');
+  });
+
+  it('degrades to incremental when input exceeds char limit', async () => {
+    const { createCompressionCoordinator } = await import('@/components/BChatSidebar/utils/compression/coordinator');
+    const mockStorage = createMockStorage();
+
+    const coordinator = createCompressionCoordinator(mockStorage);
+    // 创建大量超长消息，确保 ruleTrim 超过 COMPRESSION_INPUT_CHAR_LIMIT
+    const messages: Message[] = [];
+    for (let i = 1; i <= 200; i += 1) {
+      const role = i % 2 === 1 ? 'user' : 'assistant';
+      messages.push(
+        makeMsg({
+          id: `m${i}`,
+          role,
+          content: `Message ${i} `.padEnd(1000, 'X'),
+          parts: [{ type: 'text', text: `Message ${i} `.padEnd(1000, 'X') } as never]
+        })
+      );
+    }
+
+    const result = await coordinator.compressSessionManually({ sessionId: 'session-1', messages });
+
+    expect(result?.buildMode).toBe('full_rebuild');
+    expect(result?.degradeReason).toBe('degraded_to_incremental');
+  });
+
+  it('releases session lock after exception', async () => {
+    const { createCompressionCoordinator } = await import('@/components/BChatSidebar/utils/compression/coordinator');
+    const mockStorage = createMockStorage();
+    // 使 createSummary 在第二次调用时抛出异常
+    let callCount = 0;
+    mockStorage.createSummary = vi.fn().mockImplementation((record) => {
+      callCount += 1;
+      if (callCount === 1) {
+        return Promise.resolve({
+          ...record,
+          id: 'first-summary',
+          createdAt: dayjs().toISOString(),
+          updatedAt: dayjs().toISOString()
+        });
+      }
+      return Promise.reject(new Error('DB error'));
+    });
+
+    const coordinator = createCompressionCoordinator(mockStorage);
+    const messages: Message[] = [];
+    for (let i = 1; i <= 14; i += 1) {
+      const role = i % 2 === 1 ? 'user' : 'assistant';
+      messages.push(
+        makeMsg({
+          id: `m${i}`,
+          role,
+          content: `Message ${i}`,
+          parts: [{ type: 'text', text: `Message ${i}` } as never]
+        })
+      );
+    }
+
+    // 第一次调用成功
+    const result1 = await coordinator.compressSessionManually({ sessionId: 'session-1', messages });
+    expect(result1).toBeDefined();
+
+    // 第二次调用应抛出异常（CompressionError wrapping storage error）
+    await expect(coordinator.compressSessionManually({ sessionId: 'session-1', messages })).rejects.toThrow('摘要保存失败');
+
+    // 第三次调用应能正常获取锁（锁已释放）
+    mockStorage.createSummary = vi.fn().mockImplementation((record) =>
+      Promise.resolve({
+        ...record,
+        id: 'third-summary',
+        createdAt: dayjs().toISOString(),
+        updatedAt: dayjs().toISOString()
+      })
+    );
+    const result3 = await coordinator.compressSessionManually({ sessionId: 'session-1', messages });
+    expect(result3).toBeDefined();
+    expect(result3?.id).toBe('third-summary');
   });
 });

@@ -86,7 +86,7 @@
 
 <script setup lang="ts">
 import type { Message } from './utils/types';
-import type { ChatMessageConfirmationAction, ChatMessageConfirmationCustomInputPayload } from 'types/chat';
+import type { AIUserChoiceAnswerData, ChatMessageConfirmationAction, ChatMessageConfirmationCustomInputPayload } from 'types/chat';
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { Icon } from '@iconify/vue';
 import { message } from 'ant-design-vue';
@@ -366,7 +366,7 @@ async function handleChatRegenerate(nextMessage: Message): Promise<void> {
  * 处理用户选择提交。
  * @param answer - 用户选择的答案数据
  */
-async function handleChatUserChoiceSubmit(answer: import('types/chat').AIUserChoiceAnswerData): Promise<void> {
+async function handleChatUserChoiceSubmit(answer: AIUserChoiceAnswerData): Promise<void> {
   await stream.submitUserChoice(answer);
 }
 

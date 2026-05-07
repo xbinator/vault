@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useChatStream } from '@/components/BChatSidebar/hooks/useChatStream';
 import { create } from '@/components/BChatSidebar/utils/messageHelper';
 import type { Message } from '@/components/BChatSidebar/utils/types';
+import type { ServiceConfig } from '@/components/BChatSidebar/utils/types';
 
 /**
  * 被测 hook 传给底层流式 Hook 的回调集合。
@@ -21,6 +22,10 @@ interface MockChatCallbacks {
  */
 let capturedCallbacks: MockChatCallbacks | null = null;
 const streamSpy = vi.fn();
+const prepareMessagesBeforeSendMock = vi.fn().mockResolvedValue({
+  modelMessages: [],
+  compressed: false
+});
 
 /**
  * 底层流式中止桩函数，用于模拟 Electron 流结束时的完成回调。
@@ -43,6 +48,13 @@ vi.mock('@/hooks/useChat', () => ({
       }
     };
   }
+}));
+
+vi.mock('@/components/BChatSidebar/utils/compression/coordinator', () => ({
+  createCompressionCoordinator: () => ({
+    prepareMessagesBeforeSend: prepareMessagesBeforeSendMock,
+    compressSessionManually: vi.fn()
+  })
 }));
 
 vi.mock('@/stores/serviceModel', () => ({
@@ -71,6 +83,11 @@ describe('useChatStream abort', () => {
     capturedCallbacks = null;
     abortSpy.mockClear();
     streamSpy.mockClear();
+    prepareMessagesBeforeSendMock.mockClear();
+    prepareMessagesBeforeSendMock.mockResolvedValue({
+      modelMessages: [],
+      compressed: false
+    });
   });
 
   it('finalizes the current assistant message and calls onComplete once when the user aborts', () => {
@@ -91,5 +108,35 @@ describe('useChatStream abort', () => {
     expect(messages.value[1].finished).toBe(true);
     expect(onComplete).toHaveBeenCalledTimes(1);
     expect(onComplete).toHaveBeenCalledWith(messages.value[1]);
+  });
+
+  it('passes modelId into compression preparation during chat sends', async () => {
+    const messages = ref<Message[]>([]);
+    const { stream } = useChatStream({
+      messages,
+      getSessionId: () => 'session-1'
+    });
+
+    const sourceMessages = [create.userMessage('需要压缩上下文')];
+    messages.value = [...sourceMessages];
+
+    const config: ServiceConfig = {
+      providerId: 'openai',
+      modelId: 'gpt-4o',
+      toolSupport: {
+        supported: false,
+        mode: 'none',
+        multiStepLoop: false
+      }
+    };
+
+    await stream.streamMessages(sourceMessages, config);
+
+    expect(prepareMessagesBeforeSendMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sessionId: 'session-1',
+        modelId: 'gpt-4o'
+      })
+    );
   });
 });

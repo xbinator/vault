@@ -7,6 +7,7 @@ import type { FileReference } from '../types';
 import type { JSONValue, ModelMessage } from 'ai';
 import type { AIAwaitingUserChoiceQuestion, AIToolExecutionAwaitingUserInputResult } from 'types/ai';
 import type { AIUserChoiceAnswerData, ChatMessagePart, ChatMessageRole, ChatMessageToolResultPart } from 'types/chat';
+import dayjs from 'dayjs';
 import { nanoid } from 'nanoid';
 import { asyncTo } from '@/utils/asyncTo';
 import { extractFileReferenceLines, MESSAGE_REF_PATTERN } from './fileReferenceContext';
@@ -164,7 +165,7 @@ export const append = {
 
 // ── 对外 ─────────────────────────────────────────────
 function createBase(overrides: Partial<Message>): Message {
-  return { id: nanoid(), parts: [], loading: false, createdAt: new Date().toISOString(), ...overrides } as Message;
+  return { id: nanoid(), parts: [], loading: false, createdAt: dayjs().toISOString(), ...overrides } as Message;
 }
 
 export const create = {

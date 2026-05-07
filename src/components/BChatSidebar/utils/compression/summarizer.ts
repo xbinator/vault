@@ -15,6 +15,45 @@ function isEmptyAssistantPlaceholder(message: Message): boolean {
 }
 
 /**
+ * 截断字符串中间部分，保留首尾关键信息。
+ * @param text - 原始文本
+ * @param maxLen - 最大长度
+ * @returns 截断后的文本
+ */
+function truncateMiddle(text: string, maxLen: number): string {
+  if (text.length <= maxLen) return text;
+  const headLen = Math.ceil(maxLen * 0.4);
+  const tailLen = maxLen - headLen - 3;
+  return `${text.slice(0, headLen)}...${text.slice(-tailLen)}`;
+}
+
+/**
+ * 安全摘要 tool-result，避免直接 JSON.stringify 原始 result。
+ * 防止循环引用、BigInt 报错、敏感字段泄漏和无意义截断。
+ * @param part - tool-result 类型的 part
+ * @returns 摘要信息对象
+ */
+function safeToolResultSummary(part: { toolName: string; result: unknown; isError?: boolean }): {
+  toolName: string;
+  status: string;
+  message: string;
+} | null {
+  const { result } = part;
+  let message = '';
+  if (typeof result === 'string') {
+    message = result.replace(/\s+/g, ' ').trim();
+  } else if (result && typeof result === 'object' && !Array.isArray(result)) {
+    const obj = result as Record<string, unknown>;
+    message = String(obj.message ?? obj.error ?? obj.summary ?? obj.status ?? '');
+  }
+  return {
+    toolName: part.toolName,
+    status: part.isError ? 'error' : 'success',
+    message: truncateMiddle(message, 120)
+  };
+}
+
+/**
  * 从消息中提取裁剪后的文本内容。
  */
 function extractTrimmedText(message: Message): string {
@@ -23,35 +62,52 @@ function extractTrimmedText(message: Message): string {
     message.parts.map((part) => {
       if (part.type === 'text') return part.text;
       if (part.type === 'thinking') {
-        return part.thinking.length > 100 ? `[thinking: ${part.thinking.slice(0, 100)}...]` : `[thinking: ${part.thinking}]`;
+        // 不将 raw thinking 持久化进摘要，仅保留 provider 明确返回的 reasoningSummary（如果可用）
+        return '[thinking: 已省略模型推理过程]';
       }
       if (part.type === 'tool-call') {
         return `[tool-call: ${part.toolName}]`;
       }
       if (part.type === 'tool-result') {
-        return `[tool-result: ${part.toolName}]`;
+        const summary = safeToolResultSummary(part);
+        return summary ? `[tool-result: ${summary.toolName}, ${summary.status}, ${summary.message}]` : `[tool-result: ${part.toolName}]`;
       }
       if (part.type === 'error') {
         return `[error: ${part.text}]`;
       }
       if (part.type === 'confirmation') {
-        return `[confirmation: ${part.title} (${part.confirmationStatus})]`;
+        let status = '待确认';
+        if (part.confirmationStatus === 'approved') {
+          status = '已确认';
+        } else if (part.confirmationStatus === 'cancelled') {
+          status = '已取消';
+        } else if (part.confirmationStatus === 'expired') {
+          status = '已过期';
+        }
+        return `[confirmation: ${part.title} - ${status}]`;
       }
       return '';
     })
   ).join(' ');
   // 如果有 content 文本，合并
   if (message.content) {
-    // 如果有文件引用，保留路径和行号信息
+    // 如果有文件引用，每个引用独立提取 intent，优先使用引用自身的 selectedContent 摘要
     if (message.references?.length) {
-      const refInfo = message.references
+      return message.references
         .map((ref) => {
-          const lineInfo = ref.startLine ? ` (lines ${ref.startLine}-${ref.endLine})` : '';
+          const lineInfo = ref.startLine ? `:${ref.startLine}-${ref.endLine}` : '';
           const fileName = ref.path.split('/').pop() || ref.path;
-          return `[file: ${fileName}${lineInfo}, intent: ${message.content.slice(0, 100)}]`;
+          let snippet = '';
+          if (ref.selectedContent) {
+            if (ref.selectedContent.length > 80) {
+              snippet = `${ref.selectedContent.slice(0, 40)}...${ref.selectedContent.slice(-30)}`;
+            } else {
+              snippet = ref.selectedContent;
+            }
+          }
+          return `[file: ${fileName}${lineInfo}, intent: ${message.content.slice(0, 60)}, snippet: ${snippet}]`;
         })
         .join('; ');
-      return refInfo;
     }
 
     // content + partsText 合并

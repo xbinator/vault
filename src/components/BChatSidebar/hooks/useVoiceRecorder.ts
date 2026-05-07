@@ -4,6 +4,7 @@
  */
 import { ref } from 'vue';
 import { noop } from 'lodash-es';
+import { asyncTo } from '@/utils/asyncTo';
 
 // ─── 类型定义 ────────────────────────────────────────────────────────────────
 
@@ -220,14 +221,7 @@ export function useVoiceRecorder(options: VoiceRecorderOptions = {}) {
 
     const { onSegment } = options;
     segmentDeliveryQueue = segmentDeliveryQueue.then(async () => {
-      try {
-        await onSegment({
-          buffer: wavBuffer,
-          mimeType: WAV_MIME_TYPE
-        });
-      } catch {
-        //
-      }
+      await asyncTo(Promise.resolve(onSegment({ buffer: wavBuffer, mimeType: WAV_MIME_TYPE })));
     });
   }
 

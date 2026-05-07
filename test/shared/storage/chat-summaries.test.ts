@@ -129,6 +129,170 @@ describe('chat summaries storage fallback', () => {
     expect(summary).toBeUndefined();
   });
 
+  it('creates and persists a summary record with unique ID and timestamps', async () => {
+    localStorage.clear();
+    const { chatSummariesStorage } = await import('@/shared/storage/chat-summaries');
+
+    const record = await chatSummariesStorage.createSummary({
+      sessionId: 'session-1',
+      buildMode: 'incremental',
+      coveredStartMessageId: 'm1',
+      coveredEndMessageId: 'm10',
+      coveredUntilMessageId: 'm10',
+      sourceMessageIds: ['m1'],
+      preservedMessageIds: [],
+      summaryText: 'test summary',
+      structuredSummary: {
+        goal: 'goal',
+        recentTopic: 'topic',
+        userPreferences: [],
+        constraints: [],
+        decisions: [],
+        importantFacts: [],
+        fileContext: [],
+        openQuestions: [],
+        pendingActions: []
+      },
+      triggerReason: 'message_count',
+      messageCountSnapshot: 10,
+      charCountSnapshot: 1000,
+      schemaVersion: 1,
+      status: 'valid',
+      invalidReason: undefined
+    });
+
+    expect(record.id).toBeDefined();
+    expect(record.id).toMatch(/^summary-/);
+    expect(record.createdAt).toBeDefined();
+    expect(record.updatedAt).toBeDefined();
+    expect(record.sessionId).toBe('session-1');
+    expect(record.summaryText).toBe('test summary');
+  });
+
+  it('updates summary status and invalidReason', async () => {
+    localStorage.clear();
+    const { chatSummariesStorage } = await import('@/shared/storage/chat-summaries');
+
+    const record = await chatSummariesStorage.createSummary({
+      sessionId: 'session-1',
+      buildMode: 'incremental',
+      coveredStartMessageId: 'm1',
+      coveredEndMessageId: 'm10',
+      coveredUntilMessageId: 'm10',
+      sourceMessageIds: ['m1'],
+      preservedMessageIds: [],
+      summaryText: 'test',
+      structuredSummary: {
+        goal: 'goal',
+        recentTopic: 'topic',
+        userPreferences: [],
+        constraints: [],
+        decisions: [],
+        importantFacts: [],
+        fileContext: [],
+        openQuestions: [],
+        pendingActions: []
+      },
+      triggerReason: 'message_count',
+      messageCountSnapshot: 10,
+      charCountSnapshot: 1000,
+      schemaVersion: 1,
+      status: 'valid',
+      invalidReason: undefined
+    });
+
+    await chatSummariesStorage.updateSummaryStatus(record.id, 'invalid', 'test_reason');
+
+    const allSummaries = await chatSummariesStorage.getAllSummaries('session-1');
+    const updated = allSummaries.find((s) => s.id === record.id);
+    expect(updated?.status).toBe('invalid');
+    expect(updated?.invalidReason).toBe('test_reason');
+  });
+
+  it('returns all summaries for a session', async () => {
+    localStorage.clear();
+    const { chatSummariesStorage } = await import('@/shared/storage/chat-summaries');
+
+    const baseRecord = {
+      buildMode: 'incremental' as const,
+      coveredStartMessageId: 'm1',
+      coveredEndMessageId: 'm10',
+      coveredUntilMessageId: 'm10',
+      sourceMessageIds: ['m1'],
+      preservedMessageIds: [],
+      summaryText: 'test',
+      structuredSummary: {
+        goal: 'goal',
+        recentTopic: 'topic',
+        userPreferences: [],
+        constraints: [],
+        decisions: [],
+        importantFacts: [],
+        fileContext: [],
+        openQuestions: [],
+        pendingActions: []
+      },
+      triggerReason: 'message_count' as const,
+      messageCountSnapshot: 10,
+      charCountSnapshot: 1000,
+      schemaVersion: 1,
+      status: 'valid' as const,
+      invalidReason: undefined
+    };
+
+    await chatSummariesStorage.createSummary({ ...baseRecord, sessionId: 'session-1' });
+    await chatSummariesStorage.createSummary({ ...baseRecord, sessionId: 'session-1' });
+    await chatSummariesStorage.createSummary({ ...baseRecord, sessionId: 'session-2' });
+
+    const session1Summaries = await chatSummariesStorage.getAllSummaries('session-1');
+    expect(session1Summaries).toHaveLength(2);
+
+    const session2Summaries = await chatSummariesStorage.getAllSummaries('session-2');
+    expect(session2Summaries).toHaveLength(1);
+  });
+
+  it('skips superseded and invalid summaries when getting valid summary', async () => {
+    localStorage.clear();
+    const { chatSummariesStorage } = await import('@/shared/storage/chat-summaries');
+
+    const baseRecord = {
+      sessionId: 'session-1',
+      buildMode: 'incremental' as const,
+      coveredStartMessageId: 'm1',
+      coveredEndMessageId: 'm10',
+      coveredUntilMessageId: 'm10',
+      sourceMessageIds: ['m1'],
+      preservedMessageIds: [],
+      structuredSummary: {
+        goal: 'goal',
+        recentTopic: 'topic',
+        userPreferences: [],
+        constraints: [],
+        decisions: [],
+        importantFacts: [],
+        fileContext: [],
+        openQuestions: [],
+        pendingActions: []
+      },
+      triggerReason: 'message_count' as const,
+      messageCountSnapshot: 10,
+      charCountSnapshot: 1000,
+      schemaVersion: 1,
+      invalidReason: undefined
+    };
+
+    const s1 = await chatSummariesStorage.createSummary({ ...baseRecord, summaryText: 'superseded', status: 'valid' });
+    await chatSummariesStorage.updateSummaryStatus(s1.id, 'superseded');
+
+    await chatSummariesStorage.createSummary({ ...baseRecord, summaryText: 'invalid one', status: 'invalid' });
+
+    const valid = await chatSummariesStorage.createSummary({ ...baseRecord, summaryText: 'the valid one', status: 'valid' });
+
+    const result = await chatSummariesStorage.getValidSummary('session-1');
+    expect(result?.id).toBe(valid.id);
+    expect(result?.summaryText).toBe('the valid one');
+  });
+
   it('marks malformed structured summaries invalid instead of fabricating empty data', async () => {
     // 模拟 SQLite 返回格式错误的行
     dbSelectMock.mockResolvedValue([{

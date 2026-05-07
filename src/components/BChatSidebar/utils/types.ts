@@ -55,6 +55,14 @@ export interface Message {
   loading?: boolean;
   /** 是否已完成 */
   finished?: boolean;
+  /** 估算的 token 数（per-message 缓存） */
+  tokenCount?: number;
+  /** token 计数来源 */
+  tokenCountSource?: 'estimated' | 'usage_observed';
+  /** token 计数对应的模型 ID */
+  tokenCountModelId?: string;
+  /** token 计数对应的内容哈希 */
+  tokenCountContentHash?: string;
 }
 
 /**
