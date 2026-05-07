@@ -152,6 +152,9 @@ export function createSourceSelectionAssistantAdapter(
       }
 
       const lineHeight = getLineHeight(view, anchorPos);
+      // 计算视口在 overlayRoot 坐标系中的可见区域，用于宿主做边界约束
+      const viewportTop = Math.max(0, -overlayRect.top);
+      const viewportLeft = Math.max(0, -overlayRect.left);
       return {
         anchorRect: {
           top: endCoords.top - overlayRect.top,
@@ -161,10 +164,10 @@ export function createSourceSelectionAssistantAdapter(
         },
         lineHeight,
         containerRect: {
-          top: 0,
-          left: 0,
-          width: context.overlayRoot.clientWidth,
-          height: context.overlayRoot.clientHeight
+          top: viewportTop,
+          left: viewportLeft,
+          width: window.innerWidth - viewportLeft,
+          height: window.innerHeight - viewportTop
         }
       };
     },
@@ -193,6 +196,9 @@ export function createSourceSelectionAssistantAdapter(
       }
 
       const lineHeight = getLineHeight(view, anchorPos);
+      // 计算视口在 overlayRoot 坐标系中的可见区域，用于宿主做边界约束
+      const viewportTop = Math.max(0, -overlayRect.top);
+      const viewportLeft = Math.max(0, -overlayRect.left);
       return {
         anchorRect: {
           top: startCoords.top - overlayRect.top,
@@ -202,10 +208,10 @@ export function createSourceSelectionAssistantAdapter(
         },
         lineHeight,
         containerRect: {
-          top: 0,
-          left: 0,
-          width: context.overlayRoot.clientWidth,
-          height: context.overlayRoot.clientHeight
+          top: viewportTop,
+          left: viewportLeft,
+          width: window.innerWidth - viewportLeft,
+          height: window.innerHeight - viewportTop
         }
       };
     },

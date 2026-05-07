@@ -143,8 +143,8 @@ function syncFloatPosition(): void {
   const containerRect = position.containerRect ?? {
     top: 0,
     left: 0,
-    width: wrapperElement.offsetParent instanceof HTMLElement ? wrapperElement.offsetParent.clientWidth : 0,
-    height: wrapperElement.offsetParent instanceof HTMLElement ? wrapperElement.offsetParent.clientHeight : 0
+    width: window.innerWidth,
+    height: window.innerHeight
   };
   const maxWidth = Math.max(0, containerRect.width - PANEL_PADDING * 2);
   const width = Math.min(PREFERRED_PANEL_WIDTH, maxWidth);

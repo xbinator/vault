@@ -104,18 +104,24 @@ function hide(): void {
 
 /**
  * 计算工具栏定位约束所需的容器尺寸。
+ * 优先使用 adapter 提供的 containerRect（视口坐标系），
+ * 回退到基于 overlayRoot 实时计算的视口可见区域。
  * @param position - 当前选区定位信息
  * @returns 归一化后的容器矩形
  */
-function resolveContainerRect(position: SelectionAssistantPosition): { top: number; left: number; width: number; height: number } {
-  return (
-    position.containerRect ?? {
-      top: 0,
-      left: 0,
-      width: props.overlayRoot?.clientWidth ?? 0,
-      height: props.overlayRoot?.clientHeight ?? 0
-    }
-  );
+function resolveContainerRect(position: SelectionAssistantPosition) {
+  if (position.containerRect) {
+    return position.containerRect;
+  }
+
+  // 兜底：基于 overlayRoot 实时计算视口可见区域
+  const overlayEl = props.overlayRoot;
+  const overlayRect = overlayEl?.getBoundingClientRect() ?? new DOMRect();
+
+  const top = Math.max(0, -overlayRect.top);
+  const left = Math.max(0, -overlayRect.left);
+
+  return { top, left, width: window.innerWidth - left, height: window.innerHeight - top };
 }
 
 // ─── 定位计算 ─────────────────────────────────────────────────────────────────
