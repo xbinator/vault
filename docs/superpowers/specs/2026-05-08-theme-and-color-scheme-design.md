@@ -71,7 +71,8 @@
 ```
 src/
 ├── tools/
-│   └── setTheme.ts               # AI 工具：设置主题
+│   ├── setColorScheme.ts         # AI 工具：设置配色方案
+│   └── setThemeColor.ts          # AI 工具：设置主题色
 ├── utils/
 │   ├── colorGenerator.ts         # 颜色生成器：基于主色调生成变体
 │   └── themePresets.ts           # 预设主题配置
@@ -100,12 +101,17 @@ interface SettingState {
   // 配色方案：明暗模式
   colorScheme: 'auto' | 'light' | 'dark';
   
-  // 主题：预设主题名称或自定义
-  theme: 'default' | 'blue' | 'green' | 'purple' | 'orange' | 'red' | 'custom';
+  // 主题名称：预设主题名称或自定义
+  themeName: 'default' | 'blue' | 'green' | 'purple' | 'orange' | 'red' | 'custom';
   
-  // 自定义主题色（仅当 theme = 'custom' 时有效）
+  // 自定义主题色（仅当 themeName = 'custom' 时有效）
   customThemeColor: string | null;
 }
+```
+
+**重要说明**：
+- `resolvedColorScheme`（实际应用的配色方案）是运行时派生值，不应该存储在 store 中
+- 应该使用 `computed` 根据 `colorScheme` 和系统设置计算得出
 ```
 
 ### 2. 预设主题配置
@@ -189,22 +195,52 @@ function generateColorVariants(primaryColor: string): ThemeColorVariants {
 
 ### 4. AI 工具实现
 
+**拆分为两个独立的 AI 工具**：
+
+#### 4.1 设置配色方案工具
+
 ```typescript
-// src/tools/setTheme.ts
-export const setThemeTool = {
-  name: 'setTheme',
-  description: '设置应用主题，支持预设主题和自定义主题',
+// src/tools/setColorScheme.ts
+export const setColorSchemeTool = {
+  name: 'setColorScheme',
+  description: '设置应用的配色方案（明暗模式）',
   parameters: {
-    theme: {
+    colorScheme: {
+      type: 'string',
+      enum: ['auto', 'light', 'dark'],
+      description: '配色方案：auto（跟随系统）、light（浅色）、dark（深色）',
+    },
+  },
+  execute: async (params: { colorScheme: 'auto' | 'light' | 'dark' }) => {
+    const settingStore = useSettingStore();
+    settingStore.setColorScheme(params.colorScheme);
+    
+    return {
+      success: true,
+      message: `配色方案已设置为：${params.colorScheme === 'auto' ? '跟随系统' : params.colorScheme === 'light' ? '浅色' : '深色'}`,
+    };
+  },
+};
+```
+
+#### 4.2 设置主题色工具
+
+```typescript
+// src/tools/setThemeColor.ts
+export const setThemeColorTool = {
+  name: 'setThemeColor',
+  description: '设置应用的主题色，支持预设主题和自定义主题',
+  parameters: {
+    themeName: {
       type: 'string',
       description: '主题名称：default（默认）、blue（蓝色）、green（绿色）、purple（紫色）、orange（橙色）、red（红色）、custom（自定义）',
     },
     customColorDescription: {
       type: 'string',
-      description: '自定义颜色描述（仅当 theme = custom 时需要），如"浅蓝色"、"深绿色"',
+      description: '自定义颜色描述（仅当 themeName = custom 时需要），如"浅蓝色"、"深绿色"',
     },
   },
-  execute: async (params: { theme: string; customColorDescription?: string }) => {
+  execute: async (params: { themeName: string; customColorDescription?: string }) => {
     // 1. 验证主题名称
     // 2. 如果是自定义主题，解析颜色描述
     // 3. 生成颜色变体
@@ -214,10 +250,16 @@ export const setThemeTool = {
 };
 ```
 
+**拆分优势**：
+- 职责单一，避免误操作
+- 用户可以独立控制配色方案和主题色
+- 更符合用户的心智模型
+```
+
 ### 5. 配色方案实现
 
 ```typescript
-// 计算实际应用的配色方案
+// 计算实际应用的配色方案（运行时派生值，不存储）
 const resolvedColorScheme = computed(() => {
   if (settingStore.colorScheme === 'auto') {
     // 跟随系统
@@ -225,6 +267,21 @@ const resolvedColorScheme = computed(() => {
   }
   return settingStore.colorScheme;
 });
+
+// 监听系统配色方案变化（仅在 auto 模式下）
+watch(
+  () => settingStore.colorScheme,
+  (newScheme) => {
+    if (newScheme === 'auto') {
+      const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+      const handler = () => {
+        // computed 会自动重新计算，无需手动更新
+      };
+      mediaQuery.addEventListener('change', handler);
+    }
+  },
+  { immediate: true }
+);
 ```
 
 ### 6. 动态更新机制
@@ -266,38 +323,82 @@ function updateThemeColors(variants: ThemeColorVariants) {
 export function useAntdTheme(): UseAntdThemeResult {
   const settingStore = useSettingStore();
   
+  // 计算实际应用的配色方案
+  const resolvedColorScheme = computed(() => {
+    if (settingStore.colorScheme === 'auto') {
+      return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    }
+    return settingStore.colorScheme;
+  });
+  
   const antdTheme = computed<AntdThemeConfig>(() => {
-    // 获取主题色
-    const primaryColor = getPrimaryColor(settingStore.theme, settingStore.customThemeColor);
+    // 统一获取主色调的逻辑
+    const primaryColor = getPrimaryColor(settingStore.themeName, settingStore.customThemeColor);
     
-    // 根据配色方案调整颜色
-    const adaptedColor = adaptColorForScheme(primaryColor, settingStore.resolvedColorScheme);
+    // 统一生成主题 token 的逻辑
+    const tokens = generateThemeTokens(primaryColor, resolvedColorScheme.value);
     
-    if (settingStore.resolvedColorScheme === 'dark') {
+    if (resolvedColorScheme.value === 'dark') {
       return {
         algorithm: darkAlgorithm,
-        token: {
-          colorPrimary: adaptedColor,
-          colorPrimaryBg: colord(adaptedColor).alpha(0.1).toRgbString(),
-          colorPrimaryBorder: colord(adaptedColor).alpha(0.24).toRgbString(),
-          // ... 其他配置
-        },
+        token: tokens,
       };
     }
     
     return {
       algorithm: defaultAlgorithm,
-      token: {
-        colorPrimary: adaptedColor,
-        colorPrimaryBg: colord(adaptedColor).alpha(0.1).toRgbString(),
-        colorPrimaryBorder: colord(adaptedColor).alpha(0.24).toRgbString(),
-        // ... 其他配置
-      },
+      token: tokens,
     };
   });
   
   return { antdTheme };
 }
+
+/**
+ * 统一获取主色调的逻辑
+ * @param themeName - 主题名称
+ * @param customThemeColor - 自定义主题色
+ * @returns 主色调 HEX 值
+ */
+function getPrimaryColor(themeName: string, customThemeColor: string | null): string {
+  if (themeName === 'custom' && customThemeColor) {
+    return customThemeColor;
+  }
+  
+  const preset = themePresets[themeName];
+  if (preset) {
+    return preset.primaryColor;
+  }
+  
+  // 默认返回棕色
+  return themePresets.default.primaryColor;
+}
+
+/**
+ * 统一生成主题 token 的逻辑
+ * @param primaryColor - 主色调
+ * @param colorScheme - 配色方案
+ * @returns Ant Design 主题 token
+ */
+function generateThemeTokens(primaryColor: string, colorScheme: 'light' | 'dark'): AntdThemeToken {
+  const color = colord(primaryColor);
+  
+  // 根据配色方案调整颜色
+  const adaptedColor = adaptColorForScheme(primaryColor, colorScheme);
+  
+  return {
+    colorPrimary: adaptedColor,
+    colorPrimaryBg: color.alpha(0.1).toRgbString(),
+    colorPrimaryBorder: color.alpha(0.24).toRgbString(),
+    // ... 其他配置
+  };
+}
+```
+
+**统一逻辑优势**：
+- 预设主题和自定义主题使用相同的生成逻辑
+- 代码更简洁，易于维护
+- 确保所有主题的视觉效果一致
 ```
 
 ## 实现细节
@@ -327,28 +428,34 @@ watch(
 ### 2. 主题切换
 
 ```typescript
-function applyTheme(theme: string, customColor?: string) {
+/**
+ * 应用主题
+ * @param themeName - 主题名称
+ * @param customColor - 自定义颜色描述（可选）
+ */
+function applyTheme(themeName: string, customColor?: string) {
+  // 统一获取主色调的逻辑
   let primaryColor: string;
   
-  if (theme === 'custom' && customColor) {
-    // 自定义主题
+  if (themeName === 'custom' && customColor) {
+    // 自定义主题：解析颜色描述
     primaryColor = parseColorDescription(customColor);
-  } else if (themePresets[theme]) {
-    // 预设主题
-    primaryColor = themePresets[theme].primaryColor;
+  } else if (themePresets[themeName]) {
+    // 预设主题：使用预设颜色
+    primaryColor = themePresets[themeName].primaryColor;
   } else {
-    throw new Error(`Unknown theme: ${theme}`);
+    throw new Error(`Unknown theme: ${themeName}`);
   }
   
-  // 生成颜色变体
+  // 统一生成颜色变体的逻辑
   const variants = generateColorVariants(primaryColor);
   
   // 更新 CSS 变量
   updateThemeColors(variants);
   
   // 更新设置
-  settingStore.theme = theme;
-  settingStore.customThemeColor = theme === 'custom' ? primaryColor : null;
+  settingStore.themeName = themeName;
+  settingStore.customThemeColor = themeName === 'custom' ? primaryColor : null;
 }
 ```
 
@@ -423,7 +530,7 @@ export const useSettingStore = defineStore('setting', {
   state: (): SettingState => ({
     // 现有字段...
     colorScheme: 'auto',
-    theme: 'default',
+    themeName: 'default',
     customThemeColor: null,
   }),
   
@@ -432,9 +539,9 @@ export const useSettingStore = defineStore('setting', {
       this.colorScheme = scheme;
     },
     
-    setTheme(theme: string, customColor?: string) {
-      this.theme = theme;
-      if (theme === 'custom' && customColor) {
+    setThemeName(themeName: string, customColor?: string) {
+      this.themeName = themeName;
+      if (themeName === 'custom' && customColor) {
         this.customThemeColor = customColor;
       } else {
         this.customThemeColor = null;
@@ -448,6 +555,10 @@ export const useSettingStore = defineStore('setting', {
   },
 });
 ```
+
+**重要说明**：
+- `resolvedColorScheme` 不存储在 state 中，因为它是由 `colorScheme` 和系统设置派生的运行时值
+- 使用 `computed` 计算 `resolvedColorScheme`，确保响应式更新
 
 ## 设置界面设计
 
@@ -600,7 +711,7 @@ export const useSettingStore = defineStore('setting', {
 6. 实现主题切换逻辑
 7. 修改 `useAntdTheme.ts` 支持动态主题
 8. 修改 `variables.less` 支持动态更新
-9. 实现 AI 工具 `setTheme.ts`
+9. 实现 AI 工具 `setColorScheme.ts` 和 `setThemeColor.ts`
 
 ### 第二阶段：设置界面（2-3 天）
 
