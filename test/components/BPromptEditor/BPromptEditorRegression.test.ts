@@ -10,7 +10,7 @@ import { EditorState } from '@codemirror/state';
 import { EditorView, WidgetType } from '@codemirror/view';
 import { mount, type VueWrapper } from '@vue/test-utils';
 import { describe, expect, test, vi } from 'vitest';
-import { chatSlashCommands } from '@/components/BChatSidebar/utils/slashCommands';
+import { chatSlashCommands } from '@/components/BChatSidebar/hooks/useSlashCommands';
 import { editableCompartment, readOnlyCompartment, themeCompartment } from '@/components/BPromptEditor/extensions/base';
 import { createPasteHandlerExtension } from '@/components/BPromptEditor/extensions/pasteHandler';
 import { createPlaceholderExtension } from '@/components/BPromptEditor/extensions/placeholder';

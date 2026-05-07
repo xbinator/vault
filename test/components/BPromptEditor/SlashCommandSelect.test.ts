@@ -7,7 +7,7 @@ import { nextTick } from 'vue';
 import { mount } from '@vue/test-utils';
 import { describe, expect, test } from 'vitest';
 import SlashCommandSelect from '@/components/BPromptEditor/components/SlashCommandSelect.vue';
-import { chatSlashCommands } from '@/components/BChatSidebar/utils/slashCommands';
+import { chatSlashCommands } from '@/components/BChatSidebar/hooks/useSlashCommands';
 
 describe('SlashCommandSelect', () => {
   test('renders as an absolute menu that fills the editor container width', async () => {

@@ -19,7 +19,7 @@ export const COMPRESSION_TOKEN_THRESHOLD = 8_000;
  * @param reservedOutputTokens - 预留输出 token 数
  * @returns 用于触发压缩的 token 阈值
  */
-export function computeCompressionTokenThreshold(contextWindow: number, reservedOutputTokens: number = 4_096): number {
+export function computeCompressionTokenThreshold(contextWindow: number, reservedOutputTokens = 4_096): number {
   if (contextWindow <= 0) {
     return COMPRESSION_TOKEN_THRESHOLD;
   }

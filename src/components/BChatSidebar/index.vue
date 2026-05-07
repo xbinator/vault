@@ -70,9 +70,6 @@
             :selected-model="selectedModel"
             :supports-vision="supportsVision"
             :can-submit="canSubmit"
-            :session-id="settingStore.chatSidebarActiveSessionId ?? undefined"
-            :messages="messages"
-            :tool-definitions="transportToolDefinitions"
             @submit="handleChatSubmit"
             @abort="handleAbort"
             @image-select="imageUpload.appendImages"
@@ -110,6 +107,7 @@ import UsagePanel from './components/UsagePanel.vue';
 import { useAutoName } from './hooks/useAutoName';
 import { useChatHistory } from './hooks/useChatHistory';
 import { useChatInput } from './hooks/useChatInput';
+import { useCompression } from './hooks/useCompression';
 import { useChatStream } from './hooks/useChatStream';
 import { useFileReference } from './hooks/useFileReference';
 import { useImageUpload } from './hooks/useImageUpload';
@@ -238,6 +236,15 @@ const tools = createBuiltinTools({
 
 /** 当前聊天请求会附带的工具定义。 */
 const transportToolDefinitions = computed(() => toTransportTools(tools));
+
+/** 会话压缩 hook，仅保留 slash command 程序化入口。 */
+const compression = useCompression({
+  getSessionId: () => settingStore.chatSidebarActiveSessionId ?? undefined,
+  getMessages: () => messages.value,
+  getProviderId: () => selectedModel.value?.providerId,
+  getModelId: () => selectedModel.value?.modelId,
+  getToolDefinitions: () => transportToolDefinitions.value
+});
 
 /**
  * 处理聊天流中的确认卡片操作。
@@ -441,6 +448,19 @@ function handleCancel(): void {
 }
 
 /**
+ * 处理 slash command 触发的上下文压缩。
+ */
+async function handleCompactContext(): Promise<void> {
+  const success = await compression.compress();
+
+  if (success) {
+    message.success('上下文压缩成功');
+  } else if (compression.error.value) {
+    message.error(compression.error.value);
+  }
+}
+
+/**
  * 处理模型变更（委托给 modelSelection hook）。
  * @param value - 新选中的模型标识
  */
@@ -454,7 +474,9 @@ const { handleSlashCommand } = useSlashCommands({
   openUsagePanel: () => usagePanel.openPanel(currentSession.value?.id),
   createNewSession,
   clearInput: () => inputEvents.clear(),
-  compactContext: () => modelSelectorRef.value?.compress?.()
+  compactContext: () => {
+    void handleCompactContext();
+  }
 });
 
 /** 加载历史消息 */

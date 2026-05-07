@@ -7,7 +7,7 @@ import { nextTick } from 'vue';
 import { mount } from '@vue/test-utils';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 import BChatSidebar from '@/components/BChatSidebar/index.vue';
-import { chatSlashCommands } from '@/components/BChatSidebar/utils/slashCommands';
+import { chatSlashCommands } from '@/components/BChatSidebar/hooks/useSlashCommands';
 import type { Message } from '@/components/BChatSidebar/utils/types';
 
 const chatStreamLoadingState = {
@@ -37,8 +37,9 @@ const {
   focusMock,
   saveCursorPositionMock,
   modelSelectorOpenMock,
-  compressionTriggerMock,
+  compressionHookTriggerMock,
   getSessionUsageMock,
+  getSessionsMock,
   loadProvidersMock,
   getServiceModelConfigMock,
   getSessionMessagesMock,
@@ -57,8 +58,9 @@ const {
   focusMock: vi.fn(),
   saveCursorPositionMock: vi.fn(),
   modelSelectorOpenMock: vi.fn(),
-  compressionTriggerMock: vi.fn(async () => undefined),
+  compressionHookTriggerMock: vi.fn(async () => true),
   getSessionUsageMock: vi.fn(async () => undefined),
+  getSessionsMock: vi.fn(async () => ({ items: [] })),
   loadProvidersMock: vi.fn(async () => undefined),
   getServiceModelConfigMock: vi.fn(async () => undefined),
   getSessionMessagesMock: vi.fn(async () => []),
@@ -152,12 +154,28 @@ vi.mock('@/components/BChatSidebar/components/InputToolbar.vue', async () => {
       emits: ['submit', 'abort', 'model-change'],
       setup(_props, { expose }) {
         expose({
-          open: modelSelectorOpenMock,
-          compress: compressionTriggerMock
+          open: modelSelectorOpenMock
         });
 
         return () => h('div', { 'data-testid': 'input-toolbar-stub' });
       }
+    })
+  };
+});
+
+vi.mock('@/components/BChatSidebar/hooks/useCompression', async () => {
+  const { ref } = await import('vue');
+
+  return {
+    useCompression: () => ({
+      compressing: ref(false),
+      currentSummary: ref(undefined),
+      error: ref(undefined),
+      budget: ref(undefined),
+      compress: compressionHookTriggerMock,
+      loadSummary: vi.fn(async () => undefined),
+      refreshBudget: vi.fn(async () => undefined),
+      clearError: vi.fn()
     })
   };
 });
@@ -223,6 +241,7 @@ vi.mock('@/shared/storage', () => ({
 vi.mock('@/stores/chat', () => ({
   useChatStore: () => ({
     getSessionMessages: getSessionMessagesMock,
+    getSessions: getSessionsMock,
     getSessionUsage: getSessionUsageMock,
     createSession: createSessionMock,
     addSessionMessage: addSessionMessageMock,
@@ -362,8 +381,9 @@ describe('chatSlashCommands', () => {
     focusMock.mockReset();
     saveCursorPositionMock.mockReset();
     modelSelectorOpenMock.mockReset();
-    compressionTriggerMock.mockReset();
+    compressionHookTriggerMock.mockReset();
     getSessionUsageMock.mockReset();
+    getSessionsMock.mockReset();
     loadProvidersMock.mockClear();
     getServiceModelConfigMock.mockClear();
     getSessionMessagesMock.mockClear();
@@ -475,7 +495,7 @@ describe('chatSlashCommands', () => {
     wrapper.getComponent({ name: 'BPromptEditor' }).vm.$emit('slash-command', compactCommand);
     await nextTick();
 
-    expect(compressionTriggerMock).toHaveBeenCalledTimes(1);
+    expect(compressionHookTriggerMock).toHaveBeenCalledTimes(1);
   });
 
   test('does not start a new chat while the stream is still loading', async () => {

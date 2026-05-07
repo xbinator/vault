@@ -7,7 +7,7 @@
 import { nextTick } from 'vue';
 import { mount, type VueWrapper } from '@vue/test-utils';
 import { beforeEach, describe, expect, test } from 'vitest';
-import { chatSlashCommands } from '@/components/BChatSidebar/utils/slashCommands';
+import { chatSlashCommands } from '@/components/BChatSidebar/hooks/useSlashCommands';
 import BPromptEditor from '@/components/BPromptEditor/index.vue';
 import type { SlashCommandOption } from '@/components/BPromptEditor/types';
 
@@ -129,12 +129,14 @@ describe('BPromptEditor slash commands', () => {
     const wrapper = mountPromptEditor({
       slashCommands: chatSlashCommands
     });
+    const compactCommand = chatSlashCommands.find((command) => command.id === 'compact');
 
     await insertEditorText(wrapper, '/');
     await wrapper.get('.cm-content').trigger('keydown', { key: 'ArrowUp' });
     await wrapper.get('.cm-content').trigger('keydown', { key: 'Enter' });
 
-    expect(wrapper.emitted('slash-command')).toEqual([[chatSlashCommands[3]]]);
+    expect(compactCommand).toBeDefined();
+    expect(wrapper.emitted('slash-command')).toEqual([[compactCommand]]);
     expect(wrapper.vm.getText()).toBe('');
   });
 
