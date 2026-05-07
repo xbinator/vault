@@ -49,6 +49,26 @@
 
 ## 架构设计
 
+### 架构原则
+
+本方案采用**领域驱动设计（DDD）**思想，将主题系统作为独立的领域模块，遵循以下原则：
+
+1. **业务逻辑与基础设施分离**
+   - 领域行为（`theme/actions`）不依赖 AI、UI 等基础设施
+   - 基础设施（`ai/tools`）只作为适配器，调用领域行为
+
+2. **单一职责**
+   - 每个模块只负责一个明确的职责
+   - 领域行为负责业务逻辑，AI 工具负责参数转换
+
+3. **依赖倒置**
+   - 高层模块（AI、设置页）依赖抽象（领域行为）
+   - 领域行为不依赖具体实现
+
+4. **开闭原则**
+   - 对扩展开放：可以添加新的调用方（快捷命令、URL 参数等）
+   - 对修改封闭：修改业务逻辑时，不影响调用方
+
 ### 整体架构
 
 ```
@@ -68,25 +88,61 @@
 
 ### 文件结构
 
+**领域化架构**：
+
 ```
 src/
-├── tools/
-│   ├── setColorScheme.ts         # AI 工具：设置配色方案
-│   └── setThemeColor.ts          # AI 工具：设置主题色
-├── utils/
-│   ├── colorGenerator.ts         # 颜色生成器：基于主色调生成变体
-│   └── themePresets.ts           # 预设主题配置
-├── hooks/
-│   └── useAntdTheme.ts           # 修改：支持动态主题
-├── stores/
-│   └── setting.ts                # 修改：存储配色方案和主题
-└── assets/
-    └── styles/
-        └── theme/
-            ├── variables.less    # 修改：支持动态主题
-            ├── light.less        # 修改：使用 CSS 变量
-            └── dark.less         # 修改：使用 CSS 变量
+├── theme/                          # 主题领域模块
+│   ├── actions/                    # 领域行为（业务逻辑）
+│   │   ├── setColorScheme.ts       # 设置配色方案
+│   │   ├── setThemeColor.ts        # 设置主题色
+│   │   └── resetTheme.ts           # 重置主题
+│   │
+│   ├── constants/                  # 常量定义
+│   │   └── themePresets.ts         # 预设主题配置
+│   │
+│   ├── generators/                 # 生成器
+│   │   └── colorGenerator.ts       # 颜色生成器
+│   │
+│   ├── parsers/                    # 解析器
+│   │   └── colorParser.ts          # 颜色描述解析器
+│   │
+│   ├── runtime/                    # 运行时逻辑
+│   │   └── themeRuntime.ts         # 主题运行时管理
+│   │
+│   ├── hooks/                      # 组合式函数
+│   │   └── useTheme.ts             # 主题相关 hooks
+│   │
+│   ├── types/                      # 类型定义
+│   │   └── index.ts                # 主题相关类型
+│   │
+│   └── index.ts                    # 模块导出
+│
+├── ai/                             # AI 模块
+│   └── tools/                      # AI 工具（适配器层）
+│       └── appearanceTools.ts      # 外观相关 AI 工具
+│
+└── stores/
+    └── setting.ts                  # 设置存储
 ```
+
+**架构优势**：
+
+1. **职责清晰**：
+   - `theme/actions`：真正的业务逻辑，不关心 AI
+   - `ai/tools`：只是 AI adapter，调用 theme actions
+
+2. **复用性强**：
+   - 设置页、快捷命令、AI、URL 参数、用户配置同步都能复用同一套主题逻辑
+   - 避免"AI 能改主题但设置页不能复用"的问题
+
+3. **易于维护**：
+   - 避免"设置页逻辑和 AI tool 逻辑两套实现"的腐化路径
+   - 业务逻辑集中管理，修改时只需改一处
+
+4. **符合 DDD**：
+   - 主题是一个独立的领域
+   - 领域行为与基础设施（AI、UI）分离
 
 ## 数据流设计
 
@@ -193,14 +249,127 @@ function generateColorVariants(primaryColor: string): ThemeColorVariants {
 }
 ```
 
-### 4. AI 工具实现
+### 4. 领域行为实现
 
-**拆分为两个独立的 AI 工具**：
+**业务逻辑层**：
 
-#### 4.1 设置配色方案工具
+#### 4.1 设置配色方案
 
 ```typescript
-// src/tools/setColorScheme.ts
+// src/theme/actions/setColorScheme.ts
+import { useSettingStore } from '@/stores/setting';
+
+/**
+ * 设置配色方案
+ * @param colorScheme - 配色方案
+ * @returns 操作结果
+ */
+export async function setColorScheme(colorScheme: 'auto' | 'light' | 'dark'): Promise<{ success: boolean; message: string }> {
+  const settingStore = useSettingStore();
+  settingStore.setColorScheme(colorScheme);
+  
+  return {
+    success: true,
+    message: `配色方案已设置为：${colorScheme === 'auto' ? '跟随系统' : colorScheme === 'light' ? '浅色' : '深色'}`,
+  };
+}
+```
+
+#### 4.2 设置主题色
+
+```typescript
+// src/theme/actions/setThemeColor.ts
+import { useSettingStore } from '@/stores/setting';
+import { parseColorDescription } from '../parsers/colorParser';
+import { generateColorVariants } from '../generators/colorGenerator';
+import { updateThemeColors } from '../runtime/themeRuntime';
+import { themePresets } from '../constants/themePresets';
+
+/**
+ * 设置主题色
+ * @param themeName - 主题名称
+ * @param customColorDescription - 自定义颜色描述（可选）
+ * @returns 操作结果
+ */
+export async function setThemeColor(
+  themeName: string,
+  customColorDescription?: string
+): Promise<{ success: boolean; message: string }> {
+  const settingStore = useSettingStore();
+  
+  // 统一获取主色调的逻辑
+  let primaryColor: string;
+  
+  if (themeName === 'custom' && customColorDescription) {
+    // 自定义主题：解析颜色描述
+    primaryColor = parseColorDescription(customColorDescription);
+  } else if (themePresets[themeName]) {
+    // 预设主题：使用预设颜色
+    primaryColor = themePresets[themeName].primaryColor;
+  } else {
+    return {
+      success: false,
+      message: `未知主题：${themeName}`,
+    };
+  }
+  
+  // 统一生成颜色变体的逻辑
+  const variants = generateColorVariants(primaryColor);
+  
+  // 更新 CSS 变量
+  updateThemeColors(variants);
+  
+  // 更新设置
+  settingStore.setThemeName(themeName, themeName === 'custom' ? primaryColor : undefined);
+  
+  return {
+    success: true,
+    message: `主题已设置为：${themeName === 'custom' ? customColorDescription : themePresets[themeName].displayName}`,
+  };
+}
+```
+
+#### 4.3 重置主题
+
+```typescript
+// src/theme/actions/resetTheme.ts
+import { useSettingStore } from '@/stores/setting';
+import { setThemeColor } from './setThemeColor';
+import { setColorScheme } from './setColorScheme';
+
+/**
+ * 重置主题到默认状态
+ * @returns 操作结果
+ */
+export async function resetTheme(): Promise<{ success: boolean; message: string }> {
+  const settingStore = useSettingStore();
+  
+  // 重置配色方案
+  await setColorScheme('auto');
+  
+  // 重置主题色
+  await setThemeColor('default');
+  
+  return {
+    success: true,
+    message: '主题已重置为默认状态',
+  };
+}
+```
+
+**AI 适配器层**：
+
+#### 4.4 AI 工具定义
+
+```typescript
+// src/ai/tools/appearanceTools.ts
+import { setColorScheme } from '@/theme/actions/setColorScheme';
+import { setThemeColor } from '@/theme/actions/setThemeColor';
+import { resetTheme } from '@/theme/actions/resetTheme';
+
+/**
+ * 设置配色方案 AI 工具
+ */
 export const setColorSchemeTool = {
   name: 'setColorScheme',
   description: '设置应用的配色方案（明暗模式）',
@@ -212,21 +381,13 @@ export const setColorSchemeTool = {
     },
   },
   execute: async (params: { colorScheme: 'auto' | 'light' | 'dark' }) => {
-    const settingStore = useSettingStore();
-    settingStore.setColorScheme(params.colorScheme);
-    
-    return {
-      success: true,
-      message: `配色方案已设置为：${params.colorScheme === 'auto' ? '跟随系统' : params.colorScheme === 'light' ? '浅色' : '深色'}`,
-    };
+    return await setColorScheme(params.colorScheme);
   },
 };
-```
 
-#### 4.2 设置主题色工具
-
-```typescript
-// src/tools/setThemeColor.ts
+/**
+ * 设置主题色 AI 工具
+ */
 export const setThemeColorTool = {
   name: 'setThemeColor',
   description: '设置应用的主题色，支持预设主题和自定义主题',
@@ -241,19 +402,28 @@ export const setThemeColorTool = {
     },
   },
   execute: async (params: { themeName: string; customColorDescription?: string }) => {
-    // 1. 验证主题名称
-    // 2. 如果是自定义主题，解析颜色描述
-    // 3. 生成颜色变体
-    // 4. 更新设置
-    // 5. 返回结果
+    return await setThemeColor(params.themeName, params.customColorDescription);
+  },
+};
+
+/**
+ * 重置主题 AI 工具
+ */
+export const resetThemeTool = {
+  name: 'resetTheme',
+  description: '重置主题到默认状态',
+  parameters: {},
+  execute: async () => {
+    return await resetTheme();
   },
 };
 ```
 
-**拆分优势**：
-- 职责单一，避免误操作
-- 用户可以独立控制配色方案和主题色
-- 更符合用户的心智模型
+**架构优势**：
+- **业务逻辑独立**：`theme/actions` 不依赖 AI，可被任何地方调用
+- **AI 只是适配器**：`ai/tools` 只负责参数转换和调用业务逻辑
+- **易于测试**：可以单独测试业务逻辑，无需模拟 AI 环境
+- **易于扩展**：未来可以添加更多调用方（设置页、快捷命令等）
 ```
 
 ### 5. 配色方案实现
@@ -704,14 +874,25 @@ export const useSettingStore = defineStore('setting', {
 ### 第一阶段：核心功能（4-6 天）
 
 1. 安装 `colord` 依赖
-2. 实现预设主题配置 `themePresets.ts`
-3. 实现颜色生成器 `colorGenerator.ts`
-4. 修改 `setting.ts` 添加配色方案和主题存储
-5. 实现配色方案切换逻辑
-6. 实现主题切换逻辑
-7. 修改 `useAntdTheme.ts` 支持动态主题
-8. 修改 `variables.less` 支持动态更新
-9. 实现 AI 工具 `setColorScheme.ts` 和 `setThemeColor.ts`
+2. 创建主题领域模块结构
+   - `src/theme/types/` - 类型定义
+   - `src/theme/constants/themePresets.ts` - 预设主题配置
+   - `src/theme/generators/colorGenerator.ts` - 颜色生成器
+   - `src/theme/parsers/colorParser.ts` - 颜色解析器
+   - `src/theme/runtime/themeRuntime.ts` - 主题运行时管理
+3. 实现领域行为
+   - `src/theme/actions/setColorScheme.ts` - 设置配色方案
+   - `src/theme/actions/setThemeColor.ts` - 设置主题色
+   - `src/theme/actions/resetTheme.ts` - 重置主题
+4. 实现 AI 适配器
+   - `src/ai/tools/appearanceTools.ts` - AI 工具定义
+5. 修改设置存储
+   - `src/stores/setting.ts` - 添加配色方案和主题存储
+6. 修改主题 hooks
+   - `src/theme/hooks/useTheme.ts` - 主题相关 hooks
+   - 修改 `useAntdTheme.ts` 支持动态主题
+7. 修改样式文件
+   - `src/assets/styles/theme/variables.less` - 支持动态主题
 
 ### 第二阶段：设置界面（2-3 天）
 
@@ -739,11 +920,32 @@ export const useSettingStore = defineStore('setting', {
 
 本设计方案通过将配色方案和主题分离，提供了更清晰的概念和更灵活的组合方式：
 
+### 功能优势
+
 1. **概念清晰**：配色方案控制明暗，主题控制颜色风格
 2. **灵活组合**：用户可以自由组合配色方案和主题
 3. **易于使用**：预设主题开箱即用，自定义主题满足个性化需求
 4. **技术成熟**：使用成熟的颜色算法库，稳定可靠
-5. **易于维护**：架构清晰，代码模块化
-6. **可扩展**：为后续高级功能预留扩展空间
 
-该方案能够很好地满足用户需求，提升用户体验。
+### 架构优势
+
+1. **领域化设计**：主题作为独立领域，业务逻辑集中管理
+2. **职责分离**：业务逻辑与基础设施（AI、UI）分离
+3. **高复用性**：设置页、快捷命令、AI、URL 参数都能复用同一套逻辑
+4. **易于维护**：避免"两套实现"的腐化路径，修改时只需改一处
+5. **易于测试**：可以单独测试业务逻辑，无需模拟 AI 环境
+6. **易于扩展**：未来可以添加更多调用方，无需修改业务逻辑
+
+### 长期价值
+
+这种架构设计避免了前端项目常见的腐化路径：
+- ❌ "AI 能改主题但设置页不能复用"
+- ❌ "设置页逻辑和 AI tool 逻辑两套实现"
+- ❌ "业务逻辑散落在各处，难以维护"
+
+相反，它提供了：
+- ✅ 统一的业务逻辑入口
+- ✅ 清晰的架构边界
+- ✅ 可持续演进的基础
+
+该方案能够很好地满足用户需求，提升用户体验，同时为项目的长期健康发展奠定基础。
