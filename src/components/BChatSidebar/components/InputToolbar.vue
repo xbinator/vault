@@ -20,6 +20,7 @@
         :disabled="loading"
         :compressing="compression.compressing.value"
         :current-summary="compression.currentSummary.value"
+        :budget="compression.budget.value"
         :error="compression.error.value"
         @compress="handleCompress"
       />
@@ -49,11 +50,13 @@
 
 <script setup lang="ts">
 import type { Message } from '../utils/types';
+import type { CompressionBudgetInfo } from '../utils/compression/types';
 import { computed, ref } from 'vue';
 import { Icon } from '@iconify/vue';
 import { message } from 'ant-design-vue';
 import BButton from '@/components/BButton/index.vue';
 import type { SelectedModel } from '@/stores/serviceModel';
+import type { AITransportTool } from 'types/ai';
 import { useCompression } from '../hooks/useCompression';
 import CompressionButton from './CompressionButton.vue';
 import ModelSelector from './InputToolbar/ModelSelector.vue';
@@ -78,6 +81,8 @@ interface Props {
   sessionId?: string;
   /** 当前会话消息列表。 */
   messages: Message[];
+  /** 当前请求可用的工具定义。 */
+  toolDefinitions?: AITransportTool[];
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -85,7 +90,8 @@ const props = withDefaults(defineProps<Props>(), {
   supportsVision: false,
   canSubmit: false,
   sessionId: undefined,
-  messages: () => []
+  messages: () => [],
+  toolDefinitions: undefined
 });
 
 const emit = defineEmits<{
@@ -100,7 +106,10 @@ const emit = defineEmits<{
 /** 压缩管理 hook */
 const compression = useCompression({
   getSessionId: () => props.sessionId,
-  getMessages: () => props.messages
+  getMessages: () => props.messages,
+  getProviderId: () => props.selectedModel?.providerId,
+  getModelId: () => props.selectedModel?.modelId,
+  getToolDefinitions: () => props.toolDefinitions
 });
 
 /**
@@ -113,6 +122,15 @@ async function handleCompress(): Promise<void> {
   } else if (compression.error.value) {
     message.error(compression.error.value);
   }
+}
+
+/**
+ * 返回当前压缩预算信息。
+ * 暴露给父组件和 slash command 复用。
+ * @returns 当前预算信息
+ */
+function getCompressionBudget(): CompressionBudgetInfo | undefined {
+  return compression.budget.value;
 }
 
 /**
@@ -176,7 +194,9 @@ function handleVoiceComplete(payload: { text: string }): void {
  * 暴露给父组件的程序化打开入口。
  */
 defineExpose({
-  open
+  open,
+  compress: handleCompress,
+  getCompressionBudget
 });
 </script>
 

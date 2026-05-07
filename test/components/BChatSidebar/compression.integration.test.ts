@@ -310,35 +310,42 @@ describe('Compression Integration', () => {
   });
 
   describe('CompressionButton component', () => {
-    it('emits compress event when compress action clicked', async () => {
+    it('emits compress event when trigger clicked and renders hover budget information', async () => {
       const { mount } = await import('@vue/test-utils');
       const CompressionButton = (await import('@/components/BChatSidebar/components/CompressionButton.vue')).default;
 
       const wrapper = mount(CompressionButton, {
         props: {
           disabled: false,
-          compressing: false
+          compressing: false,
+          budget: {
+            currentValue: 3200,
+            thresholdValue: 8000,
+            percentage: 40,
+            unit: 'token',
+            charCount: 9600,
+            tokenCount: 3200,
+            tokenThreshold: 8000,
+            tokenAccuracy: 'native_like',
+            hasSummary: true,
+            summaryMessageCount: 12,
+            summaryUpdatedAt: '2026-05-07T12:00:00.000Z'
+          }
         },
         global: {
           stubs: {
-            BDropdown: {
-              template: '<div class="b-dropdown"><slot name="overlay" /></div>',
-              props: ['open', 'align']
-            },
-            BModal: {
-              template: '<div class="b-modal"><slot /></div>',
-              props: ['open', 'title', 'footer', 'width']
-            },
             Icon: true,
             SummaryModal: true
           }
         }
       });
 
-      // 找到压缩菜单项并点击
-      const compressItem = wrapper.find('.compression-menu__item');
-      expect(compressItem.exists()).toBe(true);
-      await compressItem.trigger('click');
+      expect(wrapper.find('.compression-ring').exists()).toBe(true);
+      await wrapper.get('.compression-button').trigger('mouseenter');
+      expect(wrapper.text()).toContain('当前上下文');
+      expect(wrapper.text()).toContain('3,200 / 8,000');
+
+      await wrapper.get('.compression-trigger').trigger('click');
 
       expect(wrapper.emitted('compress')).toHaveLength(1);
     });

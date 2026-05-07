@@ -8,6 +8,9 @@ import { nextTick, ref } from 'vue';
 import { useChatStore } from '@/stores/chat';
 import { useSettingStore } from '@/stores/setting';
 
+/** 初始化时用于兜底恢复的最近会话查询条数。 */
+const INITIAL_SESSION_LOAD_LIMIT = 1;
+
 /**
  * 会话管理 Hook 的依赖项
  */
@@ -90,9 +93,21 @@ export function useSession(options: SessionOptions) {
    * 初始化加载当前激活会话
    */
   async function initializeActiveSession(): Promise<void> {
-    if (settingStore.chatSidebarActiveSessionId) {
-      options.setLoadedMessages(await chatStore.getSessionMessages(settingStore.chatSidebarActiveSessionId));
+    let sessionId = settingStore.chatSidebarActiveSessionId;
+
+    if (!sessionId) {
+      const latestSessions = await chatStore.getSessions('assistant', { limit: INITIAL_SESSION_LOAD_LIMIT });
+      const latestSession = latestSessions.items[0];
+      if (!latestSession) {
+        return;
+      }
+
+      sessionId = latestSession.id;
+      currentSession.value = latestSession;
+      settingStore.setChatSidebarActiveSessionId(sessionId);
     }
+
+    options.setLoadedMessages(await chatStore.getSessionMessages(sessionId));
   }
 
   /**

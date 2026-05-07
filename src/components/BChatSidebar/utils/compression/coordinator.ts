@@ -469,7 +469,7 @@ async function assembleAndReturn(
  * @param toolDefinitions - 当前请求附带的工具定义
  * @returns ContextBudgetSnapshot
  */
-async function buildContextBudgetSnapshot(
+export async function buildContextBudgetSnapshot(
   messages: Message[],
   currentSummary: ConversationSummaryRecord | undefined,
   currentUserMessage: Message,

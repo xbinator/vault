@@ -22,6 +22,7 @@ interface MockChatCallbacks {
  */
 let capturedCallbacks: MockChatCallbacks | null = null;
 const streamSpy = vi.fn();
+const getAvailableServiceConfigMock = vi.fn();
 const prepareMessagesBeforeSendMock = vi.fn().mockResolvedValue({
   modelMessages: [],
   compressed: false
@@ -62,7 +63,7 @@ vi.mock('@/stores/serviceModel', () => ({
    * 模拟服务模型 store，避免测试初始化时依赖真实 store。
    */
   useServiceModelStore: () => ({
-    getAvailableServiceConfig: vi.fn()
+    getAvailableServiceConfig: getAvailableServiceConfigMock
   })
 }));
 
@@ -83,6 +84,7 @@ describe('useChatStream abort', () => {
     capturedCallbacks = null;
     abortSpy.mockClear();
     streamSpy.mockClear();
+    getAvailableServiceConfigMock.mockReset();
     prepareMessagesBeforeSendMock.mockClear();
     prepareMessagesBeforeSendMock.mockResolvedValue({
       modelMessages: [],
@@ -138,5 +140,33 @@ describe('useChatStream abort', () => {
         modelId: 'gpt-4o'
       })
     );
+  });
+
+  it('retries resolving service config when startup race makes the first lookup return null', async () => {
+    getAvailableServiceConfigMock
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({
+        providerId: 'openai',
+        modelId: 'gpt-4o',
+        toolSupport: {
+          supported: false,
+          mode: 'none',
+          multiStepLoop: false
+        }
+      } satisfies ServiceConfig);
+
+    const messages = ref<Message[]>([]);
+    const { stream } = useChatStream({ messages });
+
+    await expect(stream.resolveServiceConfig()).resolves.toEqual(
+      expect.objectContaining({
+        providerId: 'openai',
+        modelId: 'gpt-4o',
+        toolSupport: expect.objectContaining({
+          supported: false
+        })
+      })
+    );
+    expect(getAvailableServiceConfigMock).toHaveBeenCalledTimes(2);
   });
 });

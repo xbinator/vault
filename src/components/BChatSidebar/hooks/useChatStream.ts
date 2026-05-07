@@ -112,7 +112,7 @@ export function useChatStream(options: UseChatStreamOptions): UseChatStreamRetur
   /**
    * 重置工具循环状态
    */
-  function resetToolLoopState(): void {
+  function resetToolLoopState() {
     currentToolRoundId = 0;
     currentToolCallTracker = createToolCallTracker();
     blockedToolLoopReason.value = '';
@@ -125,7 +125,7 @@ export function useChatStream(options: UseChatStreamOptions): UseChatStreamRetur
   /**
    * 开始工具循环会话
    */
-  function startToolLoopSession(): void {
+  function startToolLoopSession() {
     resetToolLoopState();
     currentToolLoopGuard = createToolLoopGuard(DEFAULT_TOOL_LOOP_GUARD_CONFIG);
   }
@@ -133,7 +133,7 @@ export function useChatStream(options: UseChatStreamOptions): UseChatStreamRetur
   /**
    * 移除尾部空助手消息
    */
-  function removeTrailingEmptyAssistantMessage(): void {
+  function removeTrailingEmptyAssistantMessage() {
     const lastMessage = messages.value[messages.value.length - 1];
     if (is.removableAssistantPlaceholder(lastMessage)) {
       messages.value.pop();
@@ -163,7 +163,7 @@ export function useChatStream(options: UseChatStreamOptions): UseChatStreamRetur
   /**
    * 追加助手工具调用片段
    */
-  function appendAssistantToolCall(chunk: AIStreamToolCallChunk): void {
+  function appendAssistantToolCall(chunk: AIStreamToolCallChunk) {
     const message = messages.value[messages.value.length - 1];
     if (message?.role !== 'assistant') {
       return;
@@ -175,7 +175,7 @@ export function useChatStream(options: UseChatStreamOptions): UseChatStreamRetur
   /**
    * 追加助手工具结果片段
    */
-  function appendAssistantToolResult(result: ExecutedToolCall): void {
+  function appendAssistantToolResult(result: ExecutedToolCall) {
     const message = messages.value[messages.value.length - 1];
     if (message?.role !== 'assistant') {
       return;
@@ -211,7 +211,7 @@ export function useChatStream(options: UseChatStreamOptions): UseChatStreamRetur
    * 当工具调用轮次或重复次数超过限制时触发
    * @param reason - 停止原因
    */
-  function stopToolLoop(reason: string): void {
+  function stopToolLoop(reason: string) {
     blockedToolLoopReason.value = reason;
     pendingToolResults.value = [];
     removeTrailingEmptyAssistantMessage();
@@ -263,7 +263,7 @@ export function useChatStream(options: UseChatStreamOptions): UseChatStreamRetur
   /**
    * 解析服务配置
    */
-  async function resolveServiceConfig(): Promise<ServiceConfig | undefined> {
+  async function resolveServiceConfig() {
     const config = await serviceModelStore.getAvailableServiceConfig('chat');
     if (!config?.providerId || !config?.modelId) {
       return undefined;
@@ -276,7 +276,7 @@ export function useChatStream(options: UseChatStreamOptions): UseChatStreamRetur
   /**
    * 追加文本片段
    */
-  function appendText(content: string): void {
+  function appendText(content: string) {
     const message = messages.value[messages.value.length - 1];
     if (!message) return;
 
@@ -288,7 +288,7 @@ export function useChatStream(options: UseChatStreamOptions): UseChatStreamRetur
   /**
    * 追加思考片段
    */
-  function appendThinking(thinking: string): void {
+  function appendThinking(thinking: string) {
     const message = messages.value[messages.value.length - 1];
     if (!message) return;
 
@@ -300,7 +300,7 @@ export function useChatStream(options: UseChatStreamOptions): UseChatStreamRetur
   /**
    * 追加工具调用
    */
-  function handleAppendToolCall(chunk: AIStreamToolCallChunk): void {
+  function handleAppendToolCall(chunk: AIStreamToolCallChunk) {
     handleToolCall(chunk);
   }
 
@@ -460,7 +460,7 @@ export function useChatStream(options: UseChatStreamOptions): UseChatStreamRetur
    * 当 AI 服务返回错误时触发，重置状态并显示错误消息
    * @param error - AI 服务错误对象
    */
-  function handleStreamError(error: AIServiceError): void {
+  function handleStreamError(error: AIServiceError) {
     loading.value = false;
     resetToolLoopState();
     removeTrailingEmptyAssistantMessage();
@@ -490,7 +490,7 @@ export function useChatStream(options: UseChatStreamOptions): UseChatStreamRetur
   /**
    * 中止流式传输
    */
-  function abort(): void {
+  function abort() {
     aborting.value = true;
     loading.value = false;
     const message = finalizeCurrentAssistantMessage();

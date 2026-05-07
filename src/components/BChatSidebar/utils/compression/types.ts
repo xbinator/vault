@@ -169,6 +169,35 @@ export interface CompressionPolicyResult {
   currentSummary?: ConversationSummaryRecord;
 }
 
+/**
+ * 压缩预算展示信息。
+ * 用于按钮环形占比和 hover 详情面板展示。
+ */
+export interface CompressionBudgetInfo {
+  /** 当前使用量 */
+  currentValue: number;
+  /** 触发压缩阈值 */
+  thresholdValue: number;
+  /** 当前占比（0-100） */
+  percentage: number;
+  /** 展示单位 */
+  unit: 'token' | 'char';
+  /** 字符级体积估算 */
+  charCount: number;
+  /** token 级体积估算 */
+  tokenCount?: number;
+  /** token 阈值 */
+  tokenThreshold?: number;
+  /** token 估算精度等级 */
+  tokenAccuracy?: 'native_like' | 'approximate' | 'char_fallback';
+  /** 是否已有有效摘要 */
+  hasSummary: boolean;
+  /** 最近一次摘要覆盖的消息轮数 */
+  summaryMessageCount?: number;
+  /** 最近一次摘要更新时间 */
+  summaryUpdatedAt?: string;
+}
+
 // ─── 消息分类 ─────────────────────────────────────────────────────────────────
 
 /**

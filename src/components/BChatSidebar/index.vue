@@ -72,6 +72,7 @@
             :can-submit="canSubmit"
             :session-id="settingStore.chatSidebarActiveSessionId ?? undefined"
             :messages="messages"
+            :tool-definitions="transportToolDefinitions"
             @submit="handleChatSubmit"
             @abort="handleAbort"
             @image-select="imageUpload.appendImages"
@@ -93,13 +94,14 @@ import { message } from 'ant-design-vue';
 import { createBuiltinTools } from '@/ai/tools/builtin';
 import { editorToolContextRegistry } from '@/ai/tools/editor-context';
 import { getDefaultChatToolNames } from '@/ai/tools/policy';
+import { toTransportTools } from '@/ai/tools/stream';
 import BButton from '@/components/BButton/index.vue';
 import BPromptEditor from '@/components/BPromptEditor/index.vue';
-import type { SlashCommandOption } from '@/components/BPromptEditor/types';
 import { useNavigate } from '@/hooks/useNavigate';
 import { useChatStore } from '@/stores/chat';
 import { useFilesStore } from '@/stores/files';
 import { useSettingStore } from '@/stores/setting';
+import type { FileReferenceNavigationTarget } from '@/utils/fileReference/types';
 import ConversationView from './components/ConversationView.vue';
 import ImagePreview from './components/ImagePreview.vue';
 import InputToolbar from './components/InputToolbar.vue';
@@ -113,11 +115,11 @@ import { useFileReference } from './hooks/useFileReference';
 import { useImageUpload } from './hooks/useImageUpload';
 import { useModelSelection } from './hooks/useModelSelection';
 import { useSession } from './hooks/useSession';
+import { useSlashCommands, chatSlashCommands } from './hooks/useSlashCommands';
 import { useUsagePanel } from './hooks/useUsagePanel';
 import { createFileRefChipResolver } from './utils/chipResolver';
 import { createChatConfirmationController } from './utils/confirmationController';
 import { create, userChoice, buildMessageReferences } from './utils/messageHelper';
-import { chatSlashCommands } from './utils/slashCommands';
 
 /** 聊天数据存储 */
 const chatStore = useChatStore();
@@ -152,7 +154,7 @@ function focusInput(): void {
  * 处理输入框中的文件引用 chip 打开动作。
  * @param target - 文件导航目标
  */
-function handleOpenPromptFileReference(target: { filePath: string | null; fileId: string | null; fileName: string; startLine: number; endLine: number }): void {
+function handleOpenPromptFileReference(target: FileReferenceNavigationTarget): void {
   openFile({
     filePath: target.filePath,
     fileId: target.fileId,
@@ -233,6 +235,9 @@ const tools = createBuiltinTools({
   // MVP 阶段聊天侧边栏只开放低风险工具，避免默认暴露替换类操作
   return getDefaultChatToolNames().includes(tool.definition.name);
 });
+
+/** 当前聊天请求会附带的工具定义。 */
+const transportToolDefinitions = computed(() => toTransportTools(tools));
 
 /**
  * 处理聊天流中的确认卡片操作。
@@ -381,9 +386,7 @@ async function submitUserTextMessage(content: string, images: typeof inputImages
   if (!trimmedContent && !images.length) return;
 
   const config = await stream.resolveServiceConfig();
-  if (!config) {
-    return;
-  }
+  if (!config) return;
 
   const references = await buildMessageReferences(trimmedContent);
 
@@ -445,35 +448,14 @@ function handleModelChange(model: { providerId: string; modelId: string }): void
   modelSelectionEvents.onModelChange(model);
 }
 
-/** 清空当前草稿输入 */
-function handleClearInput(): void {
-  inputEvents.clear();
-}
-
-/**
- * 处理斜杠命令。
- * @param command - 斜杠命令项
- */
-function handleSlashCommand(command: SlashCommandOption): void {
-  if (command.id === 'model') {
-    modelSelectorRef.value?.open();
-    return;
-  }
-
-  if (command.id === 'usage') {
-    usagePanel.openPanel(currentSession.value?.id);
-    return;
-  }
-
-  if (command.id === 'new') {
-    createNewSession();
-    return;
-  }
-
-  if (command.id === 'clear') {
-    handleClearInput();
-  }
-}
+/** 斜杠命令处理 hook */
+const { handleSlashCommand } = useSlashCommands({
+  openModelSelector: () => modelSelectorRef.value?.open(),
+  openUsagePanel: () => usagePanel.openPanel(currentSession.value?.id),
+  createNewSession,
+  clearInput: () => inputEvents.clear(),
+  compactContext: () => modelSelectorRef.value?.compress?.()
+});
 
 /** 加载历史消息 */
 async function handleLoadHistory(): Promise<void> {

@@ -37,6 +37,7 @@ const {
   focusMock,
   saveCursorPositionMock,
   modelSelectorOpenMock,
+  compressionTriggerMock,
   getSessionUsageMock,
   loadProvidersMock,
   getServiceModelConfigMock,
@@ -56,6 +57,7 @@ const {
   focusMock: vi.fn(),
   saveCursorPositionMock: vi.fn(),
   modelSelectorOpenMock: vi.fn(),
+  compressionTriggerMock: vi.fn(async () => undefined),
   getSessionUsageMock: vi.fn(async () => undefined),
   loadProvidersMock: vi.fn(async () => undefined),
   getServiceModelConfigMock: vi.fn(async () => undefined),
@@ -150,7 +152,8 @@ vi.mock('@/components/BChatSidebar/components/InputToolbar.vue', async () => {
       emits: ['submit', 'abort', 'model-change'],
       setup(_props, { expose }) {
         expose({
-          open: modelSelectorOpenMock
+          open: modelSelectorOpenMock,
+          compress: compressionTriggerMock
         });
 
         return () => h('div', { 'data-testid': 'input-toolbar-stub' });
@@ -316,6 +319,12 @@ vi.mock('@/components/BChatSidebar/hooks/useAutoName', () => ({
   })
 }));
 
+vi.mock('@/hooks/useNavigate', () => ({
+  useNavigate: () => ({
+    openFile: vi.fn()
+  })
+}));
+
 vi.mock('@/components/BChatSidebar/utils/confirmationController', () => ({
   createChatConfirmationController: () => ({
     createAdapter: vi.fn(),
@@ -353,6 +362,7 @@ describe('chatSlashCommands', () => {
     focusMock.mockReset();
     saveCursorPositionMock.mockReset();
     modelSelectorOpenMock.mockReset();
+    compressionTriggerMock.mockReset();
     getSessionUsageMock.mockReset();
     loadProvidersMock.mockClear();
     getServiceModelConfigMock.mockClear();
@@ -402,6 +412,13 @@ describe('chatSlashCommands', () => {
         title: '清空输入',
         description: '清除当前聊天输入内容。',
         type: 'action'
+      },
+      {
+        id: 'compact',
+        trigger: '/compact',
+        title: '压缩上下文',
+        description: '立即执行一次手动上下文压缩。',
+        type: 'action'
       }
     ]);
   });
@@ -447,6 +464,18 @@ describe('chatSlashCommands', () => {
     expect(promptEditor.text()).not.toContain('Draft text');
     expect(focusMock).toHaveBeenCalledTimes(1);
     expect(setChatSidebarActiveSessionIdMock).not.toHaveBeenCalled();
+  });
+
+  test('triggers the shared compression action when the editor emits /compact', async () => {
+    const wrapper = mountChatSidebar();
+    const compactCommand = chatSlashCommands.find((item) => item.id === 'compact');
+
+    expect(compactCommand).toBeDefined();
+
+    wrapper.getComponent({ name: 'BPromptEditor' }).vm.$emit('slash-command', compactCommand);
+    await nextTick();
+
+    expect(compressionTriggerMock).toHaveBeenCalledTimes(1);
   });
 
   test('does not start a new chat while the stream is still loading', async () => {
