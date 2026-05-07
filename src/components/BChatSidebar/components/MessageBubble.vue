@@ -84,6 +84,7 @@ import BBubble from '@/components/BBubble/index.vue';
 import BImageViewer from '@/components/BImageViewer/index.vue';
 import { useClipboard } from '@/hooks/useClipboard';
 import { createNamespace } from '@/utils/namespace';
+import { extractLastTextPart } from '../utils/messageHelper';
 import { formatMessageTime } from '../utils/timeFormat';
 import AskUserChoiceCard from './AskUserChoiceCard.vue';
 import ConfirmationCard from './ConfirmationCard.vue';
@@ -155,7 +156,8 @@ function handleImageClick(index: number): void {
  * @param message - 待复制的聊天消息
  */
 function handleCopy(message: Message): void {
-  clipboard(message.content, { successMessage: '已复制到剪贴板' });
+  const content = extractLastTextPart(message);
+  clipboard(content, { successMessage: '已复制到剪贴板' });
 }
 </script>
 

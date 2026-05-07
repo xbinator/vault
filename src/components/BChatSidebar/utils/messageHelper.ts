@@ -386,3 +386,18 @@ export const convert = {
     return convert.toCachedModelMessages(sourceMessages).modelMessages;
   }
 } as const;
+
+/**
+ * 提取消息中最后一个文本片段的内容
+ * @param message - 聊天消息
+ * @returns 最后一个文本片段的内容，不存在时返回空字符串
+ */
+export function extractLastTextPart(message: Message): string {
+  for (let i = message.parts.length - 1; i >= 0; i -= 1) {
+    const part = message.parts[i];
+    if (part.type === 'text') {
+      return part.text;
+    }
+  }
+  return '';
+}
