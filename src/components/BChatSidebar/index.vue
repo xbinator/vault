@@ -17,15 +17,6 @@
         @switch-session="switchSession"
       />
 
-      <CompressionButton
-        :disabled="loading"
-        :compressing="compression.compressing.value"
-        :current-summary="compression.currentSummary.value"
-        :error="compression.error.value"
-        @compress="handleCompress"
-        @view-summary="handleViewSummary"
-      />
-
       <div class="divider"></div>
       <BButton square size="small" type="text" @click="settingStore.setSidebarVisible(false)">
         <Icon icon="lucide:x" width="16" height="16" />
@@ -51,8 +42,6 @@
         :error="usagePanel.error.value"
         :on-close="usagePanel.close"
       />
-
-      <SummaryModal v-model:open="summaryModalVisible" :summary="compression.currentSummary.value" />
 
       <div class="b-chat-sidebar__input">
         <div class="b-chat-sidebar__input-container">
@@ -81,6 +70,8 @@
             :selected-model="selectedModel"
             :supports-vision="supportsVision"
             :can-submit="canSubmit"
+            :session-id="settingStore.chatSidebarActiveSessionId ?? undefined"
+            :messages="messages"
             @submit="handleChatSubmit"
             @abort="handleAbort"
             @image-select="imageUpload.appendImages"
@@ -109,18 +100,15 @@ import { useNavigate } from '@/hooks/useNavigate';
 import { useChatStore } from '@/stores/chat';
 import { useFilesStore } from '@/stores/files';
 import { useSettingStore } from '@/stores/setting';
-import CompressionButton from './components/CompressionButton.vue';
 import ConversationView from './components/ConversationView.vue';
 import ImagePreview from './components/ImagePreview.vue';
 import InputToolbar from './components/InputToolbar.vue';
 import SessionHistory from './components/SessionHistory.vue';
-import SummaryModal from './components/SummaryModal.vue';
 import UsagePanel from './components/UsagePanel.vue';
 import { useAutoName } from './hooks/useAutoName';
 import { useChatHistory } from './hooks/useChatHistory';
 import { useChatInput } from './hooks/useChatInput';
 import { useChatStream } from './hooks/useChatStream';
-import { useCompression } from './hooks/useCompression';
 import { useFileReference } from './hooks/useFileReference';
 import { useImageUpload } from './hooks/useImageUpload';
 import { useModelSelection } from './hooks/useModelSelection';
@@ -317,37 +305,7 @@ const { currentSession, createNewSession, switchSession, initializeActiveSession
   }
 });
 
-/** 压缩管理 hook */
-const compression = useCompression({
-  getSessionId: () => settingStore.chatSidebarActiveSessionId ?? undefined,
-  getMessages: () => messages.value
-});
-
-/** 摘要模态框可见性 */
-const summaryModalVisible = ref(false);
-
-/**
- * 手动压缩处理函数
- */
-async function handleCompress(): Promise<void> {
-  const success = await compression.compress();
-  if (success) {
-    message.success('上下文压缩成功');
-  } else if (compression.error.value) {
-    message.error(compression.error.value);
-  }
-}
-
-/**
- * 查看摘要处理函数
- */
-function handleViewSummary(): void {
-  summaryModalVisible.value = true;
-}
-
-/**
- * 自动命名 Hook。
- */
+/** 自动命名 Hook。 */
 const { captureSnapshot, scheduleAutoName } = useAutoName({
   getCurrentSession: () => currentSession.value,
   getFirstRoundContent: (nextMessage) => {

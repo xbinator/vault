@@ -1,6 +1,6 @@
 <!--
   @file InputToolbar.vue
-  @description Chat sidebar input toolbar with model selector, image upload, and submit actions.
+  @description Chat sidebar input toolbar with model selector, image upload, compression, and submit actions.
 -->
 <template>
   <div class="chat-input-toolbar">
@@ -15,6 +15,14 @@
           <Icon icon="lucide:image-plus" width="16" height="16" />
         </BButton>
       </BUpload>
+
+      <CompressionButton
+        :disabled="loading"
+        :compressing="compression.compressing.value"
+        :current-summary="compression.currentSummary.value"
+        :error="compression.error.value"
+        @compress="handleCompress"
+      />
 
       <div class="toolbar-space"></div>
 
@@ -40,10 +48,14 @@
 </template>
 
 <script setup lang="ts">
+import type { Message } from '../utils/types';
 import { computed, ref } from 'vue';
 import { Icon } from '@iconify/vue';
+import { message } from 'ant-design-vue';
 import BButton from '@/components/BButton/index.vue';
 import type { SelectedModel } from '@/stores/serviceModel';
+import { useCompression } from '../hooks/useCompression';
+import CompressionButton from './CompressionButton.vue';
 import ModelSelector from './InputToolbar/ModelSelector.vue';
 import VoiceInput from './InputToolbar/VoiceInput.vue';
 import VoiceWaveform from './InputToolbar/VoiceWaveform.vue';
@@ -62,12 +74,18 @@ interface Props {
   supportsVision: boolean;
   /** 当前是否允许提交。 */
   canSubmit: boolean;
+  /** 当前活跃会话 ID。 */
+  sessionId?: string;
+  /** 当前会话消息列表。 */
+  messages: Message[];
 }
 
-withDefaults(defineProps<Props>(), {
+const props = withDefaults(defineProps<Props>(), {
   selectedModel: undefined,
   supportsVision: false,
-  canSubmit: false
+  canSubmit: false,
+  sessionId: undefined,
+  messages: () => []
 });
 
 const emit = defineEmits<{
@@ -78,6 +96,24 @@ const emit = defineEmits<{
   (e: 'voice-start'): void;
   (e: 'voice-complete', payload: { text: string }): void;
 }>();
+
+/** 压缩管理 hook */
+const compression = useCompression({
+  getSessionId: () => props.sessionId,
+  getMessages: () => props.messages
+});
+
+/**
+ * 手动压缩处理函数
+ */
+async function handleCompress(): Promise<void> {
+  const success = await compression.compress();
+  if (success) {
+    message.success('上下文压缩成功');
+  } else if (compression.error.value) {
+    message.error(compression.error.value);
+  }
+}
 
 /**
  * 模型选择器实例引用。

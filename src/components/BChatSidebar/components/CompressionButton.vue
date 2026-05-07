@@ -4,10 +4,10 @@
 -->
 <template>
   <BDropdown v-model:open="open" :align="{ offset: [-45, 0] }">
-    <BButton square size="small" type="text" :disabled="disabled || compressing">
+    <span class="compression-trigger" :class="{ 'is-disabled': disabled || compressing }">
       <Icon v-if="compressing" icon="lucide:loader-2" width="16" height="16" class="is-spinning" />
       <Icon v-else icon="lucide:layers" width="16" height="16" />
-    </BButton>
+    </span>
 
     <template #overlay>
       <div class="compression-menu" @click.stop>
@@ -33,14 +33,16 @@
       </div>
     </template>
   </BDropdown>
+
+  <SummaryModal v-model:open="summaryModalVisible" :summary="currentSummary" />
 </template>
 
 <script setup lang="ts">
 import type { ConversationSummaryRecord } from '../utils/compression/types';
 import { ref } from 'vue';
 import { Icon } from '@iconify/vue';
-import BButton from '@/components/BButton/index.vue';
 import BDropdown from '@/components/BDropdown/index.vue';
+import SummaryModal from './SummaryModal.vue';
 
 /**
  * 组件 Props 定义
@@ -65,10 +67,12 @@ withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits<{
   (e: 'compress'): void;
-  (e: 'view-summary'): void;
 }>();
 
 const open = ref(false);
+
+/** 摘要模态框可见性 */
+const summaryModalVisible = ref(false);
 
 /**
  * 处理压缩操作
@@ -83,11 +87,32 @@ function handleCompress(): void {
  */
 function handleViewSummary(): void {
   open.value = false;
-  emit('view-summary');
+  summaryModalVisible.value = true;
 }
 </script>
 
 <style scoped lang="less">
+.compression-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+
+  &:hover {
+    background: var(--hover-bg-color);
+  }
+
+  &.is-disabled {
+    pointer-events: none;
+    cursor: not-allowed;
+    opacity: 0.4;
+  }
+}
+
 .compression-menu {
   min-width: 180px;
   padding: 4px 0;
