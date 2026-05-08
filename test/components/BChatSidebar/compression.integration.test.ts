@@ -2,6 +2,7 @@
  * @file compression.integration.test.ts
  * @description 压缩功能集成测试：测试完整的压缩流程和 UI 交互。
  */
+import { ref } from 'vue';
 import { describe, expect, it, vi } from 'vitest';
 import type { Message } from '@/components/BChatSidebar/utils/types';
 
@@ -67,105 +68,136 @@ function createTestMessage(id: string, role: 'user' | 'assistant', content: stri
 }
 
 describe('Compression Integration', () => {
-  describe('useCompression hook', () => {
+  describe('useCompactContext compress', () => {
     it('provides compression state and methods', async () => {
-      const { useCompression } = await import('@/components/BChatSidebar/hooks/useCompression');
+      const { useCompactContext } = await import('@/components/BChatSidebar/hooks/useCompactContext');
 
-      const messages = [createTestMessage('m1', 'user', 'Hello')];
-      const compression = useCompression({
+      const messages = ref([createTestMessage('m1', 'user', 'Hello')]);
+      const result = useCompactContext({
+        messages,
         getSessionId: () => 'session-1',
-        getMessages: () => messages
+        beginCompactTask: () => ({ ok: true }),
+        finishCompactTask: vi.fn(),
+        persistMessage: vi.fn(),
+        persistMessages: vi.fn(),
+        scrollToBottom: vi.fn()
       });
 
-      expect(compression.compressing.value).toBe(false);
-      expect(compression.error.value).toBeUndefined();
-      expect(typeof compression.compress).toBe('function');
+      expect(result.compressing.value).toBe(false);
+      expect(result.error.value).toBeUndefined();
+      expect(typeof result.compress).toBe('function');
     });
 
     it('handles compression without session ID', async () => {
-      const { useCompression } = await import('@/components/BChatSidebar/hooks/useCompression');
+      const { useCompactContext } = await import('@/components/BChatSidebar/hooks/useCompactContext');
 
-      const messages = [createTestMessage('m1', 'user', 'Hello')];
-      const compression = useCompression({
+      const messages = ref([createTestMessage('m1', 'user', 'Hello')]);
+      const result = useCompactContext({
+        messages,
         getSessionId: () => undefined,
-        getMessages: () => messages
+        beginCompactTask: () => ({ ok: true }),
+        finishCompactTask: vi.fn(),
+        persistMessage: vi.fn(),
+        persistMessages: vi.fn(),
+        scrollToBottom: vi.fn()
       });
 
-      const result = await compression.compress();
-      expect(result.success).toBe(false);
-      expect(compression.error.value).toBe('没有活跃的会话');
+      const compressResult = await result.compress();
+      expect(compressResult.success).toBe(false);
+      expect(result.error.value).toBe('没有活跃的会话');
     });
 
     it('handles compression with empty messages', async () => {
-      const { useCompression } = await import('@/components/BChatSidebar/hooks/useCompression');
+      const { useCompactContext } = await import('@/components/BChatSidebar/hooks/useCompactContext');
 
-      const compression = useCompression({
+      const messages = ref<Message[]>([]);
+      const result = useCompactContext({
+        messages,
         getSessionId: () => 'session-1',
-        getMessages: () => []
+        beginCompactTask: () => ({ ok: true }),
+        finishCompactTask: vi.fn(),
+        persistMessage: vi.fn(),
+        persistMessages: vi.fn(),
+        scrollToBottom: vi.fn()
       });
 
-      const result = await compression.compress();
-      expect(result.success).toBe(false);
-      expect(compression.error.value).toBe('没有可压缩的消息');
+      const compressResult = await result.compress();
+      expect(compressResult.success).toBe(false);
+      expect(result.error.value).toBe('没有可压缩的消息');
     });
 
     it('supports manual compression even when the last message is from the assistant', async () => {
-      const { useCompression } = await import('@/components/BChatSidebar/hooks/useCompression');
+      const { useCompactContext } = await import('@/components/BChatSidebar/hooks/useCompactContext');
 
-      const messages: Message[] = [];
+      const messagesArr: Message[] = [];
       for (let i = 1; i <= 14; i += 1) {
-        messages.push(createTestMessage(`m${i}`, i % 2 === 1 ? 'user' : 'assistant', `Message ${i}`));
+        messagesArr.push(createTestMessage(`m${i}`, i % 2 === 1 ? 'user' : 'assistant', `Message ${i}`));
       }
-
-      const compression = useCompression({
+      const messages = ref(messagesArr);
+      const result = useCompactContext({
+        messages,
         getSessionId: () => 'session-1',
-        getMessages: () => messages
+        beginCompactTask: () => ({ ok: true }),
+        finishCompactTask: vi.fn(),
+        persistMessage: vi.fn(),
+        persistMessages: vi.fn(),
+        scrollToBottom: vi.fn()
       });
 
-      const result = await compression.compress();
-      expect(result.success).toBe(true);
-      expect(result.record?.triggerReason).toBe('manual');
+      const compressResult = await result.compress();
+      expect(compressResult.success).toBe(true);
+      expect(compressResult.record?.triggerReason).toBe('manual');
     });
   });
 
-  describe('useCompression.compress flow', () => {
+  describe('useCompactContext.compress flow', () => {
     it('returns the created compression record after successful compression', async () => {
-      const { useCompression } = await import('@/components/BChatSidebar/hooks/useCompression');
+      const { useCompactContext } = await import('@/components/BChatSidebar/hooks/useCompactContext');
 
-      const messages: Message[] = [];
+      const messagesArr: Message[] = [];
       for (let i = 1; i <= 14; i += 1) {
-        messages.push(createTestMessage(`m${i}`, i % 2 === 1 ? 'user' : 'assistant', `Message ${i}`));
+        messagesArr.push(createTestMessage(`m${i}`, i % 2 === 1 ? 'user' : 'assistant', `Message ${i}`));
       }
-
-      const compression = useCompression({
+      const messages = ref(messagesArr);
+      const result = useCompactContext({
+        messages,
         getSessionId: () => 'session-1',
-        getMessages: () => messages
+        beginCompactTask: () => ({ ok: true }),
+        finishCompactTask: vi.fn(),
+        persistMessage: vi.fn(),
+        persistMessages: vi.fn(),
+        scrollToBottom: vi.fn()
       });
 
-      const result = await compression.compress();
-      expect(result.success).toBe(true);
-      expect(result.record).toBeDefined();
+      const compressResult = await result.compress();
+      expect(compressResult.success).toBe(true);
+      expect(compressResult.record).toBeDefined();
     });
 
     it('returns cancelled when the compression task is aborted before execution completes', async () => {
-      const { useCompression } = await import('@/components/BChatSidebar/hooks/useCompression');
+      const { useCompactContext } = await import('@/components/BChatSidebar/hooks/useCompactContext');
 
-      const messages: Message[] = [];
+      const messagesArr: Message[] = [];
       for (let i = 1; i <= 14; i += 1) {
-        messages.push(createTestMessage(`m${i}`, i % 2 === 1 ? 'user' : 'assistant', `Message ${i}`));
+        messagesArr.push(createTestMessage(`m${i}`, i % 2 === 1 ? 'user' : 'assistant', `Message ${i}`));
       }
-
       const controller = new AbortController();
       controller.abort();
-      const compression = useCompression({
+      const messages = ref(messagesArr);
+      const result = useCompactContext({
+        messages,
         getSessionId: () => 'session-1',
-        getMessages: () => messages
+        beginCompactTask: () => ({ ok: true }),
+        finishCompactTask: vi.fn(),
+        persistMessage: vi.fn(),
+        persistMessages: vi.fn(),
+        scrollToBottom: vi.fn()
       });
 
-      const result = await compression.compress(controller.signal);
-      expect(result.success).toBe(false);
-      expect(result.cancelled).toBe(true);
-      expect(compression.error.value).toBeUndefined();
+      const compressResult = await result.compress(controller.signal);
+      expect(compressResult.success).toBe(false);
+      expect(compressResult.cancelled).toBe(true);
+      expect(result.error.value).toBeUndefined();
     });
   });
 });
