@@ -74,7 +74,9 @@ describe('Compression Integration', () => {
       const messages = [createTestMessage('m1', 'user', 'Hello')];
       const compression = useCompression({
         getSessionId: () => 'session-1',
-        getMessages: () => messages
+        getMessages: () => messages,
+        beginCompressionTask: () => undefined,
+        finishCompressionTask: () => undefined
       });
 
       expect(compression.compressing.value).toBe(false);
@@ -88,7 +90,9 @@ describe('Compression Integration', () => {
       const messages = [createTestMessage('m1', 'user', 'Hello')];
       const compression = useCompression({
         getSessionId: () => undefined,
-        getMessages: () => messages
+        getMessages: () => messages,
+        beginCompressionTask: () => undefined,
+        finishCompressionTask: () => undefined
       });
 
       const result = await compression.compress();
@@ -101,7 +105,9 @@ describe('Compression Integration', () => {
 
       const compression = useCompression({
         getSessionId: () => 'session-1',
-        getMessages: () => []
+        getMessages: () => [],
+        beginCompressionTask: () => undefined,
+        finishCompressionTask: () => undefined
       });
 
       const result = await compression.compress();
@@ -119,7 +125,9 @@ describe('Compression Integration', () => {
 
       const compression = useCompression({
         getSessionId: () => 'session-1',
-        getMessages: () => messages
+        getMessages: () => messages,
+        beginCompressionTask: () => undefined,
+        finishCompressionTask: () => undefined
       });
 
       const result = await compression.compress();
@@ -139,12 +147,39 @@ describe('Compression Integration', () => {
 
       const compression = useCompression({
         getSessionId: () => 'session-1',
-        getMessages: () => messages
+        getMessages: () => messages,
+        beginCompressionTask: () => undefined,
+        finishCompressionTask: () => undefined
       });
 
       const result = await compression.compress();
       expect(result.success).toBe(true);
       expect(result.summary).toBeDefined();
+    });
+
+    it('returns cancelled when the compression task is aborted before execution completes', async () => {
+      const { useCompression } = await import('@/components/BChatSidebar/hooks/useCompression');
+
+      const messages: Message[] = [];
+      for (let i = 1; i <= 14; i += 1) {
+        messages.push(createTestMessage(`m${i}`, i % 2 === 1 ? 'user' : 'assistant', `Message ${i}`));
+      }
+
+      const controller = new AbortController();
+      controller.abort();
+      const finishCompressionTask = vi.fn();
+      const compression = useCompression({
+        getSessionId: () => 'session-1',
+        getMessages: () => messages,
+        beginCompressionTask: () => controller.signal,
+        finishCompressionTask
+      });
+
+      const result = await compression.compress();
+      expect(result.success).toBe(false);
+      expect(result.cancelled).toBe(true);
+      expect(compression.error.value).toBeUndefined();
+      expect(finishCompressionTask).toHaveBeenCalledTimes(1);
     });
   });
 });

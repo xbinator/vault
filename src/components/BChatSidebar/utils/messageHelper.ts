@@ -6,7 +6,7 @@ import type { Message } from './types';
 import type { FileReference } from '../types';
 import type { JSONValue, ModelMessage } from 'ai';
 import type { AIAwaitingUserChoiceQuestion, AIToolExecutionAwaitingUserInputResult } from 'types/ai';
-import type { AIUserChoiceAnswerData, ChatCompressionStatus, ChatMessagePart, ChatMessageRole, ChatMessageToolResultPart } from 'types/chat';
+import type { AIUserChoiceAnswerData, ChatMessagePart, ChatMessageRole, ChatMessageToolResultPart } from 'types/chat';
 import dayjs from 'dayjs';
 import { nanoid } from 'nanoid';
 import { asyncTo } from '@/utils/asyncTo';
@@ -171,7 +171,7 @@ export const append = {
 } as const;
 
 // ── 对外 ─────────────────────────────────────────────
-function createBase(overrides: Partial<Message>): Message {
+export function createBase(overrides: Partial<Message>): Message {
   return { id: nanoid(), parts: [], loading: false, createdAt: dayjs().toISOString(), ...overrides } as Message;
 }
 
@@ -189,35 +189,6 @@ export const create = {
     const parts: ChatMessagePart[] = content ? [{ type: 'text', text: content }] : [];
 
     return createBase({ role: 'user', content, parts, references, finished: true });
-  },
-  /**
-   * 创建压缩消息。
-   * @param input - 压缩消息数据
-   * @returns 压缩消息
-   */
-  compressionMessage(input: {
-    summaryText: string;
-    status: ChatCompressionStatus;
-    summaryId?: string;
-    coveredUntilMessageId?: string;
-    sourceMessageIds?: string[];
-    errorMessage?: string;
-  }): Message {
-    return createBase({
-      role: 'compression',
-      content: input.summaryText,
-      parts: input.summaryText ? [{ type: 'text', text: input.summaryText }] : [],
-      compression: {
-        status: input.status,
-        summaryText: input.summaryText,
-        summaryId: input.summaryId,
-        coveredUntilMessageId: input.coveredUntilMessageId,
-        sourceMessageIds: input.sourceMessageIds,
-        errorMessage: input.errorMessage
-      },
-      finished: input.status !== 'pending',
-      loading: input.status === 'pending'
-    });
   }
 } as const;
 

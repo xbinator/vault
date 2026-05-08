@@ -107,6 +107,7 @@ import { useAutoName } from './hooks/useAutoName';
 import { useChatHistory } from './hooks/useChatHistory';
 import { useChatInput } from './hooks/useChatInput';
 import { useChatStream } from './hooks/useChatStream';
+import { useCompactContext } from './hooks/useCompactContext';
 import { useCompression } from './hooks/useCompression';
 import { useFileReference } from './hooks/useFileReference';
 import { useImageUpload } from './hooks/useImageUpload';
@@ -233,12 +234,6 @@ const tools = createBuiltinTools({
   return getDefaultChatToolNames().includes(tool.definition.name);
 });
 
-/** 会话压缩 hook，仅保留 slash command 程序化入口。 */
-const compression = useCompression({
-  getSessionId: () => settingStore.chatSidebarActiveSessionId ?? undefined,
-  getMessages: () => messages.value
-});
-
 /**
  * 处理聊天流中的确认卡片操作。
  * @param confirmationId - 确认项 ID
@@ -296,6 +291,14 @@ const { stream, loading } = useChatStream({
     await handleComplete(nextMessage);
   },
   onConfirmationAction: handleConfirmationAction
+});
+
+/** 会话压缩 hook，仅保留 slash command 程序化入口。 */
+const compression = useCompression({
+  getSessionId: () => settingStore.chatSidebarActiveSessionId ?? undefined,
+  getMessages: () => messages.value,
+  beginCompressionTask: () => stream.beginCompressionTask(),
+  finishCompressionTask: () => stream.finishCompressionTask()
 });
 
 /** 会话 hook */
@@ -424,76 +427,15 @@ async function handleChatSubmit(): Promise<void> {
   await submitUserTextMessage(content, inputImages.value);
 }
 
-/**
- * 将压缩消息的最新状态同步回消息列表与持久化存储。
- * @param messageId - 目标压缩消息 ID
- * @param nextMessage - 最新压缩消息内容
- */
-async function updateCompressionMessage(messageId: string, nextMessage: Message): Promise<void> {
-  const targetMessage = messages.value.find((item) => item.id === messageId);
-  if (!targetMessage) {
-    return;
-  }
-
-  targetMessage.content = nextMessage.content;
-  targetMessage.parts = nextMessage.parts;
-  targetMessage.loading = nextMessage.loading;
-  targetMessage.finished = nextMessage.finished;
-  targetMessage.compression = nextMessage.compression;
-
-  await chatStore.setSessionMessages(settingStore.chatSidebarActiveSessionId, messages.value);
-}
-
-/**
- * 处理 slash command 触发的手动上下文压缩。
- */
-async function handleCompactContext(): Promise<void> {
-  const sessionId = settingStore.chatSidebarActiveSessionId;
-  if (!sessionId) {
-    message.error('没有活跃的会话');
-    return;
-  }
-
-  if (messages.value.length === 0) {
-    message.error('没有可压缩的消息');
-    return;
-  }
-
-  const pendingMessage = create.compressionMessage({
-    summaryText: '正在压缩上下文…',
-    status: 'pending'
-  });
-  messages.value.push(pendingMessage);
-  await chatStore.addSessionMessage(sessionId, pendingMessage);
-  conversationRef.value?.scrollToBottom({ behavior: 'auto' });
-
-  const result = await compression.compress();
-
-  if (result.success && result.summary) {
-    await updateCompressionMessage(
-      pendingMessage.id,
-      create.compressionMessage({
-        summaryText: result.summary.summaryText,
-        status: 'success',
-        summaryId: result.summary.id,
-        coveredUntilMessageId: result.summary.coveredUntilMessageId,
-        sourceMessageIds: result.summary.sourceMessageIds
-      })
-    );
-    message.success('上下文压缩成功');
-    return;
-  }
-
-  await updateCompressionMessage(
-    pendingMessage.id,
-    create.compressionMessage({
-      summaryText: '上下文压缩失败',
-      status: 'failed',
-      errorMessage: result.errorMessage ?? '压缩失败'
-    })
-  );
-  message.error(result.errorMessage ?? '压缩失败');
-}
+/** 手动上下文压缩命令 hook。 */
+const { handleCompactContext } = useCompactContext({
+  messages,
+  getSessionId: () => settingStore.chatSidebarActiveSessionId ?? undefined,
+  compress: () => compression.compress(),
+  persistMessage: (sessionId, nextMessage) => chatStore.addSessionMessage(sessionId, nextMessage),
+  persistMessages: (sessionId, nextMessages) => chatStore.setSessionMessages(sessionId, nextMessages),
+  scrollToBottom: () => conversationRef.value?.scrollToBottom({ behavior: 'auto' })
+});
 
 /**
  * 处理中止流式输出。

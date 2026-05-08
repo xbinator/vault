@@ -114,7 +114,7 @@ export const useChatStore = defineStore('chat', {
      * @param sessionId - 要更新的会话 ID。
      * @param messages - 要持久化的完整消息列表。
      */
-    async setSessionMessages(sessionId: string | null, messages: Message[]): Promise<void> {
+    async setSessionMessages(sessionId: string | null | undefined, messages: Message[]): Promise<void> {
       if (!sessionId) return;
 
       const persistableMessages = messages.filter(is.persistableMessage);

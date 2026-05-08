@@ -7,7 +7,7 @@ import type { Message } from '../utils/types';
 import { computed, ref } from 'vue';
 import { chatSummariesStorage } from '@/shared/storage/chat-summaries';
 import { createCompressionCoordinator } from '../utils/compression/coordinator';
-import { CompressionError, getCompressionErrorMessage } from '../utils/compression/error';
+import { CompressionCancelledError, CompressionError, getCompressionErrorMessage } from '../utils/compression/error';
 
 /**
  * 压缩管理 Hook 的依赖项
@@ -17,6 +17,10 @@ interface CompressionOptions {
   getSessionId: () => string | undefined;
   /** 获取消息列表 */
   getMessages: () => Message[];
+  /** 开始压缩任务并返回取消信号 */
+  beginCompressionTask: () => AbortSignal | undefined;
+  /** 结束压缩任务 */
+  finishCompressionTask: () => void;
 }
 
 /**
@@ -29,6 +33,8 @@ export interface CompressionExecutionResult {
   summary?: ConversationSummaryRecord;
   /** 错误信息 */
   errorMessage?: string;
+  /** 是否为用户主动取消 */
+  cancelled?: boolean;
 }
 
 /**
@@ -37,7 +43,7 @@ export interface CompressionExecutionResult {
  * @returns 压缩状态和操作方法
  */
 export function useCompression(options: CompressionOptions) {
-  const { getSessionId, getMessages } = options;
+  const { getSessionId, getMessages, beginCompressionTask, finishCompressionTask } = options;
 
   /** 压缩状态 */
   const compressing = ref(false);
@@ -78,9 +84,10 @@ export function useCompression(options: CompressionOptions) {
 
     compressing.value = true;
     error.value = undefined;
+    const signal = beginCompressionTask();
 
     try {
-      const result = await coordinator.value.compressSessionManually({ sessionId, messages });
+      const result = await coordinator.value.compressSessionManually({ sessionId, messages, signal });
 
       if (!result) {
         error.value = '没有可压缩的消息';
@@ -93,10 +100,15 @@ export function useCompression(options: CompressionOptions) {
       }
       return { success: true, summary: result };
     } catch (err) {
+      if (err instanceof CompressionCancelledError) {
+        error.value = undefined;
+        return { success: false, cancelled: true };
+      }
       setError(err);
       return { success: false, errorMessage: error.value };
     } finally {
       compressing.value = false;
+      finishCompressionTask();
     }
   }
 

@@ -17,7 +17,7 @@ export type ChatMessageRole = 'user' | 'system' | 'assistant' | 'error' | 'compr
 /**
  * 压缩消息状态
  */
-export type ChatCompressionStatus = 'pending' | 'success' | 'failed';
+export type ChatCompressionStatus = 'pending' | 'success' | 'failed' | 'cancelled';
 
 /**
  * 压缩消息元数据

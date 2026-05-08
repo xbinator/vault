@@ -2,6 +2,7 @@
  * @file error.ts
  * @description 压缩模块结构化错误类型和事件通知机制。
  */
+/* eslint-disable max-classes-per-file */
 
 /**
  * 压缩失败阶段
@@ -15,6 +16,16 @@ export class CompressionError extends Error {
   constructor(message: string, public readonly stage: CompressionStage, public readonly cause?: unknown) {
     super(message);
     this.name = 'CompressionError';
+  }
+}
+
+/**
+ * 用户主动取消压缩任务时抛出的受控错误。
+ */
+export class CompressionCancelledError extends Error {
+  constructor() {
+    super('Compression cancelled');
+    this.name = 'CompressionCancelledError';
   }
 }
 

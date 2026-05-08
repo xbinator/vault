@@ -58,6 +58,10 @@ export interface UseChatStreamReturns {
     streamMessages: (sourceMessages: Message[], config: ServiceConfig, reuseLastAssistant?: boolean) => Promise<void>;
     /** 中止流式传输 */
     abort: () => void;
+    /** 开始压缩任务并返回取消信号 */
+    beginCompressionTask: () => AbortSignal | undefined;
+    /** 结束压缩任务并清理发送态 */
+    finishCompressionTask: () => void;
     /** 用户选择提交 */
     submitUserChoice: (answer: AIUserChoiceAnswerData) => Promise<boolean>;
     /** 重新生成 */
@@ -78,6 +82,8 @@ export function useChatStream(options: UseChatStreamOptions): UseChatStreamRetur
   const blockedToolLoopReason = ref('');
   const awaitingUserChoice = ref(false);
   const aborting = ref(false);
+  const activeTaskType = ref<'chat' | 'compression' | null>(null);
+  const compressionAbortController = ref<AbortController | null>(null);
 
   const serviceModelStore = useServiceModelStore();
 
@@ -120,6 +126,26 @@ export function useChatStream(options: UseChatStreamOptions): UseChatStreamRetur
     pendingToolResults.value = [];
     awaitingUserChoice.value = false;
     lastServiceConfig = null;
+  }
+
+  /**
+   * 开始压缩任务并切换到统一发送态。
+   * @returns 压缩取消信号
+   */
+  function beginCompressionTask(): AbortSignal | undefined {
+    loading.value = true;
+    activeTaskType.value = 'compression';
+    compressionAbortController.value = new AbortController();
+    return compressionAbortController.value.signal;
+  }
+
+  /**
+   * 结束压缩任务并清理统一发送态。
+   */
+  function finishCompressionTask(): void {
+    compressionAbortController.value = null;
+    activeTaskType.value = null;
+    loading.value = false;
   }
 
   /**
@@ -328,6 +354,7 @@ export function useChatStream(options: UseChatStreamOptions): UseChatStreamRetur
     // 新消息提交时重置工具循环防护器，避免上一轮对话的状态泄露
     !reuseLastAssistant && startToolLoopSession();
     loading.value = true;
+    activeTaskType.value = 'chat';
     lastServiceConfig = config;
     currentToolRoundId += 1;
     currentToolCallTracker = createToolCallTracker();
@@ -396,10 +423,12 @@ export function useChatStream(options: UseChatStreamOptions): UseChatStreamRetur
   async function handleStreamComplete(): Promise<void> {
     if (aborting.value) {
       aborting.value = false;
+      activeTaskType.value = null;
       return;
     }
 
     loading.value = false;
+    activeTaskType.value = null;
     const roundId = currentToolRoundId;
     const tracker = currentToolCallTracker;
 
@@ -462,6 +491,7 @@ export function useChatStream(options: UseChatStreamOptions): UseChatStreamRetur
    */
   function handleStreamError(error: AIServiceError) {
     loading.value = false;
+    activeTaskType.value = null;
     resetToolLoopState();
     removeTrailingEmptyAssistantMessage();
 
@@ -491,8 +521,15 @@ export function useChatStream(options: UseChatStreamOptions): UseChatStreamRetur
    * 中止流式传输
    */
   function abort() {
+    if (activeTaskType.value === 'compression') {
+      compressionAbortController.value?.abort();
+      finishCompressionTask();
+      return;
+    }
+
     aborting.value = true;
     loading.value = false;
+    activeTaskType.value = null;
     const message = finalizeCurrentAssistantMessage();
     resetToolLoopState();
     agent.abort();
@@ -563,6 +600,8 @@ export function useChatStream(options: UseChatStreamOptions): UseChatStreamRetur
       streamMessages: handleStreamMessages,
       resolveServiceConfig,
       abort,
+      beginCompressionTask,
+      finishCompressionTask,
       submitUserChoice,
       regenerate
     }

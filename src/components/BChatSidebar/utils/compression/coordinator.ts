@@ -21,7 +21,7 @@ import { asyncTo } from '@/utils/asyncTo';
 import { findLatestCompressionBoundaryIndex, sliceMessagesFromCompressionBoundary } from '../messageHelper';
 import { assembleContext } from './assembler';
 import { CURRENT_SCHEMA_VERSION, RECENT_ROUND_PRESERVE } from './constant';
-import { CompressionError } from './error';
+import { CompressionCancelledError, CompressionError } from './error';
 import { planCompression } from './planner';
 import { computeCompressionTokenThreshold, countMessageRounds, estimateContextSize, evaluateFromSnapshot } from './policy';
 import { selectRelevantSegments } from './segmentRecall';
@@ -239,6 +239,18 @@ interface BuildMultiSegmentSummaryParams {
   currentUserMessageId?: string;
   /** 降级原因：全量重建被截断时降级为增量 */
   degradeReason?: 'degraded_to_incremental';
+  /** 压缩取消信号 */
+  signal?: AbortSignal;
+}
+
+/**
+ * 在关键阶段边界检查压缩任务是否已被用户取消。
+ * @param signal - 压缩取消信号
+ */
+function throwIfCompressionCancelled(signal?: AbortSignal): void {
+  if (signal?.aborted) {
+    throw new CompressionCancelledError();
+  }
 }
 
 /**
@@ -251,7 +263,7 @@ interface BuildMultiSegmentSummaryParams {
  * @returns 新摘要集合的首条记录及消息分类结果；无可压缩内容时返回 undefined
  */
 async function buildMultiSegmentSummary(params: BuildMultiSegmentSummaryParams): Promise<BuildSummaryResult | undefined> {
-  const { storage, sessionId, messages, buildMode, triggerReason, currentSummary, classification, segments, degradeReason } = params;
+  const { storage, sessionId, messages, buildMode, triggerReason, currentSummary, classification, segments, degradeReason, signal } = params;
 
   const summarySetId = `set-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
   const segmentCount = segments.length;
@@ -260,6 +272,7 @@ async function buildMultiSegmentSummary(params: BuildMultiSegmentSummaryParams):
   try {
     for (let i = 0; i < segments.length; i += 1) {
       const segment = segments[i];
+      throwIfCompressionCancelled(signal);
 
       let trimmed: ReturnType<typeof ruleTrim>;
       try {
@@ -273,8 +286,10 @@ async function buildMultiSegmentSummary(params: BuildMultiSegmentSummaryParams):
 
       let structuredSummary: StructuredConversationSummary;
       try {
+        throwIfCompressionCancelled(signal);
         /* eslint-disable-next-line no-await-in-loop -- 多段摘要需按顺序生成，每段依赖前一段上下文 */
         structuredSummary = await generateStructuredSummary({ items: trimmed.items, previousSummary });
+        throwIfCompressionCancelled(signal);
       } catch (error) {
         throw new CompressionError('AI 摘要生成失败', 'ai_summary', error);
       }
@@ -282,6 +297,7 @@ async function buildMultiSegmentSummary(params: BuildMultiSegmentSummaryParams):
       const summaryText = truncateSummaryText(generateSummaryText(structuredSummary));
 
       try {
+        throwIfCompressionCancelled(signal);
         /* eslint-disable-next-line no-await-in-loop -- 按顺序持久化每段摘要，保证 segmentIndex 与生成顺序一致 */
         const record = await storage.createSummary({
           sessionId,
@@ -360,6 +376,8 @@ interface BuildSummaryRecordOptions {
   excludeMessageIds?: string[];
   /** 降级原因 */
   degradeReason?: 'degraded_to_incremental';
+  /** 压缩取消信号 */
+  signal?: AbortSignal;
 }
 
 /**
@@ -372,7 +390,8 @@ interface BuildSummaryRecordOptions {
  * @returns 新摘要记录及对应的消息分类结果；无可压缩内容时返回 undefined
  */
 async function buildSummaryRecord(options: BuildSummaryRecordOptions): Promise<BuildSummaryResult | undefined> {
-  const { storage, sessionId, messages, buildMode, triggerReason, currentSummary, currentUserMessageId, excludeMessageIds, degradeReason } = options;
+  const { storage, sessionId, messages, buildMode, triggerReason, currentSummary, currentUserMessageId, excludeMessageIds, degradeReason, signal } = options;
+  throwIfCompressionCancelled(signal);
 
   const isIncrementalMode = buildMode === 'incremental' || degradeReason === 'degraded_to_incremental';
   const windowMessages = resolveIncrementalWindow({
@@ -402,22 +421,27 @@ async function buildSummaryRecord(options: BuildSummaryRecordOptions): Promise<B
       classification,
       segments,
       currentUserMessageId,
-      degradeReason
+      degradeReason,
+      signal
     });
   }
 
   let trimmed: ReturnType<typeof ruleTrim>;
   try {
+    throwIfCompressionCancelled(signal);
     trimmed = ruleTrim(orderedSummarizedMessages);
+    throwIfCompressionCancelled(signal);
   } catch (error) {
     throw new CompressionError('消息裁剪失败', 'rule_trim', error);
   }
 
   // 增量模式下将上一条摘要作为上下文传入，以保持摘要连贯性
+  throwIfCompressionCancelled(signal);
   const structuredSummary = await generateStructuredSummary({
     items: trimmed.items,
     previousSummary: isIncrementalMode ? currentSummary : undefined
   });
+  throwIfCompressionCancelled(signal);
 
   const summaryText = truncateSummaryText(generateSummaryText(structuredSummary));
   const allSummarizedIds = orderedSummarizedMessages.map((m) => m.id);
@@ -433,6 +457,7 @@ async function buildSummaryRecord(options: BuildSummaryRecordOptions): Promise<B
 
   let summaryRecord: ConversationSummaryRecord;
   try {
+    throwIfCompressionCancelled(signal);
     summaryRecord = await storage.createSummary({
       sessionId,
       buildMode,
@@ -674,6 +699,8 @@ export function createCompressionCoordinator(storage: SummaryStorage) {
     latestSummary?: ConversationSummaryRecord;
     /** 本次压缩的触发原因（来自首次 policy 评估） */
     triggerReason: TriggerReason;
+    /** 压缩取消信号 */
+    signal?: AbortSignal;
   }
 
   /**
@@ -686,7 +713,7 @@ export function createCompressionCoordinator(storage: SummaryStorage) {
    * @returns 组装后的模型消息列表及压缩标记
    */
   async function runCompression(options: RunCompressionOptions): Promise<PrepareMessagesOutput> {
-    const { input, effectiveMessages, latestSummary, triggerReason } = options;
+    const { input, effectiveMessages, latestSummary, triggerReason, signal } = options;
     const { sessionId, currentUserMessage, excludeMessageIds } = input;
     try {
       const summaryResult = await buildSummaryRecord({
@@ -697,7 +724,8 @@ export function createCompressionCoordinator(storage: SummaryStorage) {
         triggerReason,
         currentSummary: latestSummary,
         currentUserMessageId: currentUserMessage.id,
-        excludeMessageIds
+        excludeMessageIds,
+        signal
       });
 
       if (!summaryResult) {
@@ -783,15 +811,18 @@ export function createCompressionCoordinator(storage: SummaryStorage) {
      * @param input - 压缩输入参数
      * @returns 新生成的摘要记录；无可压缩内容时返回 undefined
      */
-    async compressSessionManually(input: { sessionId: string; messages: Message[] }): Promise<ConversationSummaryRecord | undefined> {
-      const { sessionId, messages } = input;
+    async compressSessionManually(input: { sessionId: string; messages: Message[]; signal?: AbortSignal }): Promise<ConversationSummaryRecord | undefined> {
+      const { sessionId, messages, signal } = input;
       const releaseLock = await acquireSessionLock(sessionId);
 
       try {
+        throwIfCompressionCancelled(signal);
         const currentSummary = await storage.getValidSummary(sessionId);
+        throwIfCompressionCancelled(signal);
 
         const fullRebuildTrim = ruleTrim(messages);
         const degradeReason = fullRebuildTrim.truncated ? ('degraded_to_incremental' as const) : undefined;
+        throwIfCompressionCancelled(signal);
 
         const summaryResult = await buildSummaryRecord({
           storage,
@@ -800,7 +831,8 @@ export function createCompressionCoordinator(storage: SummaryStorage) {
           buildMode: 'full_rebuild',
           triggerReason: 'manual',
           currentSummary,
-          degradeReason
+          degradeReason,
+          signal
         });
 
         return summaryResult?.summaryRecord;

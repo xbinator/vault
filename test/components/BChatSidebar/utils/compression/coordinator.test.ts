@@ -723,6 +723,27 @@ describe('coordinator - compressSessionManually', () => {
     expect(result?.sourceMessageIds).toEqual(['m1', 'm2']);
   });
 
+  it('aborts manual compression when the abort signal is triggered', async () => {
+    const { createCompressionCoordinator } = await import('@/components/BChatSidebar/utils/compression/coordinator');
+    const controller = new AbortController();
+    const mockStorage = createMockStorage();
+    const coordinator = createCompressionCoordinator(mockStorage);
+    const messages: Message[] = [
+      makeMsg({ id: 'm1', role: 'user', content: 'Hello', parts: [{ type: 'text', text: 'Hello' } as never] }),
+      makeMsg({ id: 'm2', role: 'assistant', content: 'World', parts: [{ type: 'text', text: 'World' } as never] })
+    ];
+
+    controller.abort();
+
+    await expect(
+      coordinator.compressSessionManually({
+        sessionId: 'session-1',
+        messages,
+        signal: controller.signal
+      })
+    ).rejects.toMatchObject({ name: 'CompressionCancelledError' });
+  });
+
   it('marks old summary as superseded when creating new one', async () => {
     const { createCompressionCoordinator } = await import('@/components/BChatSidebar/utils/compression/coordinator');
     const existingSummary = makeSummary({ id: 'old-summary' });

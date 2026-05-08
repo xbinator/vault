@@ -37,4 +37,29 @@ describe('compression boundary model context', () => {
       { role: 'user', content: 'new question' }
     ]);
   });
+
+  test('ignores cancelled compression messages when slicing model context from the latest boundary', () => {
+    const sourceMessages: Message[] = [
+      create.userMessage('old user'),
+      create.compressionMessage({
+        summaryText: 'success boundary',
+        status: 'success',
+        coveredUntilMessageId: 'old-user',
+        sourceMessageIds: ['old-user']
+      }),
+      create.userMessage('after boundary'),
+      create.compressionMessage({
+        summaryText: '',
+        status: 'cancelled',
+        errorMessage: '用户已取消'
+      }),
+      create.userMessage('latest user')
+    ];
+
+    const slicedMessages = sliceMessagesFromCompressionBoundary(sourceMessages);
+
+    expect(slicedMessages[0]?.role).toBe('compression');
+    expect(slicedMessages[0]?.compression?.status).toBe('success');
+    expect(slicedMessages.at(-1)?.content).toBe('latest user');
+  });
 });
