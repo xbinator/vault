@@ -2,9 +2,11 @@
  * @file index.test.ts
  * @description BModelSelect 组件单元测试。
  */
-import { describe, expect, it, vi } from 'vitest';
+/* @vitest-environment jsdom */
+
 import { nextTick, ref } from 'vue';
 import { mount } from '@vue/test-utils';
+import { describe, expect, it, vi } from 'vitest';
 import BModelSelect from '@/components/BModelSelect/index.vue';
 import type { SelectedModel } from '@/stores/serviceModel';
 
@@ -25,9 +27,7 @@ vi.mock('@/stores/provider', () => ({
         id: 'anthropic',
         name: 'Anthropic',
         isEnabled: true,
-        models: [
-          { id: 'claude-3-opus', name: 'Claude 3 Opus', isEnabled: true }
-        ]
+        models: [{ id: 'claude-3-opus', name: 'Claude 3 Opus', isEnabled: true }]
       }
     ]),
     loadProviders: vi.fn()
