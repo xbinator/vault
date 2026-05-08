@@ -445,8 +445,11 @@ onMounted((): void => {
   });
   cleanupSelectionOverlayPosition = (): void => {
     editorView.value?.scrollDOM.removeEventListener('scroll', assistant.recomputeAllPositions);
+    window.removeEventListener('scroll', assistant.recomputeAllPositions);
   };
   editorView.value.scrollDOM.addEventListener('scroll', assistant.recomputeAllPositions);
+  // 页面级滚动（CodeMirror scroller 设为 overflow:visible 时 scrollDOM 不滚动，需监听 window）
+  window.addEventListener('scroll', assistant.recomputeAllPositions);
 
   // 创建 source adapter，注入文件上下文与浮层根容器
   adapter.value = createSourceSelectionAssistantAdapter(

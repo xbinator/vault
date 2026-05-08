@@ -127,12 +127,34 @@ export function createSourceSelectionAssistantAdapter(
 
     getPanelPosition(range: SelectionAssistantRange): SelectionAssistantPosition | null {
       const overlayRect = context.overlayRoot.getBoundingClientRect();
-      const endCoords = view.coordsAtPos(range.to);
+
+      // 若选区末尾落在空行上，向前找到最后一个非空行作为面板锚点。
+      let anchorPos = range.to;
+      const toLine = view.state.doc.lineAt(anchorPos);
+      if (toLine.length === 0) {
+        let searchPos = anchorPos;
+        while (searchPos >= range.from) {
+          const line = view.state.doc.lineAt(searchPos);
+          if (line.length > 0) {
+            anchorPos = line.from;
+            break;
+          }
+          if (line.from <= range.from) {
+            break;
+          }
+          searchPos = line.from - 1;
+        }
+      }
+
+      const endCoords = view.coordsAtPos(anchorPos);
       if (!endCoords) {
         return null;
       }
 
-      const lineHeight = getLineHeight(view, range.to);
+      const lineHeight = getLineHeight(view, anchorPos);
+      // 计算视口在 overlayRoot 坐标系中的可见区域，用于宿主做边界约束
+      const viewportTop = Math.max(0, -overlayRect.top);
+      const viewportLeft = Math.max(0, -overlayRect.left);
       return {
         anchorRect: {
           top: endCoords.top - overlayRect.top,
@@ -142,22 +164,41 @@ export function createSourceSelectionAssistantAdapter(
         },
         lineHeight,
         containerRect: {
-          top: 0,
-          left: 0,
-          width: context.overlayRoot.clientWidth,
-          height: context.overlayRoot.clientHeight
+          top: viewportTop,
+          left: viewportLeft,
+          width: window.innerWidth - viewportLeft,
+          height: window.innerHeight - viewportTop
         }
       };
     },
 
     getToolbarPosition(range: SelectionAssistantRange): SelectionAssistantPosition | null {
       const overlayRect = context.overlayRoot.getBoundingClientRect();
-      const startCoords = view.coordsAtPos(range.from);
+
+      // 跳过选区起始的空行，找到第一个非空行作为工具栏锚点。
+      let anchorPos = range.from;
+      const fromLine = view.state.doc.lineAt(anchorPos);
+      if (fromLine.length === 0) {
+        let line = fromLine;
+        while (line.length === 0 && line.to < range.to) {
+          anchorPos = line.to + 1;
+          if (anchorPos >= range.to) {
+            anchorPos = range.to;
+            break;
+          }
+          line = view.state.doc.lineAt(anchorPos);
+        }
+      }
+
+      const startCoords = view.coordsAtPos(anchorPos);
       if (!startCoords) {
         return null;
       }
 
-      const lineHeight = getLineHeight(view, range.from);
+      const lineHeight = getLineHeight(view, anchorPos);
+      // 计算视口在 overlayRoot 坐标系中的可见区域，用于宿主做边界约束
+      const viewportTop = Math.max(0, -overlayRect.top);
+      const viewportLeft = Math.max(0, -overlayRect.left);
       return {
         anchorRect: {
           top: startCoords.top - overlayRect.top,
@@ -167,10 +208,10 @@ export function createSourceSelectionAssistantAdapter(
         },
         lineHeight,
         containerRect: {
-          top: 0,
-          left: 0,
-          width: context.overlayRoot.clientWidth,
-          height: context.overlayRoot.clientHeight
+          top: viewportTop,
+          left: viewportLeft,
+          width: window.innerWidth - viewportLeft,
+          height: window.innerHeight - viewportTop
         }
       };
     },

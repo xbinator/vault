@@ -40,6 +40,23 @@ export function createRichSelectionAssistantAdapter(editor: Editor, context: Sel
     };
   }
 
+  /**
+   * 计算视口在 overlayRoot 坐标系中的可见区域矩形。
+   * 用于宿主组件做边界约束，确保工具栏/面板不会超出可视区域。
+   * @param overlayRect - overlayRoot 的 getBoundingClientRect 结果
+   * @returns 视口可见区域，overlayRoot 坐标系
+   */
+  function getViewportContainerRect(overlayRect: DOMRect): { top: number; left: number; width: number; height: number } {
+    const viewportTop = Math.max(0, -overlayRect.top);
+    const viewportLeft = Math.max(0, -overlayRect.left);
+    return {
+      top: viewportTop,
+      left: viewportLeft,
+      width: window.innerWidth - viewportLeft,
+      height: window.innerHeight - viewportTop
+    };
+  }
+
   return {
     getCapabilities(): SelectionAssistantCapabilities {
       return {
@@ -96,30 +113,22 @@ export function createRichSelectionAssistantAdapter(editor: Editor, context: Sel
     getPanelPosition(range: SelectionAssistantRange): SelectionAssistantPosition | null {
       const endCoords = editor.view.coordsAtPos(range.to);
       const lineHeight = endCoords.bottom - endCoords.top;
+      const overlayRect = context.overlayRoot.getBoundingClientRect();
       return {
         anchorRect: coordsToAnchorRect(endCoords),
         lineHeight,
-        containerRect: {
-          top: 0,
-          left: 0,
-          width: context.overlayRoot.clientWidth,
-          height: context.overlayRoot.clientHeight
-        }
+        containerRect: getViewportContainerRect(overlayRect)
       };
     },
 
     getToolbarPosition(range: SelectionAssistantRange): SelectionAssistantPosition | null {
       const startCoords = editor.view.coordsAtPos(range.from);
       const lineHeight = startCoords.bottom - startCoords.top;
+      const overlayRect = context.overlayRoot.getBoundingClientRect();
       return {
         anchorRect: coordsToAnchorRect(startCoords),
         lineHeight,
-        containerRect: {
-          top: 0,
-          left: 0,
-          width: context.overlayRoot.clientWidth,
-          height: context.overlayRoot.clientHeight
-        }
+        containerRect: getViewportContainerRect(overlayRect)
       };
     },
 
