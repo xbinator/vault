@@ -6,14 +6,21 @@
   <BModal v-model:open="open" title="选择模型" width="480px">
     <!-- 搜索框 -->
     <div class="model-search">
+      <Icon icon="lucide:search" class="model-search__icon" width="15" height="15" />
       <input v-model="searchQuery" placeholder="搜索模型..." class="model-search__input" />
+      <button v-if="searchQuery" class="model-search__clear" @click="searchQuery = ''">
+        <Icon icon="lucide:x" width="13" height="13" />
+      </button>
     </div>
 
     <!-- 模型列表 -->
     <BScrollbar max-height="400px">
       <div class="model-list">
         <div v-for="group in filteredGroups" :key="group.providerId" class="model-group">
-          <div class="model-group__header">{{ group.providerName }}</div>
+          <div class="model-group__header">
+            <span class="model-group__header-dot"></span>
+            {{ group.providerName }}
+          </div>
           <div
             v-for="item in group.models"
             :key="item.value"
@@ -21,17 +28,21 @@
             :class="{ 'is-active': item.value === internalModel }"
             @click="handleModelSelect(item)"
           >
-            <BModelIcon :model="item.modelId" :size="20" />
+            <div class="model-item__icon-wrap">
+              <BModelIcon :model="item.modelId" :size="18" />
+            </div>
             <div class="model-item__info">
               <div class="model-item__name">{{ item.modelName }}</div>
             </div>
-            <Icon v-if="item.value === internalModel" icon="lucide:check" width="16" height="16" />
           </div>
         </div>
       </div>
 
       <!-- 空状态 -->
-      <div v-if="!filteredGroups.length" class="model-empty">暂无可用模型</div>
+      <div v-if="!filteredGroups.length" class="model-empty">
+        <Icon icon="lucide:search-x" width="28" height="28" class="model-empty__icon" />
+        <span>未找到匹配的模型</span>
+      </div>
     </BScrollbar>
   </BModal>
 </template>
@@ -60,7 +71,7 @@ function parseModelValue(value: string): ParsedModel | null {
 }
 
 /** 组件属性。 */
-const props = withDefaults(defineProps<BModelSelectProps>(), {
+withDefaults(defineProps<BModelSelectProps>(), {
   disabled: false
 });
 
@@ -170,53 +181,108 @@ defineExpose<BModelSelectExpose>({
 </script>
 
 <style scoped lang="less">
+/* ── 搜索框 ─────────────────────────────────── */
 .model-search {
-  margin-bottom: 16px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.model-search__icon {
+  position: absolute;
+  left: 11px;
+  flex-shrink: 0;
+  color: var(--text-placeholder);
+  pointer-events: none;
 }
 
 .model-search__input {
   width: 100%;
   height: 36px;
-  padding: 0 12px;
+  padding: 0 32px 0 34px;
   font-size: 13px;
+  color: var(--text-primary);
   outline: none;
   background: var(--input-bg);
-  border: 1px solid var(--border-color);
-  border-radius: 6px;
-  transition: border-color 0.2s;
+  border: 1px solid var(--input-border);
+  border-radius: 8px;
+  transition: border-color 0.15s, box-shadow 0.15s;
 }
 
 .model-search__input:focus {
-  border-color: var(--primary-color);
+  border-color: var(--input-focus-border);
+  box-shadow: 0 0 0 3px var(--input-focus-shadow);
 }
 
 .model-search__input::placeholder {
   color: var(--text-placeholder);
 }
 
+.model-search__clear {
+  position: absolute;
+  right: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  color: var(--text-placeholder);
+  cursor: pointer;
+  background: var(--bg-hover);
+  border: none;
+  border-radius: 50%;
+  transition: background 0.15s, color 0.15s;
+}
+
+.model-search__clear:hover {
+  color: var(--text-primary);
+  background: var(--border-secondary);
+}
+
+/* ── 模型列表 ────────────────────────────────── */
 .model-list {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 20px;
+  padding: 2px 0 4px;
 }
 
+/* ── 分组标题 ────────────────────────────────── */
 .model-group__header {
-  padding: 8px 0;
-  font-size: 12px;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding: 0 4px 6px;
+  margin-bottom: 2px;
+  font-size: 11px;
   font-weight: 600;
   color: var(--text-secondary);
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.6px;
+  border-bottom: 1px solid var(--border-primary);
 }
 
+.model-group__header-dot {
+  display: inline-block;
+  flex-shrink: 0;
+  width: 6px;
+  height: 6px;
+  background: var(--color-primary);
+  border-radius: 50%;
+  opacity: 0.6;
+}
+
+/* ── 模型条目 ────────────────────────────────── */
 .model-item {
   display: flex;
-  gap: 12px;
+  gap: 10px;
   align-items: center;
-  padding: 12px;
+  padding: 6px 8px;
   cursor: pointer;
   border-radius: 8px;
-  transition: background-color 0.2s;
+  transition: background-color 0.15s, border-color 0.15s;
 }
 
 .model-item:hover {
@@ -224,7 +290,16 @@ defineExpose<BModelSelectExpose>({
 }
 
 .model-item.is-active {
-  background: var(--bg-active);
+  background: var(--color-primary-bg);
+}
+
+.model-item__icon-wrap {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
 }
 
 .model-item__info {
@@ -235,16 +310,24 @@ defineExpose<BModelSelectExpose>({
 .model-item__name {
   overflow: hidden;
   text-overflow: ellipsis;
-  font-size: 14px;
+  font-size: 13.5px;
   font-weight: 500;
   color: var(--text-primary);
   white-space: nowrap;
 }
 
+/* ── 空状态 ─────────────────────────────────── */
 .model-empty {
-  padding: 40px 0;
-  font-size: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: center;
+  padding: 48px 0;
+  font-size: 13px;
   color: var(--text-secondary);
-  text-align: center;
+}
+
+.model-empty__icon {
+  opacity: 0.35;
 }
 </style>
