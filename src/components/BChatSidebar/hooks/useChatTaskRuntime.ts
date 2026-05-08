@@ -117,6 +117,7 @@ export function useChatTaskRuntime(options: UseChatTaskRuntimeOptions) {
 
   /**
    * 中止当前活跃任务。
+   * 工具循环续轮期间 activeTask 可能已提前置为 idle，仍需保证能中止底层流式传输。
    */
   function abortActiveTask(): void {
     if (activeTask.value === 'compact') {
@@ -126,10 +127,8 @@ export function useChatTaskRuntime(options: UseChatTaskRuntimeOptions) {
       return;
     }
 
-    if (activeTask.value === 'chat') {
-      abortChatTask();
-      resetToIdle();
-    }
+    abortChatTask();
+    resetToIdle();
   }
 
   /**

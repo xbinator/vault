@@ -356,9 +356,10 @@ async function handleComplete(nextMessage: Message): Promise<void> {
   if (sessionId) {
     await usagePanel.refresh(sessionId, currentSession.value?.id);
   }
-  if (!snapshot) return;
 
   taskRuntime.finishTask('chat');
+  if (!snapshot) return;
+
   scheduleAutoName(snapshot, () => loading.value);
 }
 
