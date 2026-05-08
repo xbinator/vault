@@ -18,7 +18,7 @@ interface CompressionOptions {
   /** 获取消息列表 */
   getMessages: () => Message[];
   /** 开始压缩任务并返回取消信号 */
-  beginCompressionTask: () => AbortSignal | undefined;
+  beginCompressionTask: (onAbort?: () => void) => AbortSignal | undefined;
   /** 结束压缩任务 */
   finishCompressionTask: () => void;
 }
@@ -67,9 +67,10 @@ export function useCompression(options: CompressionOptions) {
 
   /**
    * 手动触发压缩
+   * @param callbacks - 压缩过程回调
    * @returns 是否压缩成功
    */
-  async function compress(): Promise<CompressionExecutionResult> {
+  async function compress(callbacks?: { onAbort?: () => void }): Promise<CompressionExecutionResult> {
     const sessionId = getSessionId();
     if (!sessionId) {
       error.value = '没有活跃的会话';
@@ -84,7 +85,7 @@ export function useCompression(options: CompressionOptions) {
 
     compressing.value = true;
     error.value = undefined;
-    const signal = beginCompressionTask();
+    const signal = beginCompressionTask(callbacks?.onAbort);
 
     try {
       const result = await coordinator.value.compressSessionManually({ sessionId, messages, signal });

@@ -42,7 +42,25 @@ interface CreateCompressionMessageInput extends CompressionMessageBase {
 }
 
 /**
- * 创建压缩消息。
+ * 手动上下文压缩 hook 的依赖项。
+ */
+interface UseCompactContextOptions {
+  /** 当前消息列表 */
+  messages: Ref<Message[]>;
+  /** 获取活跃会话 ID */
+  getSessionId: () => string | undefined;
+  /** 执行压缩 */
+  compress: (callbacks?: { onAbort?: () => void }) => Promise<CompressionExecutionResult>;
+  /** 持久化新增的压缩消息 */
+  persistMessage: (sessionId: string, nextMessage: Message) => Promise<void>;
+  /** 持久化当前完整消息列表 */
+  persistMessages: (sessionId: string | undefined, nextMessages: Message[]) => Promise<void>;
+  /** 将对话滚动到底部 */
+  scrollToBottom: () => void;
+}
+
+/**
+ * 兼容测试与调用方的压缩消息创建入口。
  * @param input - 压缩消息数据
  * @returns 压缩消息
  */
@@ -61,7 +79,7 @@ export function createCompressionMessage(input: CreateCompressionMessageInput): 
  * 创建待处理中的压缩消息。
  * @returns pending 状态的压缩消息
  */
-export function createPendingCompressionMessage(): Message {
+function createPendingCompressionMessage(): Message {
   return createCompressionMessage({
     summaryText: '正在压缩上下文…',
     status: 'pending'
@@ -73,7 +91,7 @@ export function createPendingCompressionMessage(): Message {
  * @param input - 压缩成功所需的摘要信息
  * @returns success 状态的压缩消息
  */
-export function createSuccessfulCompressionMessage(input: CreateSuccessfulCompressionMessageInput): Message {
+function createSuccessfulCompressionMessage(input: CreateSuccessfulCompressionMessageInput): Message {
   return createCompressionMessage({
     summaryText: input.summaryText,
     status: 'success',
@@ -88,7 +106,7 @@ export function createSuccessfulCompressionMessage(input: CreateSuccessfulCompre
  * @param errorMessage - 失败提示
  * @returns failed 状态的压缩消息
  */
-export function createFailedCompressionMessage(errorMessage: string): Message {
+function createFailedCompressionMessage(errorMessage: string): Message {
   return createCompressionMessage({
     summaryText: '上下文压缩失败',
     status: 'failed',
@@ -100,29 +118,11 @@ export function createFailedCompressionMessage(errorMessage: string): Message {
  * 创建压缩取消消息。
  * @returns cancelled 状态的压缩消息
  */
-export function createCancelledCompressionMessage(): Message {
+function createCancelledCompressionMessage(): Message {
   return createCompressionMessage({
     summaryText: '',
     status: 'cancelled'
   });
-}
-
-/**
- * 手动上下文压缩 hook 的依赖项。
- */
-interface UseCompactContextOptions {
-  /** 当前消息列表 */
-  messages: Ref<Message[]>;
-  /** 获取活跃会话 ID */
-  getSessionId: () => string | undefined;
-  /** 执行压缩 */
-  compress: () => Promise<CompressionExecutionResult>;
-  /** 持久化新增的压缩消息 */
-  persistMessage: (sessionId: string, nextMessage: Message) => Promise<void>;
-  /** 持久化当前完整消息列表 */
-  persistMessages: (sessionId: string | undefined, nextMessages: Message[]) => Promise<void>;
-  /** 将对话滚动到底部 */
-  scrollToBottom: () => void;
 }
 
 /**
@@ -195,7 +195,11 @@ export function useCompactContext(options: UseCompactContextOptions) {
     await persistMessage(sessionId, pendingMessage);
     scrollToBottom();
 
-    const result = await compress();
+    const result = await compress({
+      onAbort: () => {
+        updateCompressionMessage(pendingMessage.id, createCancelledCompressionMessage()).catch(() => undefined);
+      }
+    });
     await updateCompressionMessage(pendingMessage.id, resolveCompressionMessage(result));
   }
 

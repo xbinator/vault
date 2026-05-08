@@ -59,7 +59,7 @@ export interface UseChatStreamReturns {
     /** 中止流式传输 */
     abort: () => void;
     /** 开始压缩任务并返回取消信号 */
-    beginCompressionTask: () => AbortSignal | undefined;
+    beginCompressionTask: (onAbort?: () => void) => AbortSignal | undefined;
     /** 结束压缩任务并清理发送态 */
     finishCompressionTask: () => void;
     /** 用户选择提交 */
@@ -84,6 +84,7 @@ export function useChatStream(options: UseChatStreamOptions): UseChatStreamRetur
   const aborting = ref(false);
   const activeTaskType = ref<'chat' | 'compression' | null>(null);
   const compressionAbortController = ref<AbortController | null>(null);
+  const compressionAbortHandler = ref<(() => void) | null>(null);
 
   const serviceModelStore = useServiceModelStore();
 
@@ -132,10 +133,11 @@ export function useChatStream(options: UseChatStreamOptions): UseChatStreamRetur
    * 开始压缩任务并切换到统一发送态。
    * @returns 压缩取消信号
    */
-  function beginCompressionTask(): AbortSignal | undefined {
+  function beginCompressionTask(onAbort?: () => void): AbortSignal | undefined {
     loading.value = true;
     activeTaskType.value = 'compression';
     compressionAbortController.value = new AbortController();
+    compressionAbortHandler.value = onAbort ?? null;
     return compressionAbortController.value.signal;
   }
 
@@ -144,6 +146,7 @@ export function useChatStream(options: UseChatStreamOptions): UseChatStreamRetur
    */
   function finishCompressionTask(): void {
     compressionAbortController.value = null;
+    compressionAbortHandler.value = null;
     activeTaskType.value = null;
     loading.value = false;
   }
@@ -523,6 +526,7 @@ export function useChatStream(options: UseChatStreamOptions): UseChatStreamRetur
   function abort() {
     if (activeTaskType.value === 'compression') {
       compressionAbortController.value?.abort();
+      compressionAbortHandler.value?.();
       finishCompressionTask();
       return;
     }

@@ -5,7 +5,7 @@
 import type { ChatMessageHistoryCursor, ChatMessageRecord, ChatSession } from 'types/chat';
 import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
-import { create } from '@/components/BChatSidebar/utils/messageHelper';
+import { createCompressionMessage } from '@/components/BChatSidebar/hooks/useCompactContext';
 
 type AddMessageMock = (message: ChatMessageRecord) => Promise<void>;
 type CreateSessionMock = (session: ChatSession) => Promise<void>;
@@ -45,7 +45,7 @@ describe('useChatStore compression message persistence', () => {
   test('persists and restores compression messages with compression metadata', async () => {
     const { useChatStore } = await import('@/stores/chat');
     const chatStore = useChatStore();
-    const message = create.compressionMessage({
+    const message = createCompressionMessage({
       summaryText: '已压缩 32 条历史消息',
       status: 'success',
       summaryId: 'summary-1',

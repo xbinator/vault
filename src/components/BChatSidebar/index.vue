@@ -297,7 +297,7 @@ const { stream, loading } = useChatStream({
 const compression = useCompression({
   getSessionId: () => settingStore.chatSidebarActiveSessionId ?? undefined,
   getMessages: () => messages.value,
-  beginCompressionTask: () => stream.beginCompressionTask(),
+  beginCompressionTask: (onAbort?: () => void) => stream.beginCompressionTask(onAbort),
   finishCompressionTask: () => stream.finishCompressionTask()
 });
 
@@ -431,7 +431,7 @@ async function handleChatSubmit(): Promise<void> {
 const { handleCompactContext } = useCompactContext({
   messages,
   getSessionId: () => settingStore.chatSidebarActiveSessionId ?? undefined,
-  compress: () => compression.compress(),
+  compress: (callbacks) => compression.compress(callbacks),
   persistMessage: (sessionId, nextMessage) => chatStore.addSessionMessage(sessionId, nextMessage),
   persistMessages: (sessionId, nextMessages) => chatStore.setSessionMessages(sessionId, nextMessages),
   scrollToBottom: () => conversationRef.value?.scrollToBottom({ behavior: 'auto' })

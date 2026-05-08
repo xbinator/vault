@@ -6,8 +6,7 @@ import { ref } from 'vue';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useChatStream } from '@/components/BChatSidebar/hooks/useChatStream';
 import { create } from '@/components/BChatSidebar/utils/messageHelper';
-import type { Message } from '@/components/BChatSidebar/utils/types';
-import type { ServiceConfig } from '@/components/BChatSidebar/utils/types';
+import type { Message, ServiceConfig } from '@/components/BChatSidebar/utils/types';
 
 /**
  * 被测 hook 传给底层流式 Hook 的回调集合。
@@ -112,6 +111,22 @@ describe('useChatStream abort', () => {
     expect(onComplete).toHaveBeenCalledWith(messages.value[1]);
   });
 
+  it('invokes the compression abort handler and clears loading immediately when aborting a compression task', () => {
+    const messages = ref<Message[]>([]);
+    const onAbort = vi.fn<() => void>();
+    const { stream, loading } = useChatStream({
+      messages
+    });
+
+    stream.beginCompressionTask(onAbort);
+    expect(loading.value).toBe(true);
+
+    stream.abort();
+
+    expect(onAbort).toHaveBeenCalledTimes(1);
+    expect(loading.value).toBe(false);
+  });
+
   it('passes modelId into compression preparation during chat sends', async () => {
     const messages = ref<Message[]>([]);
     const { stream } = useChatStream({
@@ -143,17 +158,15 @@ describe('useChatStream abort', () => {
   });
 
   it('retries resolving service config when startup race makes the first lookup return null', async () => {
-    getAvailableServiceConfigMock
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce({
-        providerId: 'openai',
-        modelId: 'gpt-4o',
-        toolSupport: {
-          supported: false,
-          mode: 'none',
-          multiStepLoop: false
-        }
-      } satisfies ServiceConfig);
+    getAvailableServiceConfigMock.mockResolvedValueOnce(null).mockResolvedValueOnce({
+      providerId: 'openai',
+      modelId: 'gpt-4o',
+      toolSupport: {
+        supported: false,
+        mode: 'none',
+        multiStepLoop: false
+      }
+    } satisfies ServiceConfig);
 
     const messages = ref<Message[]>([]);
     const { stream } = useChatStream({ messages });

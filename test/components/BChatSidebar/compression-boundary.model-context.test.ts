@@ -3,6 +3,7 @@
  * @description 压缩消息上下文边界测试。
  */
 import { describe, expect, test } from 'vitest';
+import { createCompressionMessage } from '@/components/BChatSidebar/hooks/useCompactContext';
 import { convert, create, sliceMessagesFromCompressionBoundary } from '@/components/BChatSidebar/utils/messageHelper';
 import type { Message } from '@/components/BChatSidebar/utils/types';
 
@@ -18,7 +19,7 @@ describe('compression boundary model context', () => {
         createdAt: '2026-05-07T00:00:00.000Z',
         finished: true
       },
-      create.compressionMessage({
+      createCompressionMessage({
         summaryText: '历史对话摘要',
         status: 'success',
         summaryId: 'summary-1',
@@ -41,14 +42,14 @@ describe('compression boundary model context', () => {
   test('ignores cancelled compression messages when slicing model context from the latest boundary', () => {
     const sourceMessages: Message[] = [
       create.userMessage('old user'),
-      create.compressionMessage({
+      createCompressionMessage({
         summaryText: 'success boundary',
         status: 'success',
         coveredUntilMessageId: 'old-user',
         sourceMessageIds: ['old-user']
       }),
       create.userMessage('after boundary'),
-      create.compressionMessage({
+      createCompressionMessage({
         summaryText: '',
         status: 'cancelled',
         errorMessage: '用户已取消'
