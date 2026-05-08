@@ -60,11 +60,6 @@
         </div>
       </div>
 
-      <div v-if="status?.errorMessage" class="speech-settings__error">
-        <Icon icon="lucide:alert-circle" class="speech-settings__error-icon" />
-        {{ status.errorMessage }}
-      </div>
-
       <div class="speech-settings__actions">
         <BButton :disabled="installing" @click="handleInstall">
           {{ installButtonLabel }}
@@ -380,27 +375,6 @@ onUnmounted(teardownProgressListener);
   color: var(--text-primary);
   background: var(--bg-tertiary);
   border-bottom: 1px solid var(--border-primary);
-}
-
-// ─── Error ────────────────────────────────────────────────────────────────────
-
-.speech-settings__error {
-  display: flex;
-  gap: 8px;
-  align-items: flex-start;
-  padding: 10px 12px;
-  font-size: 13px;
-  color: var(--color-error);
-  background: var(--color-error-bg);
-  border: 1px solid var(--color-error);
-  border-radius: 10px;
-}
-
-.speech-settings__error-icon {
-  flex-shrink: 0;
-  width: 16px;
-  height: 16px;
-  margin-top: 1px;
 }
 
 // ─── Actions ──────────────────────────────────────────────────────────────────
