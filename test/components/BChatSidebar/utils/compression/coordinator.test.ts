@@ -445,7 +445,7 @@ describe('coordinator - prepareMessagesBeforeSend', () => {
     expect(mockStorage.createSummary).toHaveBeenCalled();
   });
 
-  it('keeps preserved messages once and includes recent raw messages after the summary boundary', async () => {
+  it('keeps preserved messages once and does not retain raw recent messages when preserve window is disabled', async () => {
     const { createCompressionCoordinator } = await import('@/components/BChatSidebar/utils/compression/coordinator');
     const mockStorage = createMockStorage();
 
@@ -519,7 +519,7 @@ describe('coordinator - prepareMessagesBeforeSend', () => {
       }
       return false;
     });
-    expect(recentAssistant).toBeDefined();
+    expect(recentAssistant).toBeUndefined();
   });
 
   it('starts incremental summaries after the previous coveredEndMessageId', async () => {
@@ -702,12 +702,12 @@ describe('coordinator - compressSessionManually', () => {
     expect(result?.triggerReason).toBe('manual');
   });
 
-  it('returns undefined when no compressible messages', async () => {
+  it('still creates a manual compression summary for short conversations', async () => {
     const { createCompressionCoordinator } = await import('@/components/BChatSidebar/utils/compression/coordinator');
     const mockStorage = createMockStorage();
 
     const coordinator = createCompressionCoordinator(mockStorage);
-    // 只有少量消息，全部在保留窗口内，无可压缩内容
+    // 手动压缩语义已收敛为“显式请求即生成压缩边界”，短会话也会产出摘要。
     const messages: Message[] = [
       makeMsg({ id: 'm1', role: 'user', content: 'Hello', parts: [{ type: 'text', text: 'Hello' } as never] }),
       makeMsg({ id: 'm2', role: 'assistant', content: 'Hi', parts: [{ type: 'text', text: 'Hi' } as never] })
@@ -718,7 +718,9 @@ describe('coordinator - compressSessionManually', () => {
       messages
     });
 
-    expect(result).toBeUndefined();
+    expect(result).toBeDefined();
+    expect(result?.triggerReason).toBe('manual');
+    expect(result?.sourceMessageIds).toEqual(['m1', 'm2']);
   });
 
   it('marks old summary as superseded when creating new one', async () => {

@@ -18,6 +18,7 @@ import { findLast } from 'lodash-es';
 import type { Message } from '@/components/BChatSidebar/utils/types';
 import { providerStorage } from '@/shared/storage';
 import { asyncTo } from '@/utils/asyncTo';
+import { findLatestCompressionBoundaryIndex, sliceMessagesFromCompressionBoundary } from '../messageHelper';
 import { assembleContext } from './assembler';
 import { CURRENT_SCHEMA_VERSION, RECENT_ROUND_PRESERVE } from './constant';
 import { CompressionError } from './error';
@@ -30,20 +31,19 @@ import { createTokenEstimator } from './tokenEstimator';
 import { detectTopicBoundaries, segmentMessages } from './topicSegmenter';
 
 /**
- * 会话级压缩锁，防止同一会话并发压缩。
+ * 会话级压缩锁，防止同一会话并发触发压缩。
  */
 const sessionLocks = new Map<string, Promise<void>>();
 
 /**
- * 获取会话锁，如果锁已被占用则等待。
- * 返回一个释放锁的函数，以及一个标志表示是否应该继续执行。
+ * 获取会话级互斥锁。若锁已被占用，则等待其释放后再继续。
+ * @param sessionId - 会话 ID
+ * @returns 释放锁的回调函数
  */
 async function acquireSessionLock(sessionId: string): Promise<() => void> {
-  // 等待现有锁释放
   const existingLock = sessionLocks.get(sessionId);
   if (existingLock) {
     await asyncTo(existingLock);
-    // 等待的锁失败了，继续尝试获取
   }
 
   let releaseLock: () => void;
@@ -61,61 +61,62 @@ async function acquireSessionLock(sessionId: string): Promise<() => void> {
 }
 
 /**
- * 计算增量压缩窗口：从上一条摘要的 coveredEndMessageId 之后开始，过滤当前用户消息。
- * 这与设计文档中「真正增量摘要」对齐——增量压缩只摘要上次未覆盖的新消息。
+ * 计算增量压缩的消息窗口。
+ *
+ * 从上一条摘要的 coveredEndMessageId 之后开始截取消息，
+ * 确保增量压缩仅覆盖尚未被摘要处理的新消息，与「真正增量摘要」设计对齐。
+ *
  * @param messages - 全量消息列表
- * @param currentSummary - 当前有效摘要
- * @param currentUserMessageId - 当前用户消息 ID（若提供则排除）
+ * @param currentSummary - 当前有效摘要（无则视为首次压缩）
+ * @param currentUserMessageId - 当前用户消息 ID，若提供则从结果中排除
  * @returns 增量窗口内的消息列表
  */
 function resolveIncrementalWindow(messages: Message[], currentSummary: ConversationSummaryRecord | undefined, currentUserMessageId?: string): Message[] {
   if (!currentSummary) {
-    return messages.filter((message) => message.id !== currentUserMessageId);
+    return messages.filter((m) => m.id !== currentUserMessageId);
   }
 
-  // 从上一条摘要覆盖的最后一条消息之后开始
-  const startIndex = messages.findIndex((message) => message.id === currentSummary.coveredEndMessageId);
+  const startIndex = messages.findIndex((m) => m.id === currentSummary.coveredEndMessageId);
   const tailMessages = startIndex >= 0 ? messages.slice(startIndex + 1) : messages;
-  return tailMessages.filter((message) => message.id !== currentUserMessageId);
+  return tailMessages.filter((m) => m.id !== currentUserMessageId);
 }
 
 /**
- * 基于摘要边界拆分穿透消息和近期原文消息。
+ * 以摘要边界为基准，将消息拆分为「穿透保留消息」和「近期原文消息」两段，
+ * 供 assembleContext 使用。
+ *
  * @param messages - 全量消息列表
- * @param currentUserMessageId - 当前用户消息 ID
- * @param summaryRecord - 当前有效摘要
- * @returns 组装上下文所需的消息分段
+ * @param currentUserMessageId - 当前用户消息 ID（从近期消息中排除）
+ * @param summaryRecord - 当前有效摘要（无则近期消息为全量）
+ * @returns 包含 preservedMessages 和 recentMessages 的分段结果
  */
 function splitMessagesForAssembly(messages: Message[], currentUserMessageId: string, summaryRecord?: ConversationSummaryRecord) {
-  const messagesWithoutCurrent = messages.filter((message) => message.id !== currentUserMessageId);
+  const messagesWithoutCurrent = messages.filter((m) => m.id !== currentUserMessageId);
+
   if (!summaryRecord) {
-    return {
-      preservedMessages: [],
-      recentMessages: messagesWithoutCurrent
-    };
+    return { preservedMessages: [], recentMessages: messagesWithoutCurrent };
   }
 
   const preservedIdSet = new Set(summaryRecord.preservedMessageIds);
-  const preservedMessages = messages.filter((message) => preservedIdSet.has(message.id));
-  const coveredIndex = messages.findIndex((message) => message.id === summaryRecord.coveredUntilMessageId);
-  const boundaryMessages = coveredIndex >= 0 ? messages.slice(coveredIndex + 1) : messagesWithoutCurrent;
-  const recentMessages = boundaryMessages.filter((message) => {
-    return message.id !== currentUserMessageId && !preservedIdSet.has(message.id);
-  });
+  const preservedMessages = messages.filter((m) => preservedIdSet.has(m.id));
 
-  return {
-    preservedMessages,
-    recentMessages
-  };
+  const coveredIndex = messages.findIndex((m) => m.id === summaryRecord.coveredUntilMessageId);
+  const boundaryMessages = coveredIndex >= 0 ? messages.slice(coveredIndex + 1) : messagesWithoutCurrent;
+  const recentMessages = boundaryMessages.filter((m) => m.id !== currentUserMessageId && !preservedIdSet.has(m.id));
+
+  return { preservedMessages, recentMessages };
 }
 
 /**
- * 为上下文预算估算解析需要注入的摘要集合。
- * 当摘要属于多段摘要集时，需要按与真实发送一致的召回规则取回相关 segment。
- * @param currentUserMessage - 当前用户消息
+ * 解析上下文预算估算所需的摘要记录集合。
+ *
+ * 若当前摘要属于多段摘要集（summarySetId 存在且 segmentCount > 1），
+ * 则按与真实发送一致的召回规则，从存储中检索相关段落。
+ *
+ * @param currentUserMessage - 当前用户消息（用于相关性召回）
  * @param summaryRecord - 当前摘要记录
  * @param storage - 摘要存储层
- * @returns 用于组装的多段摘要列表
+ * @returns 用于上下文组装的多段摘要列表；单段摘要时返回 undefined
  */
 async function resolveSummaryRecordsForAssembly(
   currentUserMessage: Message,
@@ -127,11 +128,11 @@ async function resolveSummaryRecordsForAssembly(
   }
 
   const allSummaries = await storage.getAllSummaries(summaryRecord.sessionId);
-  const validSummaryRecords = allSummaries
+  const validSegments = allSummaries
     .filter((item) => item.summarySetId === summaryRecord.summarySetId && item.status === 'valid')
     .sort((a, b) => (a.segmentIndex ?? 0) - (b.segmentIndex ?? 0));
 
-  return selectRelevantSegments(currentUserMessage, validSummaryRecords, {
+  return selectRelevantSegments(currentUserMessage, validSegments, {
     maxSegments: 3,
     maxSummaryTokens: 2000,
     alwaysIncludeRecentSegment: true
@@ -139,37 +140,39 @@ async function resolveSummaryRecordsForAssembly(
 }
 
 /**
- * 估算工具定义的字符体积。
+ * 估算工具定义列表的序列化字符数。
+ *
  * @param toolDefinitions - 工具定义列表
- * @returns 字符体积
+ * @returns 字符数；列表为空时返回 0
  */
 function estimateToolDefinitionsCharCount(toolDefinitions?: unknown[]): number {
-  if (!toolDefinitions || toolDefinitions.length === 0) {
-    return 0;
-  }
+  if (!toolDefinitions || toolDefinitions.length === 0) return 0;
   return JSON.stringify(toolDefinitions).length;
 }
 
 /**
- * 解析当前模型的上下文窗口大小。
+ * 查询指定模型的上下文窗口大小。
+ *
  * @param providerId - 提供商 ID
  * @param modelId - 模型 ID
- * @returns 模型上下文窗口，未知时返回 undefined
+ * @returns 上下文窗口大小；无法解析时返回 undefined
  */
 async function resolveModelContextWindow(providerId: string | undefined, modelId: string | undefined): Promise<number | undefined> {
-  if (!providerId || !modelId) {
-    return undefined;
-  }
+  if (!providerId || !modelId) return undefined;
 
   const provider = await providerStorage.getProvider(providerId);
-  const model = provider?.models?.find((item) => item.id === modelId);
+  const model = provider?.models?.find((m) => m.id === modelId);
   const contextWindow = model?.contextWindow;
 
   return contextWindow && contextWindow > 0 ? contextWindow : undefined;
 }
 
+// ─────────────────────────────────────────────────────────────
+// 多段摘要构建
+// ─────────────────────────────────────────────────────────────
+
 /**
- * buildMultiSegmentSummary 参数集合。
+ * buildMultiSegmentSummary 的入参集合。
  */
 interface BuildMultiSegmentSummaryParams {
   /** 摘要存储层 */
@@ -182,31 +185,39 @@ interface BuildMultiSegmentSummaryParams {
   buildMode: SummaryBuildMode;
   /** 触发原因 */
   triggerReason: TriggerReason;
-  /** 当前有效摘要 */
+  /** 当前有效摘要（用于继承上下文） */
   currentSummary?: ConversationSummaryRecord;
   /** 消息分类结果 */
   classification: ReturnType<typeof planCompression>;
-  /** 话题分段结果 */
+  /** 话题分段列表 */
   segments: TopicSegment[];
-  /** 当前用户消息 ID（若提供则排除） */
+  /** 当前用户消息 ID（排除后不进入摘要） */
   currentUserMessageId?: string;
-  /** 降级原因（全量重建截断时降级为增量） */
+  /** 降级原因：全量重建被截断时降级为增量 */
   degradeReason?: 'degraded_to_incremental';
 }
 
 /**
- * 生成多段摘要记录。
- * 每段独立生成摘要，共享同一个 summarySetId。
+ * 按话题分段顺序生成并持久化多段摘要记录。
+ *
+ * 各段独立生成摘要文本，共享同一个 summarySetId。
+ * 若中途任一段失败，已写入的 draft 记录将全部回收为 invalid。
+ *
+ * @param params - 构建参数
+ * @returns 新摘要集合的首条记录及消息分类结果；无可压缩内容时返回 undefined
  */
 async function buildMultiSegmentSummary(params: BuildMultiSegmentSummaryParams): Promise<BuildSummaryResult | undefined> {
   const { storage, sessionId, messages, buildMode, triggerReason, currentSummary, classification, segments, degradeReason } = params;
+
   const summarySetId = `set-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
   const segmentCount = segments.length;
   const records: ConversationSummaryRecord[] = [];
+
   try {
     for (let i = 0; i < segments.length; i += 1) {
       const segment = segments[i];
-      /* eslint-disable no-await-in-loop -- 多段摘要需要顺序生成（每段依赖上一段上下文） */
+
+      /* eslint-disable no-await-in-loop -- 多段摘要需按顺序生成，每段依赖前一段上下文 */
       let trimmed: ReturnType<typeof ruleTrim>;
       try {
         trimmed = ruleTrim(segment.messages);
@@ -260,8 +271,9 @@ async function buildMultiSegmentSummary(params: BuildMultiSegmentSummaryParams):
       /* eslint-enable no-await-in-loop */
     }
 
+    // 所有段写入完毕后，统一提升为 valid 状态
     for (const record of records) {
-      /* eslint-disable no-await-in-loop -- 保证摘要集按顺序提升状态 */
+      /* eslint-disable no-await-in-loop -- 按顺序提升摘要集状态，保证一致性 */
       await storage.updateSummaryStatus(record.id, 'valid');
       record.status = 'valid';
       /* eslint-enable no-await-in-loop */
@@ -271,26 +283,27 @@ async function buildMultiSegmentSummary(params: BuildMultiSegmentSummaryParams):
       await storage.updateSummaryStatus(currentSummary.id, 'superseded');
     }
 
-    return {
-      summaryRecord: records[0],
-      classification
-    };
+    return { summaryRecord: records[0], classification };
   } catch (error) {
+    // 构建失败：将已写入的 draft 记录全部标记为 invalid，忽略回收失败以保留原始错误
     for (const record of records) {
-      /* eslint-disable no-await-in-loop -- 失败时逐条回收 draft 记录 */
+      /* eslint-disable no-await-in-loop -- 逐条回收 draft 记录 */
       await asyncTo(storage.updateSummaryStatus(record.id, 'invalid', 'incomplete_summary_set'));
-      // 忽略回收失败，保留原始错误
       /* eslint-enable no-await-in-loop */
     }
     throw error;
   }
 }
 
+// ─────────────────────────────────────────────────────────────
+// 单次摘要构建
+// ─────────────────────────────────────────────────────────────
+
 /**
- * buildSummaryRecord 函数选项
+ * buildSummaryRecord 的入参集合。
  */
 interface BuildSummaryRecordOptions {
-  /** 摘要存储 */
+  /** 摘要存储层 */
   storage: SummaryStorage;
   /** 会话 ID */
   sessionId: string;
@@ -304,7 +317,7 @@ interface BuildSummaryRecordOptions {
   currentSummary?: ConversationSummaryRecord;
   /** 当前用户消息 ID（自动发送时排除） */
   currentUserMessageId?: string;
-  /** 需要显式排除的消息 ID */
+  /** 需要显式排除的消息 ID 列表 */
   excludeMessageIds?: string[];
   /** 降级原因 */
   degradeReason?: 'degraded_to_incremental';
@@ -312,36 +325,31 @@ interface BuildSummaryRecordOptions {
 
 /**
  * 生成并持久化摘要记录。
- * @param options - 函数选项
- * @returns 新摘要记录及对应的消息分类结果
+ *
+ * - 增量模式（incremental）或降级为增量的全量重建：仅压缩上次摘要未覆盖的新消息。
+ * - 话题分段数 ≥ 3 且消息数 > 20 时，自动切换至多段摘要构建。
+ *
+ * @param options - 构建选项
+ * @returns 新摘要记录及对应的消息分类结果；无可压缩内容时返回 undefined
  */
 async function buildSummaryRecord(options: BuildSummaryRecordOptions): Promise<BuildSummaryResult | undefined> {
   const { storage, sessionId, messages, buildMode, triggerReason, currentSummary, currentUserMessageId, excludeMessageIds, degradeReason } = options;
-  // 增量模式或降级到增量的全量重建模式：只压缩上次摘要未覆盖的新消息
+
   const useIncrementalWindow = buildMode === 'incremental' || degradeReason === 'degraded_to_incremental';
   const windowMessages = useIncrementalWindow
     ? resolveIncrementalWindow(messages, currentSummary, currentUserMessageId)
-    : messages.filter((message) => message.id !== currentUserMessageId);
+    : messages.filter((m) => m.id !== currentUserMessageId);
 
-  let classification: ReturnType<typeof planCompression>;
-  try {
-    classification = planCompression(windowMessages, RECENT_ROUND_PRESERVE, currentUserMessageId, excludeMessageIds);
-  } catch (error) {
-    throw new CompressionError('消息分类失败', 'planner', error);
-  }
+  const classification = planCompression(windowMessages, RECENT_ROUND_PRESERVE, currentUserMessageId, excludeMessageIds);
+  if (!classification.compressibleMessages.length) return undefined;
 
-  if (classification.compressibleMessages.length === 0) {
-    return undefined;
-  }
-
-  // 合并文件语义消息和可压缩消息，按原始消息顺序排列以保证 coveredStart/EndMessageId 正确
+  // 合并文件语义消息与可压缩消息，按原始顺序排列，确保 coveredStart/EndMessageId 正确
   const summarizedIdSet = new Set([...classification.fileSemanticMessages.map((m) => m.id), ...classification.compressibleMessages.map((m) => m.id)]);
   const orderedSummarizedMessages = windowMessages.filter((m) => summarizedIdSet.has(m.id));
-  const trimInputMessages = orderedSummarizedMessages;
 
-  // 检测是否需要分段（多段摘要）
-  const segments = segmentMessages(trimInputMessages, detectTopicBoundaries(trimInputMessages));
-  const useMultiSegment = segments.length >= 3 && trimInputMessages.length > 20;
+  // 话题分段检测：满足条件时切换至多段摘要构建
+  const segments = segmentMessages(orderedSummarizedMessages, detectTopicBoundaries(orderedSummarizedMessages));
+  const useMultiSegment = segments.length >= 3 && orderedSummarizedMessages.length > 20;
 
   if (useMultiSegment) {
     return buildMultiSegmentSummary({
@@ -360,14 +368,14 @@ async function buildSummaryRecord(options: BuildSummaryRecordOptions): Promise<B
 
   let trimmed: ReturnType<typeof ruleTrim>;
   try {
-    trimmed = ruleTrim(trimInputMessages);
+    trimmed = ruleTrim(orderedSummarizedMessages);
   } catch (error) {
     throw new CompressionError('消息裁剪失败', 'rule_trim', error);
   }
 
-  // 增量模式下传入上一条摘要作为上下文
   let structuredSummary: StructuredConversationSummary;
   try {
+    // 增量模式下将上一条摘要作为上下文传入，以保持摘要连贯性
     structuredSummary = await generateStructuredSummary({
       items: trimmed.items,
       previousSummary: useIncrementalWindow ? currentSummary : undefined
@@ -377,12 +385,13 @@ async function buildSummaryRecord(options: BuildSummaryRecordOptions): Promise<B
   }
 
   const summaryText = truncateSummaryText(generateSummaryText(structuredSummary));
-  // 所有进入摘要的消息 ID，保持原始顺序
   const allSummarizedIds = orderedSummarizedMessages.map((m) => m.id);
-  // 增量模式下 coveredStartMessageId 从上一条摘要边界之后开始
+
+  // 增量模式下，覆盖起点从上次摘要边界之后开始
   const coveredStartMessageId = useIncrementalWindow ? allSummarizedIds[0] ?? currentSummary?.coveredEndMessageId ?? '' : allSummarizedIds[0] ?? '';
   const coveredEndMessageId = allSummarizedIds[allSummarizedIds.length - 1];
 
+  // coveredUntilMessageId 取最后一条非保留消息，标记摘要实际覆盖的边界
   const preservedSet = new Set(classification.preservedMessageIds);
   const lastNonPreserved = findLast(allSummarizedIds, (id) => !preservedSet.has(id));
   const coveredUntilMessageId = lastNonPreserved ?? coveredEndMessageId;
@@ -401,7 +410,7 @@ async function buildSummaryRecord(options: BuildSummaryRecordOptions): Promise<B
       summaryText,
       structuredSummary,
       triggerReason,
-      messageCountSnapshot: Math.ceil(messages.filter((message) => message.role === 'user' || message.role === 'assistant').length / 2),
+      messageCountSnapshot: Math.ceil(messages.filter((m) => m.role === 'user' || m.role === 'assistant').length / 2),
       charCountSnapshot: trimmed.charCount,
       schemaVersion: CURRENT_SCHEMA_VERSION,
       status: 'valid',
@@ -416,21 +425,25 @@ async function buildSummaryRecord(options: BuildSummaryRecordOptions): Promise<B
     await storage.updateSummaryStatus(currentSummary.id, 'superseded');
   }
 
-  return {
-    summaryRecord,
-    classification
-  };
+  return { summaryRecord, classification };
 }
 
+// ─────────────────────────────────────────────────────────────
+// 上下文组装
+// ─────────────────────────────────────────────────────────────
+
 /**
- * 组装上下文并返回统一结果格式。
- * 支持多段摘要：当 summaryRecord 是多段摘要的一部分时，检索同 summarySetId 的所有段。
- * @param messages - 全量消息
+ * 组装上下文并以统一格式返回结果。
+ *
+ * 若 summaryRecord 属于多段摘要集，会先从存储中检索同集的所有相关段落，
+ * 再交由 assembleContext 统一处理。
+ *
+ * @param messages - 全量消息列表
  * @param currentUserMessage - 当前用户消息
- * @param summaryRecord - 摘要记录
- * @param compressed - 是否已压缩
- * @param storage - 存储层（用于检索多段摘要）
- * @returns 组装后的上下文输出
+ * @param summaryRecord - 当前有效摘要（可为 undefined）
+ * @param compressed - 本次调用是否执行了压缩
+ * @param storage - 摘要存储层（用于检索多段摘要）
+ * @returns 组装后的模型消息列表及压缩标记
  */
 async function assembleAndReturn(
   messages: Message[],
@@ -440,8 +453,6 @@ async function assembleAndReturn(
   storage?: SummaryStorage
 ): Promise<PrepareMessagesOutput> {
   const { preservedMessages, recentMessages } = splitMessagesForAssembly(messages, currentUserMessage.id, summaryRecord);
-
-  // 多段摘要支持：当 summaryRecord 有 summarySetId 且 segmentCount > 1 时，检索同集所有段
   const summaryRecords = storage ? await resolveSummaryRecordsForAssembly(currentUserMessage, summaryRecord, storage) : undefined;
 
   const assembled = assembleContext({
@@ -451,21 +462,26 @@ async function assembleAndReturn(
     recentMessages,
     currentUserMessage
   });
-  return {
-    modelMessages: assembled.modelMessages,
-    compressed
-  };
+
+  return { modelMessages: assembled.modelMessages, compressed };
 }
 
+// ─────────────────────────────────────────────────────────────
+// 上下文预算快照
+// ─────────────────────────────────────────────────────────────
+
 /**
- * 构建上下文预算快照，用于 policy 判断。
- * 支持 token 估算（当 modelId 可用时）和字符级降级。
+ * 构建上下文预算快照，供 policy 层判断是否需要压缩。
+ *
+ * 优先使用 token 级估算（需 modelId 可用），降级时使用字符级估算。
+ * 估算形状与 assembleContext 真实注入对齐，保证判断精度。
+ *
  * @param messages - 全量消息列表
  * @param currentSummary - 当前有效摘要
  * @param currentUserMessage - 当前用户消息
- * @param storage - 摘要存储层（用于读取多段摘要）
- * @param providerId - 当前提供商 ID
- * @param modelId - 当前模型 ID（可选）
+ * @param storage - 摘要存储层
+ * @param providerId - 提供商 ID（可选）
+ * @param modelId - 模型 ID（可选，用于 token 估算）
  * @param toolDefinitions - 当前请求附带的工具定义
  * @returns ContextBudgetSnapshot
  */
@@ -478,23 +494,26 @@ export async function buildContextBudgetSnapshot(
   modelId?: string,
   toolDefinitions?: unknown[]
 ): Promise<ContextBudgetSnapshot> {
-  // 计算轮数
+  const effectiveMessages = sliceMessagesFromCompressionBoundary(messages);
+  const effectiveSummary = findLatestCompressionBoundaryIndex(messages) >= 0 ? undefined : currentSummary;
+
+  // 计算有效消息轮数（已压缩时仅统计摘要边界后的消息）
   let roundCount: number;
-  if (currentSummary && currentSummary.status === 'valid') {
-    const preservedIdSet = new Set(currentSummary.preservedMessageIds ?? []);
-    const preservedMsgs = messages.filter((m) => preservedIdSet.has(m.id));
-    const coveredIndex = messages.findIndex((m) => m.id === currentSummary.coveredUntilMessageId);
-    const recentMsgs = coveredIndex >= 0 ? messages.slice(coveredIndex + 1).filter((m) => !preservedIdSet.has(m.id)) : messages;
+  if (effectiveSummary && effectiveSummary.status === 'valid') {
+    const preservedIdSet = new Set(effectiveSummary.preservedMessageIds ?? []);
+    const preservedMsgs = effectiveMessages.filter((m) => preservedIdSet.has(m.id));
+    const coveredIndex = effectiveMessages.findIndex((m) => m.id === effectiveSummary.coveredUntilMessageId);
+    const recentMsgs = coveredIndex >= 0 ? effectiveMessages.slice(coveredIndex + 1).filter((m) => !preservedIdSet.has(m.id)) : effectiveMessages;
     roundCount = countMessageRounds([...preservedMsgs, ...recentMsgs]);
   } else {
-    roundCount = countMessageRounds(messages);
+    roundCount = countMessageRounds(effectiveMessages);
   }
 
-  // 字符级估算（始终计算），并与真实 assembleContext 的注入形状对齐
-  const { preservedMessages, recentMessages } = splitMessagesForAssembly(messages, currentUserMessage.id, currentSummary);
-  const summaryRecords = await resolveSummaryRecordsForAssembly(currentUserMessage, currentSummary, storage);
+  // 字符级估算：与 assembleContext 的真实注入形状保持一致
+  const { preservedMessages, recentMessages } = splitMessagesForAssembly(effectiveMessages, currentUserMessage.id, effectiveSummary);
+  const summaryRecords = await resolveSummaryRecordsForAssembly(currentUserMessage, effectiveSummary, storage);
   const assembled = assembleContext({
-    summaryRecord: currentSummary,
+    summaryRecord: effectiveSummary,
     summaryRecords,
     preservedMessages,
     recentMessages,
@@ -502,7 +521,7 @@ export async function buildContextBudgetSnapshot(
   });
   const charCount = estimateContextSize(assembled.modelMessages) + estimateToolDefinitionsCharCount(toolDefinitions);
 
-  // token 估算（可选）
+  // Token 级估算（可选，取决于 modelId 是否可用）
   let tokenCount: number | undefined;
   let tokenThreshold: number | undefined;
   let tokenAccuracy: ContextBudgetSnapshot['tokenAccuracy'];
@@ -527,55 +546,68 @@ export async function buildContextBudgetSnapshot(
   return { charCount, tokenCount, tokenThreshold, tokenAccuracy, roundCount };
 }
 
+// ─────────────────────────────────────────────────────────────
+// 压缩协调器
+// ─────────────────────────────────────────────────────────────
+
 /**
  * 创建压缩协调器。
+ *
+ * 协调器负责串联压缩策略判断、摘要生成与上下文组装，
+ * 并通过会话级互斥锁防止并发压缩导致的状态冲突。
+ *
  * @param storage - 摘要存储层接口
  * @returns 协调器对象
  */
 export function createCompressionCoordinator(storage: SummaryStorage) {
   return {
     /**
-     * 准备发送前的消息上下文。
-     * 根据双阈值判断是否压缩，执行压缩流程，失败时降级到原始上下文。
+     * 在消息发送前准备模型上下文。
+     *
+     * 流程：
+     * 1. 基于双阈值策略判断是否需要压缩。
+     * 2. 需要压缩时，获取会话锁并二次校验（避免重复压缩）。
+     * 3. 执行压缩；若失败，降级为返回未压缩的原始上下文。
+     *
      * @param input - 准备参数
-     * @returns 组装后的模型消息列表和压缩标记
+     * @returns 组装后的模型消息列表及压缩标记
      */
     async prepareMessagesBeforeSend(input: PrepareMessagesInput): Promise<PrepareMessagesOutput> {
       const { sessionId, messages, currentUserMessage, excludeMessageIds, providerId, modelId, toolDefinitions } = input;
-
-      // 获取当前有效摘要
-      const currentSummary = await storage.getValidSummary(sessionId);
-
-      // 构建 ContextBudgetSnapshot（支持 token 估算）
-      const snapshot = await buildContextBudgetSnapshot(messages, currentSummary, currentUserMessage, storage, providerId, modelId, toolDefinitions);
-
-      // 使用 snapshot 判断是否需要压缩
+      const effectiveMessages = sliceMessagesFromCompressionBoundary(messages);
+      const hasCompressionBoundary = findLatestCompressionBoundaryIndex(messages) >= 0;
+      const currentSummary = hasCompressionBoundary ? undefined : await storage.getValidSummary(sessionId);
+      const snapshot = await buildContextBudgetSnapshot(effectiveMessages, currentSummary, currentUserMessage, storage, providerId, modelId, toolDefinitions);
       const policyResult = evaluateFromSnapshot(snapshot);
 
-      // 如果不需要压缩，直接组装原始上下文
       if (!policyResult.shouldCompress) {
-        return assembleAndReturn(messages, currentUserMessage, currentSummary, false, storage);
+        return assembleAndReturn(effectiveMessages, currentUserMessage, currentSummary, false, storage);
       }
 
-      // 需要压缩，获取会话锁
+      // 压缩路径：获取会话锁后二次检查，防止等锁期间已被其他请求完成压缩
       const releaseLock = await acquireSessionLock(sessionId);
-
       try {
-        // 再次检查是否需要压缩（可能在等待锁期间已被其他请求压缩）
-        const latestSummary = await storage.getValidSummary(sessionId);
-        const latestSnapshot = await buildContextBudgetSnapshot(messages, latestSummary, currentUserMessage, storage, providerId, modelId, toolDefinitions);
+        const latestSummary = hasCompressionBoundary ? undefined : await storage.getValidSummary(sessionId);
+        const latestSnapshot = await buildContextBudgetSnapshot(
+          effectiveMessages,
+          latestSummary,
+          currentUserMessage,
+          storage,
+          providerId,
+          modelId,
+          toolDefinitions
+        );
         const latestPolicy = evaluateFromSnapshot(latestSnapshot);
 
         if (!latestPolicy.shouldCompress) {
-          return assembleAndReturn(messages, currentUserMessage, latestSummary, false, storage);
+          return assembleAndReturn(effectiveMessages, currentUserMessage, latestSummary, false, storage);
         }
 
-        // 执行压缩流程
         try {
           const summaryResult = await buildSummaryRecord({
             storage,
             sessionId,
-            messages,
+            messages: effectiveMessages,
             buildMode: 'incremental',
             triggerReason: policyResult.triggerReason,
             currentSummary: latestSummary,
@@ -584,15 +616,14 @@ export function createCompressionCoordinator(storage: SummaryStorage) {
           });
 
           if (!summaryResult) {
-            return assembleAndReturn(messages, currentUserMessage, latestSummary, false, storage);
+            return assembleAndReturn(effectiveMessages, currentUserMessage, latestSummary, false, storage);
           }
 
-          const savedSummary = summaryResult.summaryRecord;
-          return assembleAndReturn(messages, currentUserMessage, savedSummary, true, storage);
+          return assembleAndReturn(effectiveMessages, currentUserMessage, summaryResult.summaryRecord, true, storage);
         } catch (error) {
-          // 压缩失败，降级到原始上下文
-          console.error('[压缩] 压缩上下文失败:', error);
-          return assembleAndReturn(messages, currentUserMessage, currentSummary, false, storage);
+          // 压缩失败，降级返回未压缩的原始上下文
+          console.error('[压缩] 上下文压缩失败，降级返回原始上下文:', error);
+          return assembleAndReturn(effectiveMessages, currentUserMessage, currentSummary, false, storage);
         }
       } finally {
         releaseLock();
@@ -600,7 +631,11 @@ export function createCompressionCoordinator(storage: SummaryStorage) {
     },
 
     /**
-     * 手动触发会话压缩。
+     * 手动触发会话全量压缩。
+     *
+     * 若输入消息被截断，buildMode 仍记为 full_rebuild（体现用户意图），
+     * 但通过 degradeReason 标记执行层实际降级为增量模式。
+     *
      * @param input - 压缩输入参数
      * @returns 新生成的摘要记录；无可压缩内容时返回 undefined
      */
@@ -611,8 +646,6 @@ export function createCompressionCoordinator(storage: SummaryStorage) {
       try {
         const currentSummary = await storage.getValidSummary(sessionId);
 
-        // 手动全量重建时检查输入是否被截断，若截断则降级为增量模式
-        // 设计规范：buildMode 仍记为 full_rebuild（用户意图是全量重算），通过 degradeReason 标记执行层降级
         const fullRebuildTrim = ruleTrim(messages);
         const degradeReason = fullRebuildTrim.truncated ? ('degraded_to_incremental' as const) : undefined;
 
@@ -625,6 +658,7 @@ export function createCompressionCoordinator(storage: SummaryStorage) {
           currentSummary,
           degradeReason
         });
+
         return summaryResult?.summaryRecord;
       } finally {
         releaseLock();

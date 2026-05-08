@@ -12,7 +12,30 @@ export type ChatSessionType = 'assistant';
 /**
  * 聊天消息角色
  */
-export type ChatMessageRole = 'user' | 'system' | 'assistant' | 'error';
+export type ChatMessageRole = 'user' | 'system' | 'assistant' | 'error' | 'compression';
+
+/**
+ * 压缩消息状态
+ */
+export type ChatCompressionStatus = 'pending' | 'success' | 'failed';
+
+/**
+ * 压缩消息元数据
+ */
+export interface ChatCompressionMeta {
+  /** 压缩状态 */
+  status: ChatCompressionStatus;
+  /** 摘要文本 */
+  summaryText: string;
+  /** 关联摘要 ID */
+  summaryId?: string;
+  /** 覆盖到的最后一条原始消息 ID */
+  coveredUntilMessageId?: string;
+  /** 本次压缩覆盖的源消息 ID 列表 */
+  sourceMessageIds?: string[];
+  /** 压缩失败时的错误信息 */
+  errorMessage?: string;
+}
 
 /**
  * 聊天消息附件类型
@@ -270,6 +293,8 @@ export interface ChatMessageRecord {
   files?: ChatMessageFile[];
   /** Token 使用统计 */
   usage?: AIUsage;
+  /** 压缩消息元数据 */
+  compression?: ChatCompressionMeta;
   /** 创建时间 */
   createdAt: string;
 }

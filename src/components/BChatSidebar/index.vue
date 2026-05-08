@@ -91,7 +91,6 @@ import { message } from 'ant-design-vue';
 import { createBuiltinTools } from '@/ai/tools/builtin';
 import { editorToolContextRegistry } from '@/ai/tools/editor-context';
 import { getDefaultChatToolNames } from '@/ai/tools/policy';
-import { toTransportTools } from '@/ai/tools/stream';
 import BButton from '@/components/BButton/index.vue';
 import BPromptEditor from '@/components/BPromptEditor/index.vue';
 import { useNavigate } from '@/hooks/useNavigate';
@@ -107,8 +106,8 @@ import UsagePanel from './components/UsagePanel.vue';
 import { useAutoName } from './hooks/useAutoName';
 import { useChatHistory } from './hooks/useChatHistory';
 import { useChatInput } from './hooks/useChatInput';
-import { useCompression } from './hooks/useCompression';
 import { useChatStream } from './hooks/useChatStream';
+import { useCompression } from './hooks/useCompression';
 import { useFileReference } from './hooks/useFileReference';
 import { useImageUpload } from './hooks/useImageUpload';
 import { useModelSelection } from './hooks/useModelSelection';
@@ -234,16 +233,10 @@ const tools = createBuiltinTools({
   return getDefaultChatToolNames().includes(tool.definition.name);
 });
 
-/** 当前聊天请求会附带的工具定义。 */
-const transportToolDefinitions = computed(() => toTransportTools(tools));
-
 /** 会话压缩 hook，仅保留 slash command 程序化入口。 */
 const compression = useCompression({
   getSessionId: () => settingStore.chatSidebarActiveSessionId ?? undefined,
-  getMessages: () => messages.value,
-  getProviderId: () => selectedModel.value?.providerId,
-  getModelId: () => selectedModel.value?.modelId,
-  getToolDefinitions: () => transportToolDefinitions.value
+  getMessages: () => messages.value
 });
 
 /**
@@ -432,6 +425,77 @@ async function handleChatSubmit(): Promise<void> {
 }
 
 /**
+ * 将压缩消息的最新状态同步回消息列表与持久化存储。
+ * @param messageId - 目标压缩消息 ID
+ * @param nextMessage - 最新压缩消息内容
+ */
+async function updateCompressionMessage(messageId: string, nextMessage: Message): Promise<void> {
+  const targetMessage = messages.value.find((item) => item.id === messageId);
+  if (!targetMessage) {
+    return;
+  }
+
+  targetMessage.content = nextMessage.content;
+  targetMessage.parts = nextMessage.parts;
+  targetMessage.loading = nextMessage.loading;
+  targetMessage.finished = nextMessage.finished;
+  targetMessage.compression = nextMessage.compression;
+
+  await chatStore.setSessionMessages(settingStore.chatSidebarActiveSessionId, messages.value);
+}
+
+/**
+ * 处理 slash command 触发的手动上下文压缩。
+ */
+async function handleCompactContext(): Promise<void> {
+  const sessionId = settingStore.chatSidebarActiveSessionId;
+  if (!sessionId) {
+    message.error('没有活跃的会话');
+    return;
+  }
+
+  if (messages.value.length === 0) {
+    message.error('没有可压缩的消息');
+    return;
+  }
+
+  const pendingMessage = create.compressionMessage({
+    summaryText: '正在压缩上下文…',
+    status: 'pending'
+  });
+  messages.value.push(pendingMessage);
+  await chatStore.addSessionMessage(sessionId, pendingMessage);
+  conversationRef.value?.scrollToBottom({ behavior: 'auto' });
+
+  const result = await compression.compress();
+
+  if (result.success && result.summary) {
+    await updateCompressionMessage(
+      pendingMessage.id,
+      create.compressionMessage({
+        summaryText: result.summary.summaryText,
+        status: 'success',
+        summaryId: result.summary.id,
+        coveredUntilMessageId: result.summary.coveredUntilMessageId,
+        sourceMessageIds: result.summary.sourceMessageIds
+      })
+    );
+    message.success('上下文压缩成功');
+    return;
+  }
+
+  await updateCompressionMessage(
+    pendingMessage.id,
+    create.compressionMessage({
+      summaryText: '上下文压缩失败',
+      status: 'failed',
+      errorMessage: result.errorMessage ?? '压缩失败'
+    })
+  );
+  message.error(result.errorMessage ?? '压缩失败');
+}
+
+/**
  * 处理中止流式输出。
  */
 function handleAbort(): void {
@@ -444,19 +508,6 @@ function handleAbort(): void {
 function handleCancel(): void {
   if (loading.value) {
     handleAbort();
-  }
-}
-
-/**
- * 处理 slash command 触发的上下文压缩。
- */
-async function handleCompactContext(): Promise<void> {
-  const success = await compression.compress();
-
-  if (success) {
-    message.success('上下文压缩成功');
-  } else if (compression.error.value) {
-    message.error(compression.error.value);
   }
 }
 
@@ -474,9 +525,7 @@ const { handleSlashCommand } = useSlashCommands({
   openUsagePanel: () => usagePanel.openPanel(currentSession.value?.id),
   createNewSession,
   clearInput: () => inputEvents.clear(),
-  compactContext: () => {
-    void handleCompactContext();
-  }
+  compactContext: handleCompactContext
 });
 
 /** 加载历史消息 */

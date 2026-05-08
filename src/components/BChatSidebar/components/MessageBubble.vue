@@ -23,31 +23,37 @@
       </template>
 
       <div :class="bem('parts')">
+        <BubblePartCompression v-if="isCompressionMessage" :message="message" />
+
         <template v-for="(item, index) in message.parts" :key="`${item.type}-${index}`">
           <BubblePartUserInput v-if="isUserMessage" :part="item as ChatMessageTextPart" />
 
-          <BubblePartText v-else-if="item.type === 'text' || item.type === 'error'" :item="item" :part="item" />
+          <BubblePartText v-else-if="!isCompressionMessage && (item.type === 'text' || item.type === 'error')" :item="item" :part="item" />
 
-          <BubblePartThinking v-else-if="item.type === 'thinking'" :part="item" />
+          <BubblePartThinking v-else-if="!isCompressionMessage && item.type === 'thinking'" :part="item" />
 
-          <BubblePartToolCall v-else-if="item.type === 'tool-call'" :part="item" />
+          <BubblePartToolCall v-else-if="!isCompressionMessage && item.type === 'tool-call'" :part="item" />
 
           <ConfirmationCard
-            v-else-if="item.type === 'confirmation'"
+            v-else-if="!isCompressionMessage && item.type === 'confirmation'"
             :part="item"
             @confirmation-action="$emit('confirmation-action', $event.confirmationId, $event.action)"
             @custom-input-submit="$emit('confirmation-custom-input', $event)"
           />
 
-          <AskUserChoiceCard v-else-if="isAwaitingUserChoicePart(item)" :question="item.result.data" @submit-choice="$emit('user-choice-submit', $event)" />
+          <AskUserChoiceCard
+            v-else-if="!isCompressionMessage && isAwaitingUserChoicePart(item)"
+            :question="item.result.data"
+            @submit-choice="$emit('user-choice-submit', $event)"
+          />
 
-          <BubblePartToolResult v-else-if="item.type === 'tool-result'" :part="item" />
+          <BubblePartToolResult v-else-if="!isCompressionMessage && item.type === 'tool-result'" :part="item" />
         </template>
       </div>
     </BBubble>
 
     <!-- 助手消息工具栏 -->
-    <div v-if="message.finished && !isUserMessage" :class="bem('toolbar')">
+    <div v-if="message.finished && isAssistantMessage" :class="bem('toolbar')">
       <BButton type="text" size="small" square icon="lucide:copy" @click="handleCopy(message)" />
       <BButton square type="text" size="small" icon="lucide:refresh-cw" @click="$emit('regenerate', message)" />
     </div>
@@ -88,6 +94,7 @@ import { extractLastTextPart } from '../utils/messageHelper';
 import { formatMessageTime } from '../utils/timeFormat';
 import AskUserChoiceCard from './AskUserChoiceCard.vue';
 import ConfirmationCard from './ConfirmationCard.vue';
+import BubblePartCompression from './MessageBubble/BubblePartCompression.vue';
 import BubblePartText from './MessageBubble/BubblePartText.vue';
 import BubblePartThinking from './MessageBubble/BubblePartThinking.vue';
 import BubblePartToolCall from './MessageBubble/BubblePartToolCall.vue';
@@ -120,12 +127,14 @@ const otherFiles = computed(() => props.message.files?.filter((file) => file.typ
 const isUserMessage = computed(() => props.message.role === 'user');
 /** 是否为助手消息 */
 const isAssistantMessage = computed(() => props.message.role === 'assistant');
+/** 是否为压缩消息 */
+const isCompressionMessage = computed(() => props.message.role === 'compression');
 /** 气泡位置：助手和错误消息靠左，用户消息靠右 */
-const bubblePlacement = computed(() => (isAssistantMessage.value ? 'left' : 'right'));
+const bubblePlacement = computed(() => (isUserMessage.value ? 'right' : 'left'));
 /** 是否显示头部（用户消息且有文件时显示） */
 const showHeader = computed(() => isUserMessage.value && (imageFiles.value.length || otherFiles.value.length));
 /** 是否显示气泡容器（用户消息且有文件时显示） */
-const showContainer = computed(() => !!props.message.parts?.length);
+const showContainer = computed(() => isCompressionMessage.value || !!props.message.parts?.length);
 
 /** 图片预览器显示状态 */
 const showImageViewer = ref(false);

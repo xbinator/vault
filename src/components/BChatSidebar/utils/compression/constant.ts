@@ -4,7 +4,7 @@
  */
 
 /** 最近保留消息轮数 */
-export const RECENT_ROUND_PRESERVE = 6;
+export const RECENT_ROUND_PRESERVE = 0;
 
 /** 自动压缩触发——消息轮数阈值 */
 export const COMPRESSION_ROUND_THRESHOLD = 30;

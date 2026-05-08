@@ -4,7 +4,6 @@
  */
 import type { ModelMessage } from 'ai';
 import { describe, expect, it } from 'vitest';
-import type { ConversationSummaryRecord } from '@/components/BChatSidebar/utils/compression/types';
 import type { Message } from '@/components/BChatSidebar/utils/types';
 
 /**
@@ -17,42 +16,6 @@ function makeMsg(overrides: Partial<Message> & { id: string }): Message {
     parts: [],
     loading: false,
     createdAt: new Date().toISOString(),
-    ...overrides
-  };
-}
-
-/**
- * 创建测试用摘要记录。
- */
-function makeSummary(overrides: Partial<ConversationSummaryRecord> = {}): ConversationSummaryRecord {
-  return {
-    id: 'summary-1',
-    sessionId: 'session-1',
-    buildMode: 'incremental',
-    coveredStartMessageId: 'm1',
-    coveredEndMessageId: 'm10',
-    coveredUntilMessageId: 'm10',
-    sourceMessageIds: ['m1'],
-    preservedMessageIds: [],
-    summaryText: '',
-    structuredSummary: {
-      goal: 'Test',
-      recentTopic: 'Testing',
-      userPreferences: [],
-      constraints: [],
-      decisions: [],
-      importantFacts: [],
-      fileContext: [],
-      openQuestions: [],
-      pendingActions: []
-    },
-    triggerReason: 'message_count',
-    messageCountSnapshot: 10,
-    charCountSnapshot: 2000,
-    schemaVersion: 1,
-    status: 'valid',
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
     ...overrides
   };
 }
@@ -157,15 +120,12 @@ describe('countMessageRounds', () => {
 
   it('ignores system messages in round count', async () => {
     const { countMessageRounds } = await import('@/components/BChatSidebar/utils/compression/policy');
-    const messages: Message[] = [
-      makeMsg({ id: 'm1', role: 'user', content: 'a' }),
-      makeMsg({ id: 'm2', role: 'assistant', content: 'b' })
-    ];
+    const messages: Message[] = [makeMsg({ id: 'm1', role: 'user', content: 'a' }), makeMsg({ id: 'm2', role: 'assistant', content: 'b' })];
     expect(countMessageRounds(messages)).toBe(1);
   });
 });
 
-describe('evaluateCompression threshold logic', () => {
+describe('evaluateFromSnapshot threshold logic', () => {
   it('computeCompressionTokenThreshold keeps threshold inside small context window budget', async () => {
     const { computeCompressionTokenThreshold } = await import('@/components/BChatSidebar/utils/compression/policy');
 
@@ -173,84 +133,43 @@ describe('evaluateCompression threshold logic', () => {
     expect(computeCompressionTokenThreshold(4_000, 2_048)).toBeGreaterThan(0);
   });
 
-  it('returns shouldCompress false when under threshold', async () => {
-    const { evaluateCompression } = await import('@/components/BChatSidebar/utils/compression/policy');
-    const messages: Message[] = [
-      makeMsg({ id: 'm1', role: 'user', content: 'short', parts: [{ type: 'text', text: 'short' } as never] }),
-      makeMsg({ id: 'm2', role: 'assistant', content: 'ok', parts: [{ type: 'text', text: 'ok' } as never] })
-    ];
-    const result = evaluateCompression(messages);
+  it('returns shouldCompress false when snapshot is under threshold', async () => {
+    const { estimateContextSize, countMessageRounds, evaluateFromSnapshot } = await import('@/components/BChatSidebar/utils/compression/policy');
+    const messages: Message[] = [makeMsg({ id: 'm1', role: 'user', content: 'short' }), makeMsg({ id: 'm2', role: 'assistant', content: 'ok' })];
+    const result = evaluateFromSnapshot({
+      charCount: estimateContextSize([
+        { role: 'user', content: 'short' },
+        { role: 'assistant', content: 'ok' }
+      ]),
+      roundCount: countMessageRounds(messages)
+    });
     expect(result.shouldCompress).toBe(false);
   });
 
-  it('returns message_count trigger when round threshold exceeded', async () => {
-    const { evaluateCompression } = await import('@/components/BChatSidebar/utils/compression/policy');
+  it('returns message_count trigger when snapshot round threshold exceeded', async () => {
+    const { estimateContextSize, countMessageRounds, evaluateFromSnapshot } = await import('@/components/BChatSidebar/utils/compression/policy');
     const messages: Message[] = [];
     for (let i = 1; i <= 62; i += 1) {
       const role = i % 2 === 1 ? 'user' : 'assistant';
-      messages.push(makeMsg({ id: `m${i}`, role, content: `msg ${i}`, parts: [{ type: 'text', text: `msg ${i}` } as never] }));
+      messages.push(makeMsg({ id: `m${i}`, role, content: `msg ${i}` }));
     }
-    const result = evaluateCompression(messages);
+    const result = evaluateFromSnapshot({
+      charCount: estimateContextSize(messages.map((message) => ({ role: message.role, content: message.content } as ModelMessage))),
+      roundCount: countMessageRounds(messages)
+    });
     expect(result.shouldCompress).toBe(true);
     expect(result.triggerReason).toBe('message_count');
   });
 
-  it('returns context_size trigger when char threshold exceeded but rounds under limit', async () => {
-    const { evaluateCompression } = await import('@/components/BChatSidebar/utils/compression/policy');
-    // 少量轮数但单条消息很长
+  it('returns context_size trigger when snapshot char threshold exceeded but rounds under limit', async () => {
+    const { countMessageRounds, evaluateFromSnapshot } = await import('@/components/BChatSidebar/utils/compression/policy');
     const longText = 'A'.repeat(25000);
-    const messages: Message[] = [
-      makeMsg({ id: 'm1', role: 'user', content: longText, parts: [{ type: 'text', text: longText } as never] }),
-      makeMsg({ id: 'm2', role: 'assistant', content: longText, parts: [{ type: 'text', text: longText } as never] })
-    ];
-    const result = evaluateCompression(messages);
+    const messages: Message[] = [makeMsg({ id: 'm1', role: 'user', content: longText }), makeMsg({ id: 'm2', role: 'assistant', content: longText })];
+    const result = evaluateFromSnapshot({
+      charCount: longText.length * 2,
+      roundCount: countMessageRounds(messages)
+    });
     expect(result.shouldCompress).toBe(true);
     expect(result.triggerReason).toBe('context_size');
-  });
-});
-
-describe('evaluateCompression with effective context', () => {
-  it('counts summary overhead and preserved passthrough messages when evaluating compression', async () => {
-    const { evaluateCompression } = await import('@/components/BChatSidebar/utils/compression/policy');
-
-    // 摘要注入开销 + preserved passthrough 消息应被计入 charCount
-    const summary = makeSummary({
-      coveredUntilMessageId: 'm10',
-      preservedMessageIds: ['m11'],
-      summaryText: 'S'.repeat(5000)
-    });
-    const messages: Message[] = [
-      makeMsg({ id: 'm11', role: 'assistant', content: 'P'.repeat(10000), parts: [{ type: 'text', text: 'P'.repeat(10000) } as never] }),
-      makeMsg({ id: 'm12', role: 'user', content: 'recent', parts: [{ type: 'text', text: 'recent' } as never] })
-    ];
-
-    const result = evaluateCompression(messages, summary);
-    // 有效上下文包含：summary 系统消息(5000+) + preserved m11(10000+) + recent m12(6)
-    // 所以至少 15000
-    expect(result.charCount).toBeGreaterThanOrEqual(15000);
-    expect(result.shouldCompress).toBe(true);
-  });
-
-  it('includes summary overhead in charCount when summary exists', async () => {
-    const { evaluateCompression } = await import('@/components/BChatSidebar/utils/compression/policy');
-
-    const summary = makeSummary({
-      coveredUntilMessageId: 'm5',
-      preservedMessageIds: [],
-      summaryText: 'A'.repeat(3000)
-    });
-    const messages: Message[] = [
-      makeMsg({ id: 'm1', role: 'user', content: 'hello', parts: [{ type: 'text', text: 'hello' } as never] }),
-      makeMsg({ id: 'm2', role: 'assistant', content: 'hi', parts: [{ type: 'text', text: 'hi' } as never] }),
-      makeMsg({ id: 'm3', role: 'user', content: 'hello', parts: [{ type: 'text', text: 'hello' } as never] }),
-      makeMsg({ id: 'm4', role: 'assistant', content: 'hi', parts: [{ type: 'text', text: 'hi' } as never] }),
-      makeMsg({ id: 'm5', role: 'user', content: 'hello', parts: [{ type: 'text', text: 'hello' } as never] }),
-      makeMsg({ id: 'm6', role: 'assistant', content: 'R'.repeat(25000), parts: [{ type: 'text', text: 'R'.repeat(25000) } as never] })
-    ];
-
-    const result = evaluateCompression(messages, summary);
-    // summary 系统消息(~3000) + recent m6(25000)
-    expect(result.charCount).toBeGreaterThanOrEqual(28000);
-    expect(result.shouldCompress).toBe(true);
   });
 });

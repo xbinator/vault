@@ -1,3 +1,4 @@
+/* eslint-disable vue/one-component-per-file */
 /* @vitest-environment jsdom */
 /**
  * @file chat-slash-commands.test.ts
@@ -6,8 +7,8 @@
 import { nextTick } from 'vue';
 import { mount } from '@vue/test-utils';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
-import BChatSidebar from '@/components/BChatSidebar/index.vue';
 import { chatSlashCommands } from '@/components/BChatSidebar/hooks/useSlashCommands';
+import BChatSidebar from '@/components/BChatSidebar/index.vue';
 import type { Message } from '@/components/BChatSidebar/utils/types';
 
 const chatStreamLoadingState = {
@@ -58,7 +59,15 @@ const {
   focusMock: vi.fn(),
   saveCursorPositionMock: vi.fn(),
   modelSelectorOpenMock: vi.fn(),
-  compressionHookTriggerMock: vi.fn(async () => true),
+  compressionHookTriggerMock: vi.fn(async () => ({
+    success: true,
+    summary: {
+      id: 'summary-1',
+      summaryText: '历史对话已压缩',
+      coveredUntilMessageId: 'message-2',
+      sourceMessageIds: ['message-1', 'message-2']
+    }
+  })),
   getSessionUsageMock: vi.fn(async () => undefined),
   getSessionsMock: vi.fn(async () => ({ items: [] })),
   loadProvidersMock: vi.fn(async () => undefined),
@@ -169,13 +178,8 @@ vi.mock('@/components/BChatSidebar/hooks/useCompression', async () => {
   return {
     useCompression: () => ({
       compressing: ref(false),
-      currentSummary: ref(undefined),
       error: ref(undefined),
-      budget: ref(undefined),
-      compress: compressionHookTriggerMock,
-      loadSummary: vi.fn(async () => undefined),
-      refreshBudget: vi.fn(async () => undefined),
-      clearError: vi.fn()
+      compress: compressionHookTriggerMock
     })
   };
 });
@@ -487,6 +491,15 @@ describe('chatSlashCommands', () => {
   });
 
   test('triggers the shared compression action when the editor emits /compact', async () => {
+    chatHistoryState.messages = [
+      {
+        id: 'message-1',
+        role: 'user',
+        content: 'old message',
+        parts: [{ type: 'text', text: 'old message' }],
+        createdAt: '2026-04-29T00:00:00.000Z'
+      }
+    ];
     const wrapper = mountChatSidebar();
     const compactCommand = chatSlashCommands.find((item) => item.id === 'compact');
 
@@ -494,8 +507,16 @@ describe('chatSlashCommands', () => {
 
     wrapper.getComponent({ name: 'BPromptEditor' }).vm.$emit('slash-command', compactCommand);
     await nextTick();
+    await Promise.resolve();
+    await nextTick();
 
     expect(compressionHookTriggerMock).toHaveBeenCalledTimes(1);
+    expect(addSessionMessageMock).toHaveBeenCalledTimes(1);
+    expect(addSessionMessageMock.mock.calls[0]?.[1]?.role).toBe('compression');
+    expect(chatHistoryState.messages.at(-1)?.role).toBe('compression');
+    expect(chatHistoryState.messages.at(-1)?.compression?.status).toBe('success');
+    expect(chatHistoryState.messages.at(-1)?.compression?.summaryId).toBe('summary-1');
+    expect(setSessionMessagesMock).toHaveBeenCalledTimes(1);
   });
 
   test('does not start a new chat while the stream is still loading', async () => {

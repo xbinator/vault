@@ -12,9 +12,6 @@ export type SummaryBuildMode = 'incremental' | 'full_rebuild';
 
 // ─── 压缩状态 ─────────────────────────────────────────────────────────────────
 
-/** 压缩运行态状态（内存级，不持久化） */
-export type CompressionStatus = 'idle' | 'compressing';
-
 /** 摘要记录状态 */
 export type SummaryRecordStatus = 'draft' | 'valid' | 'superseded' | 'invalid';
 
@@ -129,9 +126,6 @@ export interface ConversationSummaryRecord {
   relevanceEmbedding?: number[];
 }
 
-/** token 计数来源 */
-export type TokenCountSource = 'estimated' | 'usage_observed';
-
 /**
  * 上下文预算快照，用于 policy 判断。
  * 由 coordinator 在 prepareMessagesBeforeSend 中产出，传给 policy 评估。
@@ -167,35 +161,6 @@ export interface CompressionPolicyResult {
   tokenCount?: number;
   /** 有效摘要（若有） */
   currentSummary?: ConversationSummaryRecord;
-}
-
-/**
- * 压缩预算展示信息。
- * 用于按钮环形占比和 hover 详情面板展示。
- */
-export interface CompressionBudgetInfo {
-  /** 当前使用量 */
-  currentValue: number;
-  /** 触发压缩阈值 */
-  thresholdValue: number;
-  /** 当前占比（0-100） */
-  percentage: number;
-  /** 展示单位 */
-  unit: 'token' | 'char';
-  /** 字符级体积估算 */
-  charCount: number;
-  /** token 级体积估算 */
-  tokenCount?: number;
-  /** token 阈值 */
-  tokenThreshold?: number;
-  /** token 估算精度等级 */
-  tokenAccuracy?: 'native_like' | 'approximate' | 'char_fallback';
-  /** 是否已有有效摘要 */
-  hasSummary: boolean;
-  /** 最近一次摘要覆盖的消息轮数 */
-  summaryMessageCount?: number;
-  /** 最近一次摘要更新时间 */
-  summaryUpdatedAt?: string;
 }
 
 // ─── 消息分类 ─────────────────────────────────────────────────────────────────

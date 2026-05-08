@@ -6,7 +6,7 @@ import type { Message } from './types';
 import type { FileReference } from '../types';
 import type { JSONValue, ModelMessage } from 'ai';
 import type { AIAwaitingUserChoiceQuestion, AIToolExecutionAwaitingUserInputResult } from 'types/ai';
-import type { AIUserChoiceAnswerData, ChatMessagePart, ChatMessageRole, ChatMessageToolResultPart } from 'types/chat';
+import type { AIUserChoiceAnswerData, ChatCompressionStatus, ChatMessagePart, ChatMessageRole, ChatMessageToolResultPart } from 'types/chat';
 import dayjs from 'dayjs';
 import { nanoid } from 'nanoid';
 import { asyncTo } from '@/utils/asyncTo';
@@ -94,7 +94,14 @@ export const is = {
    * 判断消息是否可持久化。
    */
   persistableMessage(message: Message): message is PersistableMessage {
-    return message.role === 'user' || message.role === 'assistant' || message.role === 'error';
+    return message.role === 'user' || message.role === 'assistant' || message.role === 'error' || message.role === 'compression';
+  },
+
+  /**
+   * 判断消息是否为可作为后续模型上下文边界的成功压缩消息。
+   */
+  modelBoundaryCompressionMessage(message: Message | undefined): boolean {
+    return message?.role === 'compression' && message.compression?.status === 'success' && Boolean(message.compression.coveredUntilMessageId);
   },
 
   /**
@@ -182,6 +189,35 @@ export const create = {
     const parts: ChatMessagePart[] = content ? [{ type: 'text', text: content }] : [];
 
     return createBase({ role: 'user', content, parts, references, finished: true });
+  },
+  /**
+   * 创建压缩消息。
+   * @param input - 压缩消息数据
+   * @returns 压缩消息
+   */
+  compressionMessage(input: {
+    summaryText: string;
+    status: ChatCompressionStatus;
+    summaryId?: string;
+    coveredUntilMessageId?: string;
+    sourceMessageIds?: string[];
+    errorMessage?: string;
+  }): Message {
+    return createBase({
+      role: 'compression',
+      content: input.summaryText,
+      parts: input.summaryText ? [{ type: 'text', text: input.summaryText }] : [],
+      compression: {
+        status: input.status,
+        summaryText: input.summaryText,
+        summaryId: input.summaryId,
+        coveredUntilMessageId: input.coveredUntilMessageId,
+        sourceMessageIds: input.sourceMessageIds,
+        errorMessage: input.errorMessage
+      },
+      finished: input.status !== 'pending',
+      loading: input.status === 'pending'
+    });
   }
 } as const;
 
@@ -223,6 +259,36 @@ export const userChoice = {
     return false;
   }
 } as const;
+
+/**
+ * 查找最后一条成功压缩消息的索引。
+ * @param sourceMessages - 原始消息列表
+ * @returns 成功压缩消息索引，不存在时返回 -1
+ */
+export function findLatestCompressionBoundaryIndex(sourceMessages: Message[]): number {
+  for (let index = sourceMessages.length - 1; index >= 0; index -= 1) {
+    if (is.modelBoundaryCompressionMessage(sourceMessages[index])) {
+      return index;
+    }
+  }
+
+  return -1;
+}
+
+/**
+ * 从最后一条成功压缩消息开始裁剪消息列表，作为后续模型上下文起点。
+ * @param sourceMessages - 原始消息列表
+ * @returns 裁剪后的消息列表
+ */
+export function sliceMessagesFromCompressionBoundary(sourceMessages: Message[]): Message[] {
+  const boundaryIndex = findLatestCompressionBoundaryIndex(sourceMessages);
+
+  if (boundaryIndex === -1) {
+    return sourceMessages;
+  }
+
+  return sourceMessages.slice(boundaryIndex);
+}
 
 // ─── convert —— 消息格式转换 ─────────────────────────────────────────────────
 
@@ -305,6 +371,7 @@ function createModelMessageSignature(message: Message): string {
     role: message.role,
     content: message.content,
     parts: message.parts,
+    compression: message.compression,
     files: message.files?.map((file) => ({
       id: file.id,
       type: file.type,
@@ -322,6 +389,14 @@ function canReuseCachedEntry(entry: CachedModelMessageEntry, message: Message): 
 
 /** 将单条组件消息转换为 AI SDK 的 ModelMessage 列表 */
 function toModelMessagesForMessage(message: Message): ModelMessage[] {
+  if (message.role === 'compression') {
+    if (message.compression?.status !== 'success') {
+      return [];
+    }
+
+    return [{ role: 'assistant', content: message.compression.summaryText }];
+  }
+
   if (!is.modelMessage(message)) return [];
   if (message.role === 'user') {
     const imageFiles = message.files?.filter((file) => file.type === 'image' && file.url) ?? [];
@@ -349,15 +424,16 @@ export const convert = {
    * 将组件消息转换为带缓存的模型消息结果，尽量复用前缀历史。
    */
   toCachedModelMessages(sourceMessages: Message[], previousCache?: CachedModelMessagesResult): CachedModelMessagesResult {
+    const boundaryMessages = sliceMessagesFromCompressionBoundary(sourceMessages);
     const entries: CachedModelMessageEntry[] = [];
     const modelMessages: ModelMessage[] = [];
     let reuseCount = 0;
 
     if (previousCache) {
-      const maxReuse = Math.min(sourceMessages.length, previousCache.entries.length);
+      const maxReuse = Math.min(boundaryMessages.length, previousCache.entries.length);
       while (reuseCount < maxReuse) {
         const prev = previousCache.entries[reuseCount];
-        const msg = sourceMessages[reuseCount];
+        const msg = boundaryMessages[reuseCount];
         if (!canReuseCachedEntry(prev, msg)) break;
 
         entries.push(prev);
@@ -366,8 +442,8 @@ export const convert = {
       }
     }
 
-    for (let i = reuseCount; i < sourceMessages.length; i += 1) {
-      const sourceMessage = sourceMessages[i];
+    for (let i = reuseCount; i < boundaryMessages.length; i += 1) {
+      const sourceMessage = boundaryMessages[i];
       const nextModelMessages = toModelMessagesForMessage(sourceMessage);
       entries.push({
         sourceMessage,

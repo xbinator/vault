@@ -2,7 +2,6 @@
  * @file planner.ts
  * @description 消息保留规则切分：根据保留规则将消息分为保留原文、文件语义和可摘要三类。
  */
-import type { MessageClassificationResult } from './types';
 import type { Message } from '@/components/BChatSidebar/utils/types';
 
 /**
@@ -62,12 +61,7 @@ function shouldPreserveAsFileSemantic(message: Message): boolean {
  * @param excludeMessageIds - 需要显式排除的消息 ID 列表
  * @returns 消息分类结果
  */
-export function planCompression(
-  messages: Message[],
-  preserveRounds: number,
-  currentUserMessageId?: string,
-  excludeMessageIds?: string[]
-): MessageClassificationResult {
+export function planCompression(messages: Message[], preserveRounds: number, currentUserMessageId?: string, excludeMessageIds?: string[]) {
   const excludeSet = new Set(excludeMessageIds ?? []);
   if (currentUserMessageId) {
     excludeSet.add(currentUserMessageId);

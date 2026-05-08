@@ -4,6 +4,7 @@
  */
 import type { AIUsage } from 'types/ai';
 import type {
+  ChatCompressionMeta,
   ChatMessageFile,
   ChatMessageHistoryCursor,
   ChatMessagePart,
@@ -57,14 +58,14 @@ const SELECT_SESSION_USAGE_SQL = 'SELECT usage_json FROM chat_sessions WHERE id 
 const UPDATE_SESSION_USAGE_SQL = 'UPDATE chat_sessions SET usage_json = ? WHERE id = ?';
 
 const SELECT_MESSAGES_BY_SESSION_SQL = `
-  SELECT id, session_id, role, content, parts_json, thinking, files_json, usage_json, created_at
+  SELECT id, session_id, role, content, parts_json, thinking, files_json, usage_json, compression_json, created_at
   FROM chat_messages
   WHERE session_id = ?
   ORDER BY created_at DESC, id DESC
   LIMIT ?
 `;
 const SELECT_MESSAGES_BEFORE_CURSOR_SQL = `
-  SELECT id, session_id, role, content, parts_json, thinking, files_json, usage_json, created_at
+  SELECT id, session_id, role, content, parts_json, thinking, files_json, usage_json, compression_json, created_at
   FROM chat_messages
   WHERE session_id = ?
     AND (created_at < ? OR (created_at = ? AND id < ?))
@@ -73,8 +74,8 @@ const SELECT_MESSAGES_BEFORE_CURSOR_SQL = `
 `;
 const UPSERT_MESSAGE_SQL = `
   INSERT OR REPLACE INTO chat_messages
-    (id, session_id, role, content, parts_json, thinking, files_json, usage_json, created_at)
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    (id, session_id, role, content, parts_json, thinking, files_json, usage_json, compression_json, created_at)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `;
 const DELETE_SESSION_SQL = 'DELETE FROM chat_sessions WHERE id = ?';
 const DELETE_MESSAGES_BY_SESSION_SQL = 'DELETE FROM chat_messages WHERE session_id = ?';
@@ -98,6 +99,7 @@ interface ChatMessageRow {
   thinking: string | null;
   files_json: string | null;
   usage_json: string | null;
+  compression_json: string | null;
   created_at: string;
 }
 
@@ -119,7 +121,7 @@ function isChatSessionType(value: string): value is ChatSessionType {
  * @returns 是否为有效聊天消息角色
  */
 function isChatMessageRole(value: string): value is ChatMessageRole {
-  return value === 'user' || value === 'assistant' || value === 'error';
+  return value === 'user' || value === 'assistant' || value === 'error' || value === 'compression';
 }
 
 function mapSessionRow(row: ChatSessionRow): ChatSession | null {
@@ -151,6 +153,7 @@ function mapMessageRow(row: ChatMessageRow): ChatMessageRecord {
     thinking: row.thinking ?? undefined,
     files: parseJson<ChatMessageFile[]>(row.files_json),
     usage: parseJson<AIUsage>(row.usage_json),
+    compression: parseJson<ChatCompressionMeta>(row.compression_json),
     createdAt: row.created_at
   };
 }
@@ -244,6 +247,7 @@ async function upsertSessionMessages(messages: ChatMessageRecord[]): Promise<voi
         message.thinking ?? null,
         stringifyJson(message.files),
         stringifyJson(message.usage),
+        stringifyJson(message.compression),
         message.createdAt
       ])
     )
@@ -453,6 +457,7 @@ export const chatStorage = {
       message.thinking ?? null,
       stringifyJson(message.files),
       stringifyJson(message.usage),
+      stringifyJson(message.compression),
       message.createdAt
     ]);
   },
