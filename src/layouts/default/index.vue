@@ -89,7 +89,7 @@ import ShortcutsHelp from './components/ShortcutsHelp.vue';
 import { useEditActive } from './hooks/useEditActive';
 import { useFileActive } from './hooks/useFileActive';
 import { useHelpActive } from './hooks/useHelpActive';
-import { useRouteKeepAliveCache } from './hooks/useRouteKeepAliveCache';
+import { useKeepAlive } from './hooks/useKeepAlive';
 import { useViewActive } from './hooks/useViewActive';
 
 const router = useRouter();
@@ -98,7 +98,7 @@ const visible = reactive({ searchRecent: false, shortcutsHelp: false });
 
 const settingStore = useSettingStore();
 const tabsStore = useTabsStore();
-const { getRouteCacheKey, getRouteCacheComponent } = useRouteKeepAliveCache();
+const { getRouteCacheKey, getRouteCacheComponent } = useKeepAlive();
 
 const { toolbarFileOptions } = useFileActive(visible);
 const { toolbarEditOptions } = useEditActive();

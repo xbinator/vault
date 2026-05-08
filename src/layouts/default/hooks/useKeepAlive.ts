@@ -1,5 +1,5 @@
 /**
- * @file useRouteKeepAliveCache.ts
+ * @file useKeepAlive.ts
  * @description 为默认布局提供按路由缓存 key 命名的 KeepAlive 包装组件。
  */
 
@@ -11,7 +11,7 @@ import { resolveRouteCacheName, resolveRouteTabInfo } from '@/router/cache';
 /**
  * 路由 KeepAlive 缓存工具。
  */
-export interface RouteKeepAliveCache {
+export interface KeepAliveCache {
   /**
    * 获取路由对应的 KeepAlive 缓存 key。
    * @param route - 当前路由
@@ -55,7 +55,7 @@ function createRouteCacheComponent(cacheName: string): VueComponent {
  * 使用路由 KeepAlive 缓存工具。
  * @returns 路由缓存工具
  */
-export function useRouteKeepAliveCache(): RouteKeepAliveCache {
+export function useKeepAlive(): KeepAliveCache {
   const routeCacheComponents = new Map<string, VueComponent>();
 
   /**

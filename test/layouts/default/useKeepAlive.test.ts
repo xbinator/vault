@@ -1,12 +1,12 @@
 /**
- * @file useRouteKeepAliveCache.test.ts
+ * @file useKeepAlive.test.ts
  * @description 验证默认布局的路由 KeepAlive 包装组件缓存逻辑。
  */
 
 import type { Component } from 'vue';
 import type { RouteLocationNormalizedLoaded } from 'vue-router';
 import { describe, expect, it } from 'vitest';
-import { useRouteKeepAliveCache } from '@/layouts/default/hooks/useRouteKeepAliveCache';
+import { useKeepAlive } from '@/layouts/default/hooks/useKeepAlive';
 
 /**
  * 创建测试用的路由对象。
@@ -37,16 +37,16 @@ function getComponentName(component: Component): string | undefined {
   return (component as { name?: string }).name;
 }
 
-describe('useRouteKeepAliveCache', () => {
+describe('useKeepAlive', () => {
   it('reuses wrapper components for the same route cache key', () => {
-    const { getRouteCacheComponent } = useRouteKeepAliveCache();
+    const { getRouteCacheComponent } = useKeepAlive();
     const route = createRoute({ path: '/editor/file_1', fullPath: '/editor/file_1', name: 'editor', params: { id: 'file_1' } });
 
     expect(getRouteCacheComponent(route)).toBe(getRouteCacheComponent(route));
   });
 
   it('creates different wrapper component names for different route cache keys', () => {
-    const { getRouteCacheComponent } = useRouteKeepAliveCache();
+    const { getRouteCacheComponent } = useKeepAlive();
     const firstRoute = createRoute({ path: '/editor/file_1', fullPath: '/editor/file_1', name: 'editor', params: { id: 'file_1' } });
     const secondRoute = createRoute({ path: '/editor/file_2', fullPath: '/editor/file_2', name: 'editor', params: { id: 'file_2' } });
 
