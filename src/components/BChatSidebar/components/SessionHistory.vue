@@ -54,7 +54,6 @@ import { groupBy, map } from 'lodash-es';
 import BButton from '@/components/BButton/index.vue';
 import BDropdown from '@/components/BDropdown/index.vue';
 import { useChatStore } from '@/stores/chat';
-import { useSettingStore } from '@/stores/setting';
 import { asyncTo } from '@/utils/asyncTo';
 
 /**
@@ -92,7 +91,6 @@ const props = withDefaults(defineProps<Props>(), {
 
 const open = ref(false);
 const chatStore = useChatStore();
-const settingStore = useSettingStore();
 
 /** 已加载的会话列表（增量累加） */
 const displayedSessions = ref<ChatSession[]>([]);
@@ -111,6 +109,7 @@ const scrollContainer = ref<HTMLElement>();
 
 const emit = defineEmits<{
   (e: 'switch-session', sessionId: string): void;
+  (e: 'delete-session', sessionId: string): void;
   (e: 'update:currentSession', session: ChatSession | undefined): void;
 }>();
 
@@ -258,8 +257,6 @@ async function handleDeleteSession(sessionId: string): Promise<void> {
   if (props.disabled) return;
   if (loading.value) return;
 
-  const wasActive = sessionId === props.activeSessionId;
-
   loading.value = true;
   const [error] = await asyncTo(chatStore.deleteSession(sessionId));
   loading.value = false;
@@ -285,9 +282,7 @@ async function handleDeleteSession(sessionId: string): Promise<void> {
       await loadSessions(true);
     }
 
-    if (wasActive) {
-      settingStore.setChatSidebarActiveSessionId(null);
-    }
+    emit('delete-session', sessionId);
   } else {
     message.error(error.message || '删除会话失败，请重试');
   }

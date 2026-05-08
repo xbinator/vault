@@ -15,6 +15,7 @@
         :active-session-id="settingStore.chatSidebarActiveSessionId"
         :disabled="loading"
         @switch-session="switchSession"
+        @delete-session="handleDeleteSession"
       />
 
       <div class="divider"></div>
@@ -514,6 +515,18 @@ async function handleLoadHistory(): Promise<void> {
   if (!sessionId) return;
 
   await loadHistory(sessionId);
+}
+
+/**
+ * 处理会话删除事件：当删除的会话为当前活跃会话时，清除消息列表与会话选中状态。
+ * @param sessionId - 被删除的会话 ID
+ */
+function handleDeleteSession(sessionId: string): void {
+  if (settingStore.chatSidebarActiveSessionId !== sessionId) return;
+
+  setLoadedMessages([]);
+  hasMoreHistory.value = false;
+  settingStore.setChatSidebarActiveSessionId(null);
 }
 
 /** 组件挂载时初始化 */
