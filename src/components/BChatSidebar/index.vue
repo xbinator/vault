@@ -80,6 +80,9 @@
         </div>
       </div>
     </div>
+
+    <!-- 全局模型选择器 -->
+    <BModelSelect ref="modelSelectRef" v-model:open="modelSelectOpen" v-model:model="selectedModel" />
   </div>
 </template>
 
@@ -131,6 +134,10 @@ const promptEditorRef = ref<InstanceType<typeof BPromptEditor>>();
 const { openFile } = useNavigate();
 /** 模型选择器程序化打开入口 */
 const modelSelectorRef = ref<InstanceType<typeof InputToolbar>>();
+/** 全局模型选择器引用。 */
+const modelSelectRef = ref<InstanceType<typeof BModelSelect>>();
+/** 全局模型选择器显示状态。 */
+const modelSelectOpen = ref(false);
 /** 对话视图引用 */
 const conversationRef = ref<InstanceType<typeof ConversationView>>();
 /** 会话历史组件引用 */
@@ -496,7 +503,7 @@ function handleModelChange(model: { providerId: string; modelId: string }): void
 
 /** 斜杠命令处理 hook */
 const { handleSlashCommand } = useSlashCommands({
-  openModelSelector: () => modelSelectorRef.value?.open(),
+  openModelSelector: () => modelSelectRef.value?.open(),
   openUsagePanel: () => usagePanel.openPanel(currentSession.value?.id),
   createNewSession,
   clearInput: () => inputEvents.clear(),
