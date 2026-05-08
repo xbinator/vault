@@ -10,7 +10,7 @@
     </div>
 
     <!-- 模型列表 -->
-    <BScrollbar ref="scrollbarRef" max-height="400px">
+    <BScrollbar max-height="400px">
       <div class="model-list">
         <div v-for="(group, groupIndex) in filteredGroups" :key="group.providerId" class="model-group">
           <div class="model-group__header">{{ group.providerName }}</div>
@@ -80,9 +80,6 @@ const open = defineModel<boolean>('open', { default: false });
 /** 搜索框引用。 */
 const searchInputRef = ref<HTMLInputElement>();
 
-/** 滚动条引用。 */
-const scrollbarRef = ref<InstanceType<typeof BScrollbar>>();
-
 /** DOM 引用表：itemRefs[groupIndex][modelIndex] = HTMLElement */
 const itemRefs = ref<HTMLElement[][]>([]);
 
@@ -114,16 +111,9 @@ const groupedModels = computed<ModelGroup[]>(() => {
 
     const enabledModels = provider.models.filter((m) => m.isEnabled);
     if (!enabledModels.length) continue;
+    const models = enabledModels.map((m) => ({ value: `${provider.id}:${m.id}`, modelId: m.id, modelName: m.name }));
 
-    result.push({
-      providerId: provider.id,
-      providerName: provider.name,
-      models: enabledModels.map((m) => ({
-        value: `${provider.id}:${m.id}`,
-        modelId: m.id,
-        modelName: m.name
-      }))
-    });
+    result.push({ providerId: provider.id, providerName: provider.name, models });
   }
 
   return result;
@@ -134,12 +124,9 @@ const filteredGroups = computed<ModelGroup[]>(() => {
   const query = searchQuery.value.trim().toLowerCase();
   if (!query) return groupedModels.value;
 
-  return groupedModels.value
-    .map((g) => ({
-      ...g,
-      models: g.models.filter((m) => m.modelName.toLowerCase().includes(query))
-    }))
-    .filter((g) => g.models.length);
+  const models = groupedModels.value.map((g) => ({ ...g, models: g.models.filter((m) => m.modelName.toLowerCase().includes(query)) }));
+
+  return models.filter((g) => g.models.length);
 });
 
 // ── Helpers ───────────────────────────────────────
@@ -242,7 +229,7 @@ function handleKeydown(event: KeyboardEvent): void {
   if (!groups.length) return;
 
   /**
-   * 移动聚焦位置。
+   * 移动聚焦位置（支持循环导航）。
    * @param delta - 移动方向（1: 向下, -1: 向上）
    */
   function move(delta: -1 | 1): void {
@@ -250,17 +237,33 @@ function handleKeydown(event: KeyboardEvent): void {
     if (!currentGroup) return;
 
     if (delta === 1) {
+      // 向下移动
       if (focusedModelIndex.value < currentGroup.models.length - 1) {
+        // 当前组内还有下一个
         focusedModelIndex.value++;
       } else if (focusedGroupIndex.value < groups.length - 1) {
+        // 移动到下一组的第一个
         focusedGroupIndex.value++;
         focusedModelIndex.value = 0;
+      } else {
+        // 循环：最后一组的最后一个 -> 第一组的第一个
+        focusedGroupIndex.value = 0;
+        focusedModelIndex.value = 0;
       }
-    } else if (focusedModelIndex.value > 0) {
-      focusedModelIndex.value--;
-    } else if (focusedGroupIndex.value > 0) {
-      focusedGroupIndex.value--;
-      focusedModelIndex.value = groups[focusedGroupIndex.value].models.length - 1;
+    } else {
+      // 向上移动
+      if (focusedModelIndex.value > 0) {
+        // 当前组内还有上一个
+        focusedModelIndex.value--;
+      } else if (focusedGroupIndex.value > 0) {
+        // 移动到上一组的最后一个
+        focusedGroupIndex.value--;
+        focusedModelIndex.value = groups[focusedGroupIndex.value].models.length - 1;
+      } else {
+        // 循环：第一组的第一个 -> 最后一组的最后一个
+        focusedGroupIndex.value = groups.length - 1;
+        focusedModelIndex.value = groups[focusedGroupIndex.value].models.length - 1;
+      }
     }
 
     scrollFocusedIntoView();
