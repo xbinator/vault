@@ -3,29 +3,24 @@
   @description 模型选择器组件，以模态对话框形式展示可用模型列表。
 -->
 <template>
-  <BModal v-model:open="open" title="选择模型" width="480px">
+  <BModal v-model:open="open" :closable="false" main-style="padding: 24px;">
     <!-- 搜索框 -->
     <div class="model-search">
-      <Icon icon="lucide:search" class="model-search__icon" width="15" height="15" />
-      <input v-model="searchQuery" placeholder="搜索模型..." class="model-search__input" />
-      <button v-if="searchQuery" class="model-search__clear" @click="searchQuery = ''">
-        <Icon icon="lucide:x" width="13" height="13" />
-      </button>
+      <input ref="searchInputRef" v-model="searchQuery" placeholder="搜索模型..." class="model-search__input" @keydown="handleKeydown" />
     </div>
 
     <!-- 模型列表 -->
     <BScrollbar max-height="400px">
       <div class="model-list">
-        <div v-for="group in filteredGroups" :key="group.providerId" class="model-group">
+        <div v-for="(group, groupIndex) in filteredGroups" :key="group.providerId" class="model-group">
           <div class="model-group__header">
-            <span class="model-group__header-dot"></span>
             {{ group.providerName }}
           </div>
           <div
-            v-for="item in group.models"
+            v-for="(item, index) in group.models"
             :key="item.value"
             class="model-item"
-            :class="{ 'is-active': item.value === internalModel }"
+            :class="{ 'is-active': item.value === internalModel, 'is-focused': groupIndex === focusedGroupIndex && index === focusedModelIndex }"
             @click="handleModelSelect(item)"
           >
             <div class="model-item__icon-wrap">
@@ -49,7 +44,7 @@
 
 <script setup lang="ts">
 import type { BModelSelectExpose, BModelSelectProps, ModelGroup, ModelItem, ParsedModel, SelectedModel } from './types';
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import { Icon } from '@iconify/vue';
 import BModal from '@/components/BModal/index.vue';
 import BModelIcon from '@/components/BModelIcon/index.vue';
@@ -71,17 +66,22 @@ function parseModelValue(value: string): ParsedModel | null {
 }
 
 /** 组件属性。 */
-withDefaults(defineProps<BModelSelectProps>(), {
+const props = withDefaults(defineProps<BModelSelectProps>(), {
+  model: undefined,
   disabled: false
 });
+
+/** 组件事件。 */
+const emit = defineEmits<{
+  /** 模型选择变更事件。 */
+  (e: 'change', model: SelectedModel): void;
+}>();
 
 /** 控制对话框显示隐藏。 */
 const open = defineModel<boolean>('open', { default: false });
 
-/** 当前选中的模型。 */
-const selectedModel = defineModel<SelectedModel | undefined>('model', {
-  default: undefined
-});
+/** 搜索框引用。 */
+const searchInputRef = ref<HTMLInputElement>();
 
 /** 搜索关键词。 */
 const searchQuery = ref<string>('');
@@ -89,17 +89,20 @@ const searchQuery = ref<string>('');
 /** 内部选中的模型值（格式：providerId:modelId）。 */
 const internalModel = ref<string>();
 
+/** 当前键盘聚焦的分组索引。 */
+const focusedGroupIndex = ref<number>(0);
+
+/** 当前键盘聚焦的模型索引。 */
+const focusedModelIndex = ref<number>(0);
+
 /** 提供商数据源。 */
 const providerStore = useProviderStore();
-const providers = computed(() => providerStore.providers);
 
-/**
- * 按提供商分组的模型列表。
- */
+/** 按提供商分组的模型列表。 */
 const groupedModels = computed<ModelGroup[]>(() => {
   const result: ModelGroup[] = [];
 
-  for (const provider of providers.value) {
+  for (const provider of providerStore.providers) {
     if (!provider.isEnabled || !provider.models?.length) continue;
 
     const models = provider.models
@@ -147,21 +150,108 @@ const filteredGroups = computed<ModelGroup[]>(() => {
 function handleModelSelect(item: ModelItem): void {
   const parsed = parseModelValue(item.value);
   if (parsed) {
-    selectedModel.value = parsed;
+    emit('change', parsed);
   }
   open.value = false;
+}
+
+/**
+ * 获取当前聚焦的模型项。
+ * @returns 当前聚焦的模型项，不存在时返回 undefined
+ */
+function getFocusedModel(): ModelItem | undefined {
+  const group = filteredGroups.value[focusedGroupIndex.value];
+  if (!group) return undefined;
+  return group.models[focusedModelIndex.value];
+}
+
+/**
+ * 处理键盘导航。
+ * @param event - 键盘事件
+ */
+function handleKeydown(event: KeyboardEvent): void {
+  const groups = filteredGroups.value;
+  if (!groups.length) return;
+
+  switch (event.key) {
+    case 'ArrowDown': {
+      event.preventDefault();
+      const currentGroup = groups[focusedGroupIndex.value];
+      if (!currentGroup) return;
+
+      if (focusedModelIndex.value < currentGroup.models.length - 1) {
+        focusedModelIndex.value++;
+      } else if (focusedGroupIndex.value < groups.length - 1) {
+        focusedGroupIndex.value++;
+        focusedModelIndex.value = 0;
+      }
+      break;
+    }
+    case 'ArrowUp': {
+      event.preventDefault();
+      if (focusedModelIndex.value > 0) {
+        focusedModelIndex.value--;
+      } else if (focusedGroupIndex.value > 0) {
+        focusedGroupIndex.value--;
+        const prevGroup = groups[focusedGroupIndex.value];
+        focusedModelIndex.value = prevGroup.models.length - 1;
+      }
+      break;
+    }
+    case 'Enter': {
+      event.preventDefault();
+      const focusedModel = getFocusedModel();
+      if (focusedModel) {
+        handleModelSelect(focusedModel);
+      }
+      break;
+    }
+    case 'Escape': {
+      event.preventDefault();
+      open.value = false;
+      break;
+    }
+  }
+}
+
+/**
+ * 重置键盘聚焦状态。
+ */
+function resetFocusState(): void {
+  focusedGroupIndex.value = 0;
+  focusedModelIndex.value = 0;
 }
 
 /**
  * 同步外部传入的 model 值到内部状态。
  */
 watch(
-  () => selectedModel.value,
+  () => props.model,
   (value) => {
     internalModel.value = value ? `${value.providerId}:${value.modelId}` : undefined;
   },
   { immediate: true }
 );
+
+/**
+ * 监听对话框打开状态，自动聚焦搜索框。
+ */
+watch(open, (isOpen) => {
+  if (isOpen) {
+    resetFocusState();
+    searchQuery.value = '';
+    nextTick(() => {
+      searchInputRef.value?.focus();
+    });
+  }
+});
+
+/**
+ * 监听搜索关键词变化，重置聚焦状态。
+ */
+watch(searchQuery, () => {
+  resetFocusState();
+});
 
 /**
  * 组件挂载时加载提供商数据。
@@ -189,18 +279,10 @@ defineExpose<BModelSelectExpose>({
   margin-bottom: 12px;
 }
 
-.model-search__icon {
-  position: absolute;
-  left: 11px;
-  flex-shrink: 0;
-  color: var(--text-placeholder);
-  pointer-events: none;
-}
-
 .model-search__input {
   width: 100%;
   height: 36px;
-  padding: 0 32px 0 34px;
+  padding: 0 12px;
   font-size: 13px;
   color: var(--text-primary);
   outline: none;
@@ -217,28 +299,6 @@ defineExpose<BModelSelectExpose>({
 
 .model-search__input::placeholder {
   color: var(--text-placeholder);
-}
-
-.model-search__clear {
-  position: absolute;
-  right: 9px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 18px;
-  height: 18px;
-  padding: 0;
-  color: var(--text-placeholder);
-  cursor: pointer;
-  background: var(--bg-hover);
-  border: none;
-  border-radius: 50%;
-  transition: background 0.15s, color 0.15s;
-}
-
-.model-search__clear:hover {
-  color: var(--text-primary);
-  background: var(--border-secondary);
 }
 
 /* ── 模型列表 ────────────────────────────────── */
@@ -261,17 +321,6 @@ defineExpose<BModelSelectExpose>({
   color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.6px;
-  border-bottom: 1px solid var(--border-primary);
-}
-
-.model-group__header-dot {
-  display: inline-block;
-  flex-shrink: 0;
-  width: 6px;
-  height: 6px;
-  background: var(--color-primary);
-  border-radius: 50%;
-  opacity: 0.6;
 }
 
 /* ── 模型条目 ────────────────────────────────── */
@@ -291,6 +340,10 @@ defineExpose<BModelSelectExpose>({
 
 .model-item.is-active {
   background: var(--color-primary-bg);
+}
+
+.model-item.is-focused {
+  background: var(--bg-hover);
 }
 
 .model-item__icon-wrap {

@@ -42,6 +42,8 @@ export interface ParsedModel {
  * BModelSelect 组件属性。
  */
 export interface BModelSelectProps {
+  /** 当前选中的模型。 */
+  model?: SelectedModel;
   /** 是否禁用。 */
   disabled?: boolean;
 }

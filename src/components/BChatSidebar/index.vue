@@ -65,7 +65,6 @@
           />
 
           <InputToolbar
-            ref="modelSelectorRef"
             :loading="loading"
             :input-value="inputContent"
             :selected-model="selectedModel"
@@ -82,7 +81,7 @@
     </div>
 
     <!-- 全局模型选择器 -->
-    <BModelSelect ref="modelSelectRef" v-model:open="modelSelectOpen" v-model:model="selectedModel" />
+    <BModelSelect ref="modelSelectRef" v-model:open="modelSelectOpen" :model="selectedModel" @change="handleModelChange" />
   </div>
 </template>
 
@@ -96,6 +95,7 @@ import { createBuiltinTools } from '@/ai/tools/builtin';
 import { editorToolContextRegistry } from '@/ai/tools/editor-context';
 import { getDefaultChatToolNames } from '@/ai/tools/policy';
 import BButton from '@/components/BButton/index.vue';
+import BModelSelect from '@/components/BModelSelect/index.vue';
 import BPromptEditor from '@/components/BPromptEditor/index.vue';
 import { useNavigate } from '@/hooks/useNavigate';
 import { useChatStore } from '@/stores/chat';
@@ -132,8 +132,6 @@ const settingStore = useSettingStore();
 const promptEditorRef = ref<InstanceType<typeof BPromptEditor>>();
 /** 通用文件打开导航能力 */
 const { openFile } = useNavigate();
-/** 模型选择器程序化打开入口 */
-const modelSelectorRef = ref<InstanceType<typeof InputToolbar>>();
 /** 全局模型选择器引用。 */
 const modelSelectRef = ref<InstanceType<typeof BModelSelect>>();
 /** 全局模型选择器显示状态。 */
