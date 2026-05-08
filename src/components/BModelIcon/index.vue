@@ -73,7 +73,8 @@ const modelIcons: Record<string, string> = {
   longcat: 'longcat-color',
   hunyuan: 'hunyuan-color',
   deepseek: 'deepseek-color',
-  gemini: 'google-color',
+  gemini: 'gemini-color',
+  gemma: 'gemma-color',
   grok: 'grok'
 };
 
