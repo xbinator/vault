@@ -106,22 +106,28 @@ const providerStore = useProviderStore();
 // ── Computed ──────────────────────────────────────
 
 /** 按提供商分组的模型列表。 */
-const groupedModels = computed<ModelGroup[]>(() =>
-  providerStore.providers
-    .filter((p) => p.isEnabled && p.models?.length)
-    .map((p) => ({
-      providerId: p.id,
-      providerName: p.name,
-      models: p.models
-        .filter((m) => m.isEnabled)
-        .map((m) => ({
-          value: `${p.id}:${m.id}`,
-          modelId: m.id,
-          modelName: m.name
-        }))
-    }))
-    .filter((g) => g.models.length)
-);
+const groupedModels = computed<ModelGroup[]>(() => {
+  const result: ModelGroup[] = [];
+
+  for (const provider of providerStore.providers) {
+    if (!provider.isEnabled || !provider.models?.length) continue;
+
+    const enabledModels = provider.models.filter((m) => m.isEnabled);
+    if (!enabledModels.length) continue;
+
+    result.push({
+      providerId: provider.id,
+      providerName: provider.name,
+      models: enabledModels.map((m) => ({
+        value: `${provider.id}:${m.id}`,
+        modelId: m.id,
+        modelName: m.name
+      }))
+    });
+  }
+
+  return result;
+});
 
 /** 根据搜索关键词过滤后的模型分组。 */
 const filteredGroups = computed<ModelGroup[]>(() => {
