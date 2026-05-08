@@ -109,7 +109,6 @@ import { useChatInput } from './hooks/useChatInput';
 import { useChatStream } from './hooks/useChatStream';
 import { useChatTaskRuntime } from './hooks/useChatTaskRuntime';
 import { useCompactContext } from './hooks/useCompactContext';
-import { useCompression } from './hooks/useCompression';
 import { useFileReference } from './hooks/useFileReference';
 import { useImageUpload } from './hooks/useImageUpload';
 import { useModelSelection } from './hooks/useModelSelection';
@@ -302,12 +301,6 @@ const taskRuntime = useChatTaskRuntime({
 /** 当前是否有活跃任务。 */
 const loading = computed<boolean>(() => taskRuntime.loading.value || streamLoading.value);
 
-/** 会话压缩 hook，仅保留 slash command 程序化入口。 */
-const compression = useCompression({
-  getSessionId: () => settingStore.chatSidebarActiveSessionId ?? undefined,
-  getMessages: () => messages.value
-});
-
 /** 会话 hook */
 const { currentSession, createNewSession, switchSession, initializeActiveSession } = useSession({
   resetUsagePanel: usagePanel.reset,
@@ -469,7 +462,6 @@ async function handleChatSubmit(): Promise<void> {
 const { handleCompactContext } = useCompactContext({
   messages,
   getSessionId: () => settingStore.chatSidebarActiveSessionId ?? undefined,
-  compress: (signal) => compression.compress(signal),
   beginCompactTask: (onAbort?: () => void) => taskRuntime.beginTask('compact', onAbort),
   finishCompactTask: () => taskRuntime.finishTask('compact'),
   persistMessage: (sessionId, nextMessage) => chatStore.addSessionMessage(sessionId, nextMessage),

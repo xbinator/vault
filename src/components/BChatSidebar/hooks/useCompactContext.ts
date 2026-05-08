@@ -1,13 +1,31 @@
 /**
  * @file useCompactContext.ts
- * @description 手动上下文压缩命令 hook，负责 pending 压缩消息的创建、回填与提示反馈。
+ * @description 手动上下文压缩命令 hook，负责 pending 压缩消息的创建、回填、提示反馈以及实际压缩执行。
  */
-import type { CompressionExecutionResult } from './useCompression';
+import type { CompressionRecord } from '../utils/compression/types';
 import type { Message } from '../utils/types';
 import type { ChatCompressionStatus } from 'types/chat';
 import type { Ref } from 'vue';
+import { computed, ref } from 'vue';
 import { message } from 'ant-design-vue';
+import { chatCompressionRecordsStorage } from '@/shared/storage/chat-compression-records';
+import { createCompressionCoordinator } from '../utils/compression/coordinator';
+import { CompressionCancelledError, CompressionError, getCompressionErrorMessage } from '../utils/compression/error';
 import { createBase } from '../utils/messageHelper';
+
+/**
+ * 手动压缩执行结果。
+ */
+interface CompressionExecutionResult {
+  /** 是否成功完成压缩 */
+  success: boolean;
+  /** 新生成的压缩记录，供 compression message 回填使用 */
+  record?: CompressionRecord;
+  /** 错误信息 */
+  errorMessage?: string;
+  /** 是否为用户主动取消 */
+  cancelled?: boolean;
+}
 
 /**
  * 压缩边界消息的公共字段
@@ -49,8 +67,6 @@ interface UseCompactContextOptions {
   messages: Ref<Message[]>;
   /** 获取活跃会话 ID */
   getSessionId: () => string | undefined;
-  /** 执行压缩 */
-  compress: (signal?: AbortSignal) => Promise<CompressionExecutionResult>;
   /** 启动压缩任务 */
   beginCompactTask: (onAbort?: () => void) => { ok: boolean; signal?: AbortSignal; reason?: 'busy' };
   /** 结束压缩任务 */
@@ -142,7 +158,72 @@ function createCancelledCompressionMessage(): Message {
  * @returns 手动压缩命令处理函数
  */
 export function useCompactContext(options: UseCompactContextOptions) {
-  const { messages, getSessionId, compress, beginCompactTask, finishCompactTask, persistMessage, persistMessages, scrollToBottom } = options;
+  const { messages, getSessionId, beginCompactTask, finishCompactTask, persistMessage, persistMessages, scrollToBottom } = options;
+
+  /** 压缩状态 */
+  const compressing = ref(false);
+  /** 压缩错误 */
+  const error = ref<string | undefined>();
+
+  /** 压缩协调器（稳定引用，避免重复创建） */
+  const coordinator = computed(() => createCompressionCoordinator(chatCompressionRecordsStorage));
+
+  /**
+   * 统一设置错误信息
+   * @param err - 捕获到的异常
+   */
+  function setError(err: unknown): void {
+    if (err instanceof CompressionError) {
+      error.value = getCompressionErrorMessage(err.stage);
+    } else {
+      error.value = err instanceof Error ? err.message : '压缩失败';
+    }
+  }
+
+  /**
+   * 执行会话压缩。
+   * @param signal - 压缩过程取消信号
+   * @returns 压缩执行结果
+   */
+  async function compress(signal?: AbortSignal): Promise<CompressionExecutionResult> {
+    const sessionId = getSessionId();
+    if (!sessionId) {
+      error.value = '没有活跃的会话';
+      return { success: false, errorMessage: error.value };
+    }
+
+    if (messages.value.length === 0) {
+      error.value = '没有可压缩的消息';
+      return { success: false, errorMessage: error.value };
+    }
+
+    compressing.value = true;
+    error.value = undefined;
+
+    try {
+      const result = await coordinator.value.compressSessionManually({ sessionId, messages: messages.value, signal });
+
+      if (!result) {
+        error.value = '没有可压缩的消息';
+        return { success: false, errorMessage: error.value };
+      }
+
+      // 如果是因体量过大而降级到增量模式，静默处理而非报错
+      if (result.degradeReason === 'degraded_to_incremental') {
+        error.value = undefined;
+      }
+      return { success: true, record: result };
+    } catch (err) {
+      if (err instanceof CompressionCancelledError) {
+        error.value = undefined;
+        return { success: false, cancelled: true };
+      }
+      setError(err);
+      return { success: false, errorMessage: error.value };
+    } finally {
+      compressing.value = false;
+    }
+  }
 
   /**
    * 将压缩消息的最新状态同步回消息列表与持久化存储。
@@ -222,6 +303,9 @@ export function useCompactContext(options: UseCompactContextOptions) {
   }
 
   return {
+    compress,
+    compressing,
+    error,
     handleCompactContext
   };
 }
