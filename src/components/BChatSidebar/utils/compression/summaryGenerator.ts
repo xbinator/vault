@@ -157,13 +157,11 @@ function generateFallbackSummary(items: TrimmedMessageItem[]): StructuredConvers
 export async function generateStructuredSummary(input: GenerateStructuredSummaryInput): Promise<StructuredConversationSummary> {
   const config = await getSummaryModelConfig();
   if (!config) {
-    console.warn('[摘要生成器] 没有可用的摘要模型，使用降级方案');
     return generateFallbackSummary(input.items);
   }
 
   const provider = await providerStorage.getProvider(config.providerId);
   if (!provider) {
-    console.warn('[摘要生成器] 未找到提供商，使用降级方案');
     return generateFallbackSummary(input.items);
   }
 
@@ -195,7 +193,6 @@ export async function generateStructuredSummary(input: GenerateStructuredSummary
     );
 
     if (error) {
-      console.error('[摘要生成器] AI 调用失败，使用降级方案:', error);
       return generateFallbackSummary(input.items);
     }
 
@@ -209,7 +206,6 @@ export async function generateStructuredSummary(input: GenerateStructuredSummary
     // 解析 JSON 响应
     const jsonMatch = result.text.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
-      console.error('[摘要生成器] 响应中未找到 JSON，使用降级方案');
       return generateFallbackSummary(input.items);
     }
 
@@ -217,13 +213,11 @@ export async function generateStructuredSummary(input: GenerateStructuredSummary
 
     // 验证必需字段
     if (isEmpty(summary.goal) || isEmpty(summary.recentTopic)) {
-      console.error('[摘要生成器] 摘要结构无效，使用降级方案');
       return generateFallbackSummary(input.items);
     }
 
     return summary;
   } catch (error) {
-    console.error('[摘要生成器] 生成摘要失败，使用降级方案:', error);
     return generateFallbackSummary(input.items);
   }
 }

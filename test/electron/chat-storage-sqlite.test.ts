@@ -221,4 +221,50 @@ describe('chatStorage SQLite references', () => {
     expect(rows[0]?.usage_json).toBe(JSON.stringify(message.usage));
     expect(rows[0]?.updated_at).not.toBe(session.updatedAt);
   }, 15000);
+
+  it('migrates legacy chat_session_summaries rows by adding new summary columns', async () => {
+    const legacyDbPath = path.join(tempUserDataDir, 'tibis.db');
+    const legacyDb = new DatabaseSync(legacyDbPath);
+
+    /**
+     * 创建旧版摘要表结构，模拟缺失后续压缩迭代新增列的历史数据库。
+     */
+    legacyDb.exec(`
+      CREATE TABLE chat_session_summaries (
+        id TEXT PRIMARY KEY,
+        session_id TEXT NOT NULL,
+        build_mode TEXT NOT NULL,
+        derived_from_summary_id TEXT,
+        covered_start_message_id TEXT NOT NULL,
+        covered_end_message_id TEXT NOT NULL,
+        covered_until_message_id TEXT NOT NULL,
+        source_message_ids_json TEXT NOT NULL,
+        preserved_message_ids_json TEXT NOT NULL,
+        summary_text TEXT NOT NULL,
+        structured_summary_json TEXT NOT NULL,
+        trigger_reason TEXT NOT NULL,
+        message_count_snapshot INTEGER NOT NULL,
+        char_count_snapshot INTEGER NOT NULL,
+        schema_version INTEGER NOT NULL,
+        status TEXT NOT NULL,
+        invalid_reason TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+    `);
+    legacyDb.close();
+
+    const { initDatabase, dbSelect } = await import('../../electron/main/modules/database/service.mts');
+    await initDatabase();
+
+    const columns = await dbSelect<{ name: string }>('PRAGMA table_info(chat_session_summaries)');
+    const columnNames = columns.map((column) => column.name);
+
+    expect(columnNames).toContain('token_count_snapshot');
+    expect(columnNames).toContain('degrade_reason');
+    expect(columnNames).toContain('summary_set_id');
+    expect(columnNames).toContain('segment_index');
+    expect(columnNames).toContain('segment_count');
+    expect(columnNames).toContain('topic_tags_json');
+  });
 });

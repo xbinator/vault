@@ -1,3 +1,7 @@
+/**
+ * @file service.mts
+ * @description Electron 主进程 SQLite 数据库初始化、迁移与基础读写服务。
+ */
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import Database from 'better-sqlite3';
@@ -47,6 +51,12 @@ function migrateDatabase(): void {
   ensureColumn('chat_messages', 'thinking', 'thinking TEXT');
   ensureColumn('chat_messages', 'parts_json', 'parts_json TEXT');
   ensureColumn('chat_messages', 'compression_json', 'compression_json TEXT');
+  ensureColumn('chat_session_summaries', 'token_count_snapshot', 'token_count_snapshot INTEGER');
+  ensureColumn('chat_session_summaries', 'degrade_reason', 'degrade_reason TEXT');
+  ensureColumn('chat_session_summaries', 'summary_set_id', 'summary_set_id TEXT');
+  ensureColumn('chat_session_summaries', 'segment_index', 'segment_index INTEGER');
+  ensureColumn('chat_session_summaries', 'segment_count', 'segment_count INTEGER');
+  ensureColumn('chat_session_summaries', 'topic_tags_json', 'topic_tags_json TEXT');
 }
 
 export function getDbPath(): string {
@@ -135,9 +145,15 @@ export async function initDatabase(): Promise<void> {
       trigger_reason TEXT NOT NULL,
       message_count_snapshot INTEGER NOT NULL,
       char_count_snapshot INTEGER NOT NULL,
+      token_count_snapshot INTEGER,
       schema_version INTEGER NOT NULL,
       status TEXT NOT NULL,
       invalid_reason TEXT,
+      degrade_reason TEXT,
+      summary_set_id TEXT,
+      segment_index INTEGER,
+      segment_count INTEGER,
+      topic_tags_json TEXT,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
