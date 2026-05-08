@@ -9,10 +9,7 @@
       <span class="compression-node__pill">{{ statusLabel }}</span>
       <span class="compression-node__line"></span>
     </div>
-    <div class="compression-node__meta">
-      <div class="compression-node__description">{{ statusDescription }}</div>
-      <div v-if="errorText" class="compression-node__error">{{ errorText }}</div>
-    </div>
+    <div v-if="errorText" class="compression-node__error">{{ errorText }}</div>
   </div>
 </template>
 
@@ -51,25 +48,6 @@ const statusLabel = computed<string>(() => {
   }
 
   return '上下文已压缩';
-});
-
-/**
- * 压缩状态说明文案。
- */
-const statusDescription = computed<string>(() => {
-  if (props.message.compression?.status === 'pending') {
-    return '正在整理此前对话，请稍候';
-  }
-
-  if (props.message.compression?.status === 'cancelled') {
-    return '此次上下文整理已停止，后续可重新发起压缩';
-  }
-
-  if (props.message.compression?.status === 'failed') {
-    return '未能完成上下文整理，可稍后重试';
-  }
-
-  return '此前对话已整理，后续回复将从这里继续';
 });
 
 /**
@@ -121,33 +99,12 @@ const errorText = computed<string | undefined>(() => {
   border-radius: 999px;
 }
 
-.compression-node__meta {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  align-items: center;
-  max-width: 420px;
-  text-align: center;
-}
-
-.compression-node__description {
-  font-size: 12px;
-  line-height: 1.5;
-  color: var(--text-secondary);
-}
-
 .compression-node__error {
+  max-width: 420px;
   font-size: 12px;
   line-height: 1.5;
   color: var(--color-error);
-}
-
-.compression-node--success {
-  .compression-node__pill {
-    color: var(--color-success);
-    background: var(--color-success-bg);
-    border-color: var(--color-success);
-  }
+  text-align: center;
 }
 
 .compression-node--pending {
