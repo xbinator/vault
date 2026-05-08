@@ -64,7 +64,7 @@ interface Props {
   canSubmit: boolean;
 }
 
-const props = withDefaults(defineProps<Props>(), {
+withDefaults(defineProps<Props>(), {
   selectedModel: undefined,
   supportsVision: false,
   canSubmit: false

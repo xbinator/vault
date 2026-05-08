@@ -153,7 +153,7 @@ onBeforeUnmount(async () => {
 
 .loading-progress {
   height: 100%;
-  background: var(--primary-color, #1890ff);
+  background: var(--color-primary);
   transition: width 0.2s ease;
 }
 </style>
