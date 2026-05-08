@@ -1,6 +1,6 @@
 /**
- * @file summarizer.test.ts
- * @description Summarizer 模块测试：规则裁剪逻辑。
+ * @file recordPreprocessor.test.ts
+ * @description 压缩记录预处理模块测试：规则裁剪逻辑。
  */
 import { describe, expect, it } from 'vitest';
 import type { Message } from '@/components/BChatSidebar/utils/types';
@@ -19,9 +19,9 @@ function makeMsg(overrides: Partial<Message> & { id: string }): Message {
   };
 }
 
-describe('summarizer - ruleTrim', () => {
+describe('recordPreprocessor - ruleTrim', () => {
   it('removes empty assistant placeholder messages', async () => {
-    const { ruleTrim } = await import('@/components/BChatSidebar/utils/compression/summarizer');
+    const { ruleTrim } = await import('@/components/BChatSidebar/utils/compression/recordPreprocessor');
     const messages: Message[] = [
       makeMsg({ id: 'm1', role: 'user', content: 'Hello' }),
       makeMsg({ id: 'm2', role: 'assistant', content: '', parts: [], loading: true }),
@@ -36,7 +36,7 @@ describe('summarizer - ruleTrim', () => {
   });
 
   it('preserves normal text messages', async () => {
-    const { ruleTrim } = await import('@/components/BChatSidebar/utils/compression/summarizer');
+    const { ruleTrim } = await import('@/components/BChatSidebar/utils/compression/recordPreprocessor');
     const messages: Message[] = [makeMsg({ id: 'm1', role: 'user', content: 'Hello' }), makeMsg({ id: 'm2', role: 'assistant', content: 'Hi there' })];
 
     const result = ruleTrim(messages);
@@ -46,7 +46,7 @@ describe('summarizer - ruleTrim', () => {
   });
 
   it('truncates long content to respect input char limit', async () => {
-    const { ruleTrim } = await import('@/components/BChatSidebar/utils/compression/summarizer');
+    const { ruleTrim } = await import('@/components/BChatSidebar/utils/compression/recordPreprocessor');
     // Create messages with total content exceeding 200 chars
     const longText = 'A'.repeat(150);
     const messages: Message[] = [makeMsg({ id: 'm1', role: 'user', content: longText }), makeMsg({ id: 'm2', role: 'assistant', content: longText })];
@@ -58,7 +58,7 @@ describe('summarizer - ruleTrim', () => {
   });
 
   it('returns charCount for trimmed items', async () => {
-    const { ruleTrim } = await import('@/components/BChatSidebar/utils/compression/summarizer');
+    const { ruleTrim } = await import('@/components/BChatSidebar/utils/compression/recordPreprocessor');
     const messages: Message[] = [makeMsg({ id: 'm1', role: 'user', content: 'Hello' }), makeMsg({ id: 'm2', role: 'assistant', content: 'World' })];
 
     const result = ruleTrim(messages);
@@ -67,7 +67,7 @@ describe('summarizer - ruleTrim', () => {
   });
 
   it('deduplicates repeated error messages', async () => {
-    const { ruleTrim } = await import('@/components/BChatSidebar/utils/compression/summarizer');
+    const { ruleTrim } = await import('@/components/BChatSidebar/utils/compression/recordPreprocessor');
     const errorContent = 'Network error occurred';
     const messages: Message[] = [
       makeMsg({ id: 'm1', role: 'user', content: 'do something' }),
@@ -83,7 +83,7 @@ describe('summarizer - ruleTrim', () => {
   });
 
   it('preserves tool call and result summaries', async () => {
-    const { ruleTrim } = await import('@/components/BChatSidebar/utils/compression/summarizer');
+    const { ruleTrim } = await import('@/components/BChatSidebar/utils/compression/recordPreprocessor');
     const messages: Message[] = [
       makeMsg({
         id: 'm1',
@@ -103,7 +103,7 @@ describe('summarizer - ruleTrim', () => {
   });
 
   it('compresses long thinking content to key conclusion', async () => {
-    const { ruleTrim } = await import('@/components/BChatSidebar/utils/compression/summarizer');
+    const { ruleTrim } = await import('@/components/BChatSidebar/utils/compression/recordPreprocessor');
     const longThinking = 'A'.repeat(500);
     const messages: Message[] = [
       makeMsg({
@@ -121,7 +121,7 @@ describe('summarizer - ruleTrim', () => {
   });
 
   it('handles empty message list', async () => {
-    const { ruleTrim } = await import('@/components/BChatSidebar/utils/compression/summarizer');
+    const { ruleTrim } = await import('@/components/BChatSidebar/utils/compression/recordPreprocessor');
     const result = ruleTrim([]);
     expect(result.items).toHaveLength(0);
     expect(result.charCount).toBe(0);
@@ -129,7 +129,7 @@ describe('summarizer - ruleTrim', () => {
   });
 
   it('handles file reference messages with path and intent', async () => {
-    const { ruleTrim } = await import('@/components/BChatSidebar/utils/compression/summarizer');
+    const { ruleTrim } = await import('@/components/BChatSidebar/utils/compression/recordPreprocessor');
     const messages: Message[] = [
       makeMsg({
         id: 'm1',
@@ -158,7 +158,7 @@ describe('summarizer - ruleTrim', () => {
   });
 
   it('handles confirmation part with status', async () => {
-    const { ruleTrim } = await import('@/components/BChatSidebar/utils/compression/summarizer');
+    const { ruleTrim } = await import('@/components/BChatSidebar/utils/compression/recordPreprocessor');
     const messages: Message[] = [
       makeMsg({
         id: 'm1',
@@ -186,7 +186,7 @@ describe('summarizer - ruleTrim', () => {
   });
 
   it('only deduplicates consecutive duplicate messages', async () => {
-    const { ruleTrim } = await import('@/components/BChatSidebar/utils/compression/summarizer');
+    const { ruleTrim } = await import('@/components/BChatSidebar/utils/compression/recordPreprocessor');
     const messages: Message[] = [
       makeMsg({ id: 'm1', role: 'user', content: 'same text' }),
       makeMsg({ id: 'm2', role: 'assistant', content: 'other' }),
@@ -199,7 +199,7 @@ describe('summarizer - ruleTrim', () => {
   });
 
   it('handles empty references array', async () => {
-    const { ruleTrim } = await import('@/components/BChatSidebar/utils/compression/summarizer');
+    const { ruleTrim } = await import('@/components/BChatSidebar/utils/compression/recordPreprocessor');
     const messages: Message[] = [
       makeMsg({
         id: 'm1',
@@ -215,15 +215,15 @@ describe('summarizer - ruleTrim', () => {
   });
 });
 
-describe('summarizer - truncateSummaryText', () => {
+describe('recordPreprocessor - truncateSummaryText', () => {
   it('returns original text when under limit', async () => {
-    const { truncateSummaryText } = await import('@/components/BChatSidebar/utils/compression/summarizer');
+    const { truncateSummaryText } = await import('@/components/BChatSidebar/utils/compression/recordPreprocessor');
     const text = 'Short summary';
     expect(truncateSummaryText(text)).toBe(text);
   });
 
   it('truncates and appends ellipsis when over limit', async () => {
-    const { truncateSummaryText } = await import('@/components/BChatSidebar/utils/compression/summarizer');
+    const { truncateSummaryText } = await import('@/components/BChatSidebar/utils/compression/recordPreprocessor');
     const longText = 'A'.repeat(5000);
     const result = truncateSummaryText(longText, 100);
     expect(result.length).toBeLessThanOrEqual(103); // 100 + '...'

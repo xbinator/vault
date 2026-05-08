@@ -46,9 +46,9 @@ describe('useChatStore compression message persistence', () => {
     const { useChatStore } = await import('@/stores/chat');
     const chatStore = useChatStore();
     const message = createCompressionMessage({
-      summaryText: '已压缩 32 条历史消息',
+      boundaryText: '已压缩 32 条历史消息',
       status: 'success',
-      summaryId: 'summary-1',
+      recordId: 'record-1',
       coveredUntilMessageId: 'message-32',
       sourceMessageIds: ['message-1', 'message-32']
     });
@@ -57,7 +57,7 @@ describe('useChatStore compression message persistence', () => {
 
     const persistedRecord = addMessageMock.mock.calls[0]?.[0];
     expect(persistedRecord?.role).toBe('compression');
-    expect(persistedRecord?.compression?.summaryId).toBe('summary-1');
+    expect(persistedRecord?.compression?.recordId).toBe('record-1');
 
     getMessagesMock.mockResolvedValue([
       {

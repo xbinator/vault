@@ -1,6 +1,6 @@
 /**
- * @file summaryGenerator.test.ts
- * @description 验证摘要生成器会请求 AI SDK 的结构化输出能力。
+ * @file structuredSummaryGenerator.test.ts
+ * @description 验证结构化摘要生成器会请求 AI SDK 的结构化输出能力。
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -23,7 +23,7 @@ vi.mock('@/shared/storage', () => ({
   }
 }));
 
-describe('summaryGenerator', () => {
+describe('structuredSummaryGenerator', () => {
   beforeEach(() => {
     aiInvokeMock.mockReset();
     getProviderMock.mockReset();
@@ -31,7 +31,18 @@ describe('summaryGenerator', () => {
   });
 
   it('requests structured output schema when generating summary', async () => {
-    const { generateStructuredSummary } = await import('@/components/BChatSidebar/utils/compression/summaryGenerator');
+    const { generateStructuredSummary } = await import('@/components/BChatSidebar/utils/compression/structuredSummaryGenerator');
+    const structuredSummaryJson = JSON.stringify({
+      goal: '整理需求',
+      recentTopic: '上下文压缩',
+      userPreferences: [],
+      constraints: [],
+      decisions: [],
+      importantFacts: [],
+      fileContext: [],
+      openQuestions: [],
+      pendingActions: []
+    });
 
     getConfigMock.mockResolvedValue({ providerId: 'provider-1', modelId: 'model-1' });
     getProviderMock.mockResolvedValue({
@@ -44,7 +55,7 @@ describe('summaryGenerator', () => {
     aiInvokeMock.mockResolvedValue([
       undefined,
       {
-        text: '{"goal":"整理需求","recentTopic":"上下文压缩","userPreferences":[],"constraints":[],"decisions":[],"importantFacts":[],"fileContext":[],"openQuestions":[],"pendingActions":[]}',
+        text: structuredSummaryJson,
         output: {
           goal: '整理需求',
           recentTopic: '上下文压缩',
@@ -90,7 +101,7 @@ describe('summaryGenerator', () => {
   });
 
   it('generates readable summary text from structured summary', async () => {
-    const { generateSummaryText } = await import('@/components/BChatSidebar/utils/compression/summaryGenerator');
+    const { generateSummaryText } = await import('@/components/BChatSidebar/utils/compression/structuredSummaryGenerator');
     const summary = {
       goal: '实现压缩功能',
       recentTopic: '上下文压缩',
@@ -113,7 +124,7 @@ describe('summaryGenerator', () => {
   });
 
   it('omits empty fields from summary text', async () => {
-    const { generateSummaryText } = await import('@/components/BChatSidebar/utils/compression/summaryGenerator');
+    const { generateSummaryText } = await import('@/components/BChatSidebar/utils/compression/structuredSummaryGenerator');
     const summary = {
       goal: '测试目标',
       recentTopic: '测试话题',
@@ -134,7 +145,7 @@ describe('summaryGenerator', () => {
   });
 
   it('falls back when no model config available', async () => {
-    const { generateStructuredSummary } = await import('@/components/BChatSidebar/utils/compression/summaryGenerator');
+    const { generateStructuredSummary } = await import('@/components/BChatSidebar/utils/compression/structuredSummaryGenerator');
 
     getConfigMock.mockResolvedValue(null);
 
@@ -150,7 +161,7 @@ describe('summaryGenerator', () => {
   });
 
   it('falls back when provider not found', async () => {
-    const { generateStructuredSummary } = await import('@/components/BChatSidebar/utils/compression/summaryGenerator');
+    const { generateStructuredSummary } = await import('@/components/BChatSidebar/utils/compression/structuredSummaryGenerator');
 
     getConfigMock.mockResolvedValue({ providerId: 'missing-provider', modelId: 'model-1' });
     getProviderMock.mockResolvedValue(null);
@@ -163,7 +174,7 @@ describe('summaryGenerator', () => {
   });
 
   it('falls back when AI invoke returns error', async () => {
-    const { generateStructuredSummary } = await import('@/components/BChatSidebar/utils/compression/summaryGenerator');
+    const { generateStructuredSummary } = await import('@/components/BChatSidebar/utils/compression/structuredSummaryGenerator');
 
     getConfigMock.mockResolvedValue({ providerId: 'provider-1', modelId: 'model-1' });
     getProviderMock.mockResolvedValue({
@@ -183,7 +194,7 @@ describe('summaryGenerator', () => {
   });
 
   it('falls back when structured output missing goal', async () => {
-    const { generateStructuredSummary } = await import('@/components/BChatSidebar/utils/compression/summaryGenerator');
+    const { generateStructuredSummary } = await import('@/components/BChatSidebar/utils/compression/structuredSummaryGenerator');
 
     getConfigMock.mockResolvedValue({ providerId: 'provider-1', modelId: 'model-1' });
     getProviderMock.mockResolvedValue({
@@ -219,7 +230,7 @@ describe('summaryGenerator', () => {
   });
 
   it('falls back when JSON parsing fails', async () => {
-    const { generateStructuredSummary } = await import('@/components/BChatSidebar/utils/compression/summaryGenerator');
+    const { generateStructuredSummary } = await import('@/components/BChatSidebar/utils/compression/structuredSummaryGenerator');
 
     getConfigMock.mockResolvedValue({ providerId: 'provider-1', modelId: 'model-1' });
     getProviderMock.mockResolvedValue({
@@ -229,10 +240,7 @@ describe('summaryGenerator', () => {
       isEnabled: true,
       apiKey: 'key'
     });
-    aiInvokeMock.mockResolvedValue([
-      undefined,
-      { text: 'not a json response', output: null }
-    ]);
+    aiInvokeMock.mockResolvedValue([undefined, { text: 'not a json response', output: null }]);
 
     const result = await generateStructuredSummary({
       items: [{ messageId: 'm1', role: 'user', trimmedText: '测试消息' }]
@@ -241,8 +249,8 @@ describe('summaryGenerator', () => {
     expect(result.goal).toBe('用户正在进行对话');
   });
 
-  it('uses previous summary context in incremental mode prompts', async () => {
-    const { generateStructuredSummary } = await import('@/components/BChatSidebar/utils/compression/summaryGenerator');
+  it('uses previous compression record context in incremental mode prompts', async () => {
+    const { generateStructuredSummary } = await import('@/components/BChatSidebar/utils/compression/structuredSummaryGenerator');
 
     getConfigMock.mockResolvedValue({ providerId: 'provider-1', modelId: 'model-1' });
     getProviderMock.mockResolvedValue({
@@ -272,8 +280,8 @@ describe('summaryGenerator', () => {
 
     await generateStructuredSummary({
       items: [{ messageId: 'm1', role: 'user', trimmedText: 'new detail' }],
-      previousSummary: {
-        summaryText: 'previous summary text',
+      previousRecord: {
+        recordText: 'previous summary text',
         structuredSummary: {
           goal: 'Existing goal',
           recentTopic: 'Existing topic',
@@ -301,8 +309,8 @@ describe('summaryGenerator', () => {
     );
   });
 
-  it('shows 无 when no previous summary in prompt', async () => {
-    const { generateStructuredSummary } = await import('@/components/BChatSidebar/utils/compression/summaryGenerator');
+  it('shows 无 when no previous compression record in prompt', async () => {
+    const { generateStructuredSummary } = await import('@/components/BChatSidebar/utils/compression/structuredSummaryGenerator');
 
     getConfigMock.mockResolvedValue({ providerId: 'provider-1', modelId: 'model-1' });
     getProviderMock.mockResolvedValue({
@@ -347,8 +355,8 @@ describe('summaryGenerator', () => {
     );
   });
 
-  it('includes previous summary context in incremental summary prompts', async () => {
-    const { generateStructuredSummary } = await import('@/components/BChatSidebar/utils/compression/summaryGenerator');
+  it('includes previous compression record context in incremental summary prompts', async () => {
+    const { generateStructuredSummary } = await import('@/components/BChatSidebar/utils/compression/structuredSummaryGenerator');
 
     getConfigMock.mockResolvedValue({ providerId: 'provider-1', modelId: 'model-1' });
     getProviderMock.mockResolvedValue({
@@ -378,8 +386,8 @@ describe('summaryGenerator', () => {
 
     await generateStructuredSummary({
       items: [{ messageId: 'm1', role: 'user', trimmedText: 'new detail' }],
-      previousSummary: {
-        summaryText: 'previous summary',
+      previousRecord: {
+        recordText: 'previous summary',
         structuredSummary: {
           goal: 'Existing goal',
           recentTopic: 'Existing topic',

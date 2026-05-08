@@ -107,6 +107,7 @@ import { useAutoName } from './hooks/useAutoName';
 import { useChatHistory } from './hooks/useChatHistory';
 import { useChatInput } from './hooks/useChatInput';
 import { useChatStream } from './hooks/useChatStream';
+import { useChatTaskRuntime } from './hooks/useChatTaskRuntime';
 import { useCompactContext } from './hooks/useCompactContext';
 import { useCompression } from './hooks/useCompression';
 import { useFileReference } from './hooks/useFileReference';
@@ -280,7 +281,7 @@ async function handleBeforeSend(nextMessage: Message): Promise<void> {
 }
 
 /** 聊天流式处理 hook */
-const { stream, loading } = useChatStream({
+const { stream, loading: streamLoading } = useChatStream({
   messages,
   tools,
   getToolContext: editorToolContextRegistry.getCurrentContext,
@@ -293,12 +294,18 @@ const { stream, loading } = useChatStream({
   onConfirmationAction: handleConfirmationAction
 });
 
+/** 统一任务运行时。 */
+const taskRuntime = useChatTaskRuntime({
+  abortChatTask: () => stream.abort?.()
+});
+
+/** 当前是否有活跃任务。 */
+const loading = computed<boolean>(() => taskRuntime.loading.value || streamLoading.value);
+
 /** 会话压缩 hook，仅保留 slash command 程序化入口。 */
 const compression = useCompression({
   getSessionId: () => settingStore.chatSidebarActiveSessionId ?? undefined,
-  getMessages: () => messages.value,
-  beginCompressionTask: (onAbort?: () => void) => stream.beginCompressionTask(onAbort),
-  finishCompressionTask: () => stream.finishCompressionTask()
+  getMessages: () => messages.value
 });
 
 /** 会话 hook */
@@ -351,6 +358,7 @@ async function handleComplete(nextMessage: Message): Promise<void> {
   }
   if (!snapshot) return;
 
+  taskRuntime.finishTask('chat');
   scheduleAutoName(snapshot, () => loading.value);
 }
 
@@ -367,7 +375,15 @@ function handleChatEdit(nextMessage: Message): void {
  * @param nextMessage - 要重新生成的消息
  */
 async function handleChatRegenerate(nextMessage: Message): Promise<void> {
-  await stream.regenerate(nextMessage);
+  const startResult = taskRuntime.beginTask('chat');
+  if (!startResult.ok) {
+    return;
+  }
+
+  const regenerated = await stream.regenerate(nextMessage);
+  if (!regenerated) {
+    taskRuntime.finishTask('chat');
+  }
 }
 
 /**
@@ -375,7 +391,15 @@ async function handleChatRegenerate(nextMessage: Message): Promise<void> {
  * @param answer - 用户选择的答案数据
  */
 async function handleChatUserChoiceSubmit(answer: AIUserChoiceAnswerData): Promise<void> {
-  await stream.submitUserChoice(answer);
+  const startResult = taskRuntime.beginTask('chat');
+  if (!startResult.ok) {
+    return;
+  }
+
+  const submitted = await stream.submitUserChoice(answer);
+  if (!submitted) {
+    taskRuntime.finishTask('chat');
+  }
 }
 
 /**
@@ -388,23 +412,36 @@ async function submitUserTextMessage(content: string, images: typeof inputImages
   const trimmedContent = content.trim();
   if (!trimmedContent && !images.length) return;
 
-  const config = await stream.resolveServiceConfig();
-  if (!config) return;
-
-  const references = await buildMessageReferences(trimmedContent);
-
-  const userMessage = create.userMessage(trimmedContent, references);
-  if (images.length && supportsVision.value) {
-    userMessage.files = [...images];
+  const startResult = taskRuntime.beginTask('chat');
+  if (!startResult.ok) {
+    return;
   }
 
-  await handleBeforeSend(userMessage);
-  messages.value.push(userMessage);
-  conversationRef.value?.scrollToBottom({ behavior: 'auto' });
-  focusInput();
-  clearDraft && inputEvents.clear();
+  try {
+    const config = await stream.resolveServiceConfig();
+    if (!config) {
+      taskRuntime.finishTask('chat');
+      return;
+    }
 
-  await stream.streamMessages(messages.value, config);
+    const references = await buildMessageReferences(trimmedContent);
+
+    const userMessage = create.userMessage(trimmedContent, references);
+    if (images.length && supportsVision.value) {
+      userMessage.files = [...images];
+    }
+
+    await handleBeforeSend(userMessage);
+    messages.value.push(userMessage);
+    conversationRef.value?.scrollToBottom({ behavior: 'auto' });
+    focusInput();
+    clearDraft && inputEvents.clear();
+
+    await stream.streamMessages(messages.value, config);
+  } catch (error) {
+    taskRuntime.finishTask('chat');
+    throw error;
+  }
 }
 
 /**
@@ -422,7 +459,7 @@ async function handleConfirmationCustomInput(payload: ChatMessageConfirmationCus
 async function handleChatSubmit(): Promise<void> {
   const content = inputContent.value.trim();
 
-  if (!canSubmit.value) return;
+  if (loading.value || !canSubmit.value) return;
 
   await submitUserTextMessage(content, inputImages.value);
 }
@@ -431,7 +468,9 @@ async function handleChatSubmit(): Promise<void> {
 const { handleCompactContext } = useCompactContext({
   messages,
   getSessionId: () => settingStore.chatSidebarActiveSessionId ?? undefined,
-  compress: (callbacks) => compression.compress(callbacks),
+  compress: (signal) => compression.compress(signal),
+  beginCompactTask: (onAbort?: () => void) => taskRuntime.beginTask('compact', onAbort),
+  finishCompactTask: () => taskRuntime.finishTask('compact'),
   persistMessage: (sessionId, nextMessage) => chatStore.addSessionMessage(sessionId, nextMessage),
   persistMessages: (sessionId, nextMessages) => chatStore.setSessionMessages(sessionId, nextMessages),
   scrollToBottom: () => conversationRef.value?.scrollToBottom({ behavior: 'auto' })
@@ -441,7 +480,7 @@ const { handleCompactContext } = useCompactContext({
  * 处理中止流式输出。
  */
 function handleAbort(): void {
-  stream.abort?.();
+  taskRuntime.abortActiveTask();
 }
 
 /**
@@ -467,7 +506,13 @@ const { handleSlashCommand } = useSlashCommands({
   openUsagePanel: () => usagePanel.openPanel(currentSession.value?.id),
   createNewSession,
   clearInput: () => inputEvents.clear(),
-  compactContext: handleCompactContext
+  compactContext: handleCompactContext,
+  isBusy: () => loading.value,
+  onBusyCommandRejected: (commandId: string) => {
+    if (commandId === 'compact') {
+      message.info('当前消息仍在生成中，请先停止或等待完成');
+    }
+  }
 });
 
 /** 加载历史消息 */
@@ -486,6 +531,7 @@ onMounted(async () => {
 
 /** 组件卸载时清理 */
 onUnmounted(() => {
+  taskRuntime.dispose();
   confirmationController.dispose();
 });
 </script>

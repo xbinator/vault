@@ -1,5 +1,5 @@
 /**
- * @file summarizer.ts
+ * @file recordPreprocessor.ts
  * @description 摘要生成：规则裁剪 + AI 结构化摘要生成。
  */
 import type { RuleTrimResult, TrimmedMessageItem } from './types';
@@ -181,7 +181,7 @@ export function ruleTrim(messages: Message[], charLimit: number = COMPRESSION_IN
 }
 
 /**
- * 截断 summaryText 到硬上限。
+ * 截断压缩记录文本到硬上限。
  * @param text - 原始摘要文本
  * @param maxChars - 最大字符数
  * @returns 截断后的文本

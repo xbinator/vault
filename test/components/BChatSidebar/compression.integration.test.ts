@@ -74,9 +74,7 @@ describe('Compression Integration', () => {
       const messages = [createTestMessage('m1', 'user', 'Hello')];
       const compression = useCompression({
         getSessionId: () => 'session-1',
-        getMessages: () => messages,
-        beginCompressionTask: () => undefined,
-        finishCompressionTask: () => undefined
+        getMessages: () => messages
       });
 
       expect(compression.compressing.value).toBe(false);
@@ -90,9 +88,7 @@ describe('Compression Integration', () => {
       const messages = [createTestMessage('m1', 'user', 'Hello')];
       const compression = useCompression({
         getSessionId: () => undefined,
-        getMessages: () => messages,
-        beginCompressionTask: () => undefined,
-        finishCompressionTask: () => undefined
+        getMessages: () => messages
       });
 
       const result = await compression.compress();
@@ -105,9 +101,7 @@ describe('Compression Integration', () => {
 
       const compression = useCompression({
         getSessionId: () => 'session-1',
-        getMessages: () => [],
-        beginCompressionTask: () => undefined,
-        finishCompressionTask: () => undefined
+        getMessages: () => []
       });
 
       const result = await compression.compress();
@@ -125,19 +119,17 @@ describe('Compression Integration', () => {
 
       const compression = useCompression({
         getSessionId: () => 'session-1',
-        getMessages: () => messages,
-        beginCompressionTask: () => undefined,
-        finishCompressionTask: () => undefined
+        getMessages: () => messages
       });
 
       const result = await compression.compress();
       expect(result.success).toBe(true);
-      expect(result.summary?.triggerReason).toBe('manual');
+      expect(result.record?.triggerReason).toBe('manual');
     });
   });
 
   describe('useCompression.compress flow', () => {
-    it('calls loadSummary after successful compression', async () => {
+    it('returns the created compression record after successful compression', async () => {
       const { useCompression } = await import('@/components/BChatSidebar/hooks/useCompression');
 
       const messages: Message[] = [];
@@ -147,14 +139,12 @@ describe('Compression Integration', () => {
 
       const compression = useCompression({
         getSessionId: () => 'session-1',
-        getMessages: () => messages,
-        beginCompressionTask: () => undefined,
-        finishCompressionTask: () => undefined
+        getMessages: () => messages
       });
 
       const result = await compression.compress();
       expect(result.success).toBe(true);
-      expect(result.summary).toBeDefined();
+      expect(result.record).toBeDefined();
     });
 
     it('returns cancelled when the compression task is aborted before execution completes', async () => {
@@ -167,19 +157,15 @@ describe('Compression Integration', () => {
 
       const controller = new AbortController();
       controller.abort();
-      const finishCompressionTask = vi.fn();
       const compression = useCompression({
         getSessionId: () => 'session-1',
-        getMessages: () => messages,
-        beginCompressionTask: () => controller.signal,
-        finishCompressionTask
+        getMessages: () => messages
       });
 
-      const result = await compression.compress();
+      const result = await compression.compress(controller.signal);
       expect(result.success).toBe(false);
       expect(result.cancelled).toBe(true);
       expect(compression.error.value).toBeUndefined();
-      expect(finishCompressionTask).toHaveBeenCalledTimes(1);
     });
   });
 });

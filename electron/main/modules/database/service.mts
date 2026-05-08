@@ -8,7 +8,7 @@ import Database from 'better-sqlite3';
 import { app } from 'electron';
 
 type DatabaseInstance = InstanceType<typeof Database>;
-type DatabaseTableName = 'chat_messages' | 'chat_sessions' | 'chat_session_summaries';
+type DatabaseTableName = 'chat_messages' | 'chat_sessions' | 'chat_session_compression_records';
 
 interface DatabaseTableInfoRow {
   name: string;
@@ -51,12 +51,12 @@ function migrateDatabase(): void {
   ensureColumn('chat_messages', 'thinking', 'thinking TEXT');
   ensureColumn('chat_messages', 'parts_json', 'parts_json TEXT');
   ensureColumn('chat_messages', 'compression_json', 'compression_json TEXT');
-  ensureColumn('chat_session_summaries', 'token_count_snapshot', 'token_count_snapshot INTEGER');
-  ensureColumn('chat_session_summaries', 'degrade_reason', 'degrade_reason TEXT');
-  ensureColumn('chat_session_summaries', 'summary_set_id', 'summary_set_id TEXT');
-  ensureColumn('chat_session_summaries', 'segment_index', 'segment_index INTEGER');
-  ensureColumn('chat_session_summaries', 'segment_count', 'segment_count INTEGER');
-  ensureColumn('chat_session_summaries', 'topic_tags_json', 'topic_tags_json TEXT');
+  ensureColumn('chat_session_compression_records', 'token_count_snapshot', 'token_count_snapshot INTEGER');
+  ensureColumn('chat_session_compression_records', 'degrade_reason', 'degrade_reason TEXT');
+  ensureColumn('chat_session_compression_records', 'record_set_id', 'record_set_id TEXT');
+  ensureColumn('chat_session_compression_records', 'segment_index', 'segment_index INTEGER');
+  ensureColumn('chat_session_compression_records', 'segment_count', 'segment_count INTEGER');
+  ensureColumn('chat_session_compression_records', 'topic_tags_json', 'topic_tags_json TEXT');
 }
 
 export function getDbPath(): string {
@@ -130,17 +130,17 @@ export async function initDatabase(): Promise<void> {
       created_at TEXT NOT NULL
     );
 
-    CREATE TABLE IF NOT EXISTS chat_session_summaries (
+    CREATE TABLE IF NOT EXISTS chat_session_compression_records (
       id TEXT PRIMARY KEY,
       session_id TEXT NOT NULL,
       build_mode TEXT NOT NULL,
-      derived_from_summary_id TEXT,
+      derived_from_record_id TEXT,
       covered_start_message_id TEXT NOT NULL,
       covered_end_message_id TEXT NOT NULL,
       covered_until_message_id TEXT NOT NULL,
       source_message_ids_json TEXT NOT NULL,
       preserved_message_ids_json TEXT NOT NULL,
-      summary_text TEXT NOT NULL,
+      record_text TEXT NOT NULL,
       structured_summary_json TEXT NOT NULL,
       trigger_reason TEXT NOT NULL,
       message_count_snapshot INTEGER NOT NULL,
@@ -150,7 +150,7 @@ export async function initDatabase(): Promise<void> {
       status TEXT NOT NULL,
       invalid_reason TEXT,
       degrade_reason TEXT,
-      summary_set_id TEXT,
+      record_set_id TEXT,
       segment_index INTEGER,
       segment_count INTEGER,
       topic_tags_json TEXT,
@@ -164,8 +164,8 @@ export async function initDatabase(): Promise<void> {
     CREATE INDEX IF NOT EXISTS idx_chat_messages_session_id_created_at
     ON chat_messages(session_id, created_at ASC);
 
-    CREATE INDEX IF NOT EXISTS idx_chat_session_summaries_session_id_status
-    ON chat_session_summaries(session_id, status);
+    CREATE INDEX IF NOT EXISTS idx_chat_session_compression_records_session_id_status
+    ON chat_session_compression_records(session_id, status);
   `);
 
   migrateDatabase();

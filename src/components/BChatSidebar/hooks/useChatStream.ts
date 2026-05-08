@@ -13,10 +13,7 @@ import dayjs from 'dayjs';
 import { getModelToolSupport } from '@/ai/tools/policy';
 import { executeToolCall, toTransportTools, type ExecutedToolCall } from '@/ai/tools/stream';
 import { useChat } from '@/hooks/useChat';
-import { chatSummariesStorage } from '@/shared/storage/chat-summaries';
 import { useServiceModelStore } from '@/stores/serviceModel';
-import { createCompressionCoordinator } from '../utils/compression/coordinator';
-import { CompressionError, emitCompressionEvent, getCompressionErrorMessage } from '../utils/compression/error';
 import { buildChatMessageReferences } from '../utils/fileReferenceContext';
 import { append, convert, create, userChoice, is } from '../utils/messageHelper';
 import { createToolCallTracker, type ToolCallTracker } from '../utils/toolCallTracker';
@@ -58,10 +55,6 @@ export interface UseChatStreamReturns {
     streamMessages: (sourceMessages: Message[], config: ServiceConfig, reuseLastAssistant?: boolean) => Promise<void>;
     /** 中止流式传输 */
     abort: () => void;
-    /** 开始压缩任务并返回取消信号 */
-    beginCompressionTask: (onAbort?: () => void) => AbortSignal | undefined;
-    /** 结束压缩任务并清理发送态 */
-    finishCompressionTask: () => void;
     /** 用户选择提交 */
     submitUserChoice: (answer: AIUserChoiceAnswerData) => Promise<boolean>;
     /** 重新生成 */
@@ -75,21 +68,16 @@ const DEFAULT_TOOL_LOOP_GUARD_CONFIG: ToolLoopGuardConfig = {
 };
 
 export function useChatStream(options: UseChatStreamOptions): UseChatStreamReturns {
-  const { messages, tools, getToolContext, getSessionId, onBeforeRegenerate, onComplete } = options;
+  const { messages, tools, getToolContext, onBeforeRegenerate, onComplete } = options;
 
   const loading = ref(false);
   const pendingToolResults = shallowRef<ExecutedToolCall[]>([]);
   const blockedToolLoopReason = ref('');
   const awaitingUserChoice = ref(false);
   const aborting = ref(false);
-  const activeTaskType = ref<'chat' | 'compression' | null>(null);
-  const compressionAbortController = ref<AbortController | null>(null);
-  const compressionAbortHandler = ref<(() => void) | null>(null);
+  const activeTaskType = ref<'chat' | null>(null);
 
   const serviceModelStore = useServiceModelStore();
-
-  /** 压缩协调器 */
-  const compressionCoordinator = createCompressionCoordinator(chatSummariesStorage);
 
   let lastServiceConfig: ServiceConfig | null = null;
   let executedToolCallIds = new Set<string>();
@@ -127,28 +115,6 @@ export function useChatStream(options: UseChatStreamOptions): UseChatStreamRetur
     pendingToolResults.value = [];
     awaitingUserChoice.value = false;
     lastServiceConfig = null;
-  }
-
-  /**
-   * 开始压缩任务并切换到统一发送态。
-   * @returns 压缩取消信号
-   */
-  function beginCompressionTask(onAbort?: () => void): AbortSignal | undefined {
-    loading.value = true;
-    activeTaskType.value = 'compression';
-    compressionAbortController.value = new AbortController();
-    compressionAbortHandler.value = onAbort ?? null;
-    return compressionAbortController.value.signal;
-  }
-
-  /**
-   * 结束压缩任务并清理统一发送态。
-   */
-  function finishCompressionTask(): void {
-    compressionAbortController.value = null;
-    compressionAbortHandler.value = null;
-    activeTaskType.value = null;
-    loading.value = false;
   }
 
   /**
@@ -293,7 +259,10 @@ export function useChatStream(options: UseChatStreamOptions): UseChatStreamRetur
    * 解析服务配置
    */
   async function resolveServiceConfig() {
-    const config = await serviceModelStore.getAvailableServiceConfig('chat');
+    let config = await serviceModelStore.getAvailableServiceConfig('chat');
+    if (!config?.providerId || !config?.modelId) {
+      config = await serviceModelStore.getAvailableServiceConfig('chat');
+    }
     if (!config?.providerId || !config?.modelId) {
       return undefined;
     }
@@ -367,55 +336,8 @@ export function useChatStream(options: UseChatStreamOptions): UseChatStreamRetur
     const nextMessages = buildChatMessageReferences(sourceMessages);
     const transportTools = config.toolSupport.supported && Boolean(tools?.length) ? toTransportTools(tools ?? []) : undefined;
 
-    // 执行上下文压缩（仅在非复用助手消息时）
-    let continuedMessages: ModelMessage[];
-    if (!reuseLastAssistant && getSessionId) {
-      const sessionId = getSessionId();
-      if (sessionId) {
-        try {
-          const compressionResult = await compressionCoordinator.prepareMessagesBeforeSend({
-            sessionId,
-            messages: nextMessages,
-            currentUserMessage: nextMessages[nextMessages.length - 1],
-            providerId: config.providerId,
-            toolDefinitions: transportTools,
-            modelId: config.modelId
-          });
-
-          if (compressionResult.compressed) {
-            // 使用压缩后的模型消息
-            continuedMessages = compressionResult.modelMessages;
-            // 清空模型消息缓存，因为消息结构已改变
-            currentModelMessageCache = undefined;
-            // 触发自动压缩成功事件
-            emitCompressionEvent({ type: 'auto_compressed' });
-          } else {
-            // 未压缩，继续原有流程
-            currentModelMessageCache = convert.toCachedModelMessages(nextMessages, currentModelMessageCache);
-            continuedMessages = [...currentModelMessageCache.modelMessages];
-          }
-        } catch (error) {
-          // 压缩失败时继续使用原始消息
-          console.error('[useChatStream] Compression failed, using original messages:', error);
-          if (error instanceof CompressionError) {
-            emitCompressionEvent({
-              type: 'auto_compress_failed',
-              message: getCompressionErrorMessage(error.stage)
-            });
-          }
-          currentModelMessageCache = convert.toCachedModelMessages(nextMessages, currentModelMessageCache);
-          continuedMessages = [...currentModelMessageCache.modelMessages];
-        }
-      } else {
-        // 无 sessionId，继续原有流程
-        currentModelMessageCache = convert.toCachedModelMessages(nextMessages, currentModelMessageCache);
-        continuedMessages = [...currentModelMessageCache.modelMessages];
-      }
-    } else {
-      // 复用助手消息或无 getSessionId，继续原有流程
-      currentModelMessageCache = convert.toCachedModelMessages(nextMessages, currentModelMessageCache);
-      continuedMessages = [...currentModelMessageCache.modelMessages];
-    }
+    currentModelMessageCache = convert.toCachedModelMessages(nextMessages, currentModelMessageCache);
+    const continuedMessages: ModelMessage[] = [...currentModelMessageCache.modelMessages];
 
     agent.stream({ messages: continuedMessages, modelId: config.modelId, providerId: config.providerId, tools: transportTools });
   }
@@ -524,13 +446,6 @@ export function useChatStream(options: UseChatStreamOptions): UseChatStreamRetur
    * 中止流式传输
    */
   function abort() {
-    if (activeTaskType.value === 'compression') {
-      compressionAbortController.value?.abort();
-      compressionAbortHandler.value?.();
-      finishCompressionTask();
-      return;
-    }
-
     aborting.value = true;
     loading.value = false;
     activeTaskType.value = null;
@@ -604,8 +519,6 @@ export function useChatStream(options: UseChatStreamOptions): UseChatStreamRetur
       streamMessages: handleStreamMessages,
       resolveServiceConfig,
       abort,
-      beginCompressionTask,
-      finishCompressionTask,
       submitUserChoice,
       regenerate
     }

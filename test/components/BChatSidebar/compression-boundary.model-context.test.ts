@@ -20,9 +20,9 @@ describe('compression boundary model context', () => {
         finished: true
       },
       createCompressionMessage({
-        summaryText: '历史对话摘要',
+        boundaryText: '历史对话摘要',
         status: 'success',
-        summaryId: 'summary-1',
+        recordId: 'record-1',
         coveredUntilMessageId: 'old-assistant',
         sourceMessageIds: ['old-user', 'old-assistant']
       }),
@@ -43,14 +43,14 @@ describe('compression boundary model context', () => {
     const sourceMessages: Message[] = [
       create.userMessage('old user'),
       createCompressionMessage({
-        summaryText: 'success boundary',
+        boundaryText: 'success boundary',
         status: 'success',
         coveredUntilMessageId: 'old-user',
         sourceMessageIds: ['old-user']
       }),
       create.userMessage('after boundary'),
       createCompressionMessage({
-        summaryText: '',
+        boundaryText: '',
         status: 'cancelled',
         errorMessage: '用户已取消'
       }),

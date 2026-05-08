@@ -22,10 +22,6 @@ interface MockChatCallbacks {
 let capturedCallbacks: MockChatCallbacks | null = null;
 const streamSpy = vi.fn();
 const getAvailableServiceConfigMock = vi.fn();
-const prepareMessagesBeforeSendMock = vi.fn().mockResolvedValue({
-  modelMessages: [],
-  compressed: false
-});
 
 /**
  * 底层流式中止桩函数，用于模拟 Electron 流结束时的完成回调。
@@ -52,7 +48,6 @@ vi.mock('@/hooks/useChat', () => ({
 
 vi.mock('@/components/BChatSidebar/utils/compression/coordinator', () => ({
   createCompressionCoordinator: () => ({
-    prepareMessagesBeforeSend: prepareMessagesBeforeSendMock,
     compressSessionManually: vi.fn()
   })
 }));
@@ -84,11 +79,6 @@ describe('useChatStream abort', () => {
     abortSpy.mockClear();
     streamSpy.mockClear();
     getAvailableServiceConfigMock.mockReset();
-    prepareMessagesBeforeSendMock.mockClear();
-    prepareMessagesBeforeSendMock.mockResolvedValue({
-      modelMessages: [],
-      compressed: false
-    });
   });
 
   it('finalizes the current assistant message and calls onComplete once when the user aborts', () => {
@@ -111,23 +101,7 @@ describe('useChatStream abort', () => {
     expect(onComplete).toHaveBeenCalledWith(messages.value[1]);
   });
 
-  it('invokes the compression abort handler and clears loading immediately when aborting a compression task', () => {
-    const messages = ref<Message[]>([]);
-    const onAbort = vi.fn<() => void>();
-    const { stream, loading } = useChatStream({
-      messages
-    });
-
-    stream.beginCompressionTask(onAbort);
-    expect(loading.value).toBe(true);
-
-    stream.abort();
-
-    expect(onAbort).toHaveBeenCalledTimes(1);
-    expect(loading.value).toBe(false);
-  });
-
-  it('passes modelId into compression preparation during chat sends', async () => {
+  it('streams converted model messages during chat sends without invoking automatic compression', async () => {
     const messages = ref<Message[]>([]);
     const { stream } = useChatStream({
       messages,
@@ -149,9 +123,9 @@ describe('useChatStream abort', () => {
 
     await stream.streamMessages(sourceMessages, config);
 
-    expect(prepareMessagesBeforeSendMock).toHaveBeenCalledWith(
+    expect(streamSpy).toHaveBeenCalledWith(
       expect.objectContaining({
-        sessionId: 'session-1',
+        messages: [{ role: 'user', content: '需要压缩上下文' }],
         modelId: 'gpt-4o'
       })
     );

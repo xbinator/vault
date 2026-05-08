@@ -3,7 +3,7 @@
  * @description 摘要段召回：根据相关性选择最相关的摘要段注入上下文。
  */
 
-import type { ConversationSummaryRecord } from './types';
+import type { CompressionRecord } from './types';
 import type { Message } from '@/components/BChatSidebar/utils/types';
 
 /**
@@ -12,8 +12,8 @@ import type { Message } from '@/components/BChatSidebar/utils/types';
 export interface SegmentRelevanceScore {
   /** 段索引 */
   segmentIndex: number;
-  /** 摘要记录 */
-  summary: ConversationSummaryRecord;
+  /** 压缩记录 */
+  record: CompressionRecord;
   /** 相关性得分 */
   score: number;
   /** 匹配原因 */
@@ -26,8 +26,8 @@ export interface SegmentRelevanceScore {
 export interface SegmentRecallOptions {
   /** 最大召回段数 */
   maxSegments: number;
-  /** 最大摘要 token 预算 */
-  maxSummaryTokens: number;
+  /** 最大压缩记录 token 预算 */
+  maxRecordTokens: number;
   /** 是否始终包含最近段 */
   alwaysIncludeRecentSegment: boolean;
 }
@@ -35,7 +35,7 @@ export interface SegmentRecallOptions {
 /** 默认召回选项 */
 const DEFAULT_OPTIONS: SegmentRecallOptions = {
   maxSegments: 3,
-  maxSummaryTokens: 2000,
+  maxRecordTokens: 2000,
   alwaysIncludeRecentSegment: true
 };
 
@@ -82,13 +82,13 @@ function extractFilePaths(message: Message): string[] {
 
 /**
  * 计算单个摘要段的相关性得分。
- * @param summary - 摘要记录
+ * @param record - 压缩记录
  * @param keywords - 用户消息关键词
  * @param filePaths - 用户消息文件路径
  * @param isRecentAnchor - 是否为最近锚点段
  * @returns 相关性得分
  */
-function scoreSegment(summary: ConversationSummaryRecord, keywords: string[], filePaths: string[], isRecentAnchor: boolean): SegmentRelevanceScore {
+function scoreSegment(record: CompressionRecord, keywords: string[], filePaths: string[], isRecentAnchor: boolean): SegmentRelevanceScore {
   let score = 0;
   let matchReason: SegmentRelevanceScore['matchReason'] = 'keyword_match';
 
@@ -99,8 +99,8 @@ function scoreSegment(summary: ConversationSummaryRecord, keywords: string[], fi
   }
 
   // 话题标签匹配
-  if (summary.topicTags?.length) {
-    const tagMatches = summary.topicTags.filter((tag) => keywords.some((kw) => tag.toLowerCase().includes(kw) || kw.includes(tag.toLowerCase())));
+  if (record.topicTags?.length) {
+    const tagMatches = record.topicTags.filter((tag) => keywords.some((kw) => tag.toLowerCase().includes(kw) || kw.includes(tag.toLowerCase())));
     if (tagMatches.length > 0) {
       score += tagMatches.length * 5;
       matchReason = 'topic_tag_match';
@@ -108,8 +108,8 @@ function scoreSegment(summary: ConversationSummaryRecord, keywords: string[], fi
   }
 
   // 文件上下文匹配
-  if (summary.structuredSummary.fileContext?.length) {
-    const fileMatches = summary.structuredSummary.fileContext.filter((fc) => {
+  if (record.structuredSummary.fileContext?.length) {
+    const fileMatches = record.structuredSummary.fileContext.filter((fc) => {
       const fileName = fc.filePath.split('/').pop()?.toLowerCase() || fc.filePath.toLowerCase();
       return filePaths.some((fp) => fileName.includes(fp) || fp.includes(fileName));
     });
@@ -120,13 +120,13 @@ function scoreSegment(summary: ConversationSummaryRecord, keywords: string[], fi
   }
 
   // 关键词匹配（基于摘要文本）
-  const summaryTextLower = summary.summaryText.toLowerCase();
-  const keywordMatches = keywords.filter((kw) => summaryTextLower.includes(kw));
+  const recordTextLower = record.recordText.toLowerCase();
+  const keywordMatches = keywords.filter((kw) => recordTextLower.includes(kw));
   score += keywordMatches.length * 2;
 
   return {
-    segmentIndex: summary.segmentIndex ?? 0,
-    summary,
+    segmentIndex: record.segmentIndex ?? 0,
+    record,
     score,
     matchReason
   };
@@ -135,11 +135,11 @@ function scoreSegment(summary: ConversationSummaryRecord, keywords: string[], fi
 /**
  * 粗略估算摘要段 token 体积。
  * 召回阶段只用于预算控制，因此采用字符级近似即可。
- * @param summary - 摘要记录
+ * @param record - 压缩记录
  * @returns 估算 token 数
  */
-function estimateSummaryTokens(summary: ConversationSummaryRecord): number {
-  return Math.ceil(summary.summaryText.length / 2);
+function estimateSummaryTokens(record: CompressionRecord): number {
+  return Math.ceil(record.recordText.length / 2);
 }
 
 /**
@@ -153,9 +153,9 @@ function estimateSummaryTokens(summary: ConversationSummaryRecord): number {
  */
 export function selectRelevantSegments(
   currentUserMessage: Message,
-  summaries: ConversationSummaryRecord[],
+  summaries: CompressionRecord[],
   options: Partial<SegmentRecallOptions> = {}
-): ConversationSummaryRecord[] {
+): CompressionRecord[] {
   const opts = { ...DEFAULT_OPTIONS, ...options };
 
   if (summaries.length === 0) return [];
@@ -177,21 +177,21 @@ export function selectRelevantSegments(
   scores.sort((a, b) => b.score - a.score);
 
   // 选择 Top-N，并受摘要 token 预算限制
-  const selected: ConversationSummaryRecord[] = [];
+  const selected: CompressionRecord[] = [];
   const selectedIds = new Set<string>();
   let usedSummaryTokens = 0;
 
   for (const s of scores) {
     if (selected.length >= opts.maxSegments) break;
-    if (selectedIds.has(s.summary.id)) continue;
+    if (selectedIds.has(s.record.id)) continue;
 
-    const estimatedTokens = estimateSummaryTokens(s.summary);
-    if (selected.length > 0 && usedSummaryTokens + estimatedTokens > opts.maxSummaryTokens) {
+    const estimatedTokens = estimateSummaryTokens(s.record);
+    if (selected.length > 0 && usedSummaryTokens + estimatedTokens > opts.maxRecordTokens) {
       continue;
     }
 
-    selected.push(s.summary);
-    selectedIds.add(s.summary.id);
+    selected.push(s.record);
+    selectedIds.add(s.record.id);
     usedSummaryTokens += estimatedTokens;
   }
 
@@ -217,14 +217,14 @@ export function selectRelevantSegments(
  * @param segments - 选中的摘要段列表
  * @returns system message 内容
  */
-export function buildMultiSegmentSummarySystemMessage(segments: ConversationSummaryRecord[]): string {
+export function buildMultiSegmentSummarySystemMessage(segments: CompressionRecord[]): string {
   if (segments.length === 0) return '';
 
   const segmentBlocks = segments
     .map((s) => {
       const index = s.segmentIndex ?? 0;
       return `<conversation_summary segment="${index}">
-${s.summaryText}
+${s.recordText}
 </conversation_summary>`;
     })
     .join('\n');

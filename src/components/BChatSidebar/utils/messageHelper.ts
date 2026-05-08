@@ -365,7 +365,8 @@ function toModelMessagesForMessage(message: Message): ModelMessage[] {
       return [];
     }
 
-    return [{ role: 'assistant', content: message.compression.summaryText }];
+    const boundaryText = message.compression.recordText;
+    return [{ role: 'assistant', content: boundaryText }];
   }
 
   if (!is.modelMessage(message)) return [];

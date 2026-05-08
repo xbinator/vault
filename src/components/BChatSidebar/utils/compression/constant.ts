@@ -15,7 +15,7 @@ export const COMPRESSION_CHAR_THRESHOLD = 24_000;
 /** 规则裁剪输入体积硬上限（字符数） */
 export const COMPRESSION_INPUT_CHAR_LIMIT = 32_000;
 
-/** 摘要 summaryText 硬上限（字符数），超出截断 */
+/** 压缩记录文本硬上限（字符数），超出截断 */
 export const COMPRESSION_SUMMARY_TEXT_MAX = 4_000;
 
 /** 当前支持的摘要 schema 版本 */

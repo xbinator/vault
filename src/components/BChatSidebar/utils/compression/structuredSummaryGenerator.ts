@@ -1,5 +1,5 @@
 /**
- * @file summaryGenerator.ts
+ * @file structuredSummaryGenerator.ts
  * @description AI 摘要生成器，负责调用摘要模型生成结构化摘要。
  */
 import type { GenerateStructuredSummaryInput, StructuredConversationSummary, TrimmedMessageItem } from './types';
@@ -86,35 +86,22 @@ const STRUCTURED_SUMMARY_SCHEMA: JSONSchema7 = {
 };
 
 /**
- * 构建摘要生成的用户提示词，增量模式下包含上一条摘要上下文。
+ * 构建摘要生成的用户提示词，增量模式下包含上一条压缩记录上下文。
  * @param input - 摘要生成输入
  * @returns 用户提示词字符串
  */
 function buildSummaryUserPrompt(input: GenerateStructuredSummaryInput): string {
   const conversationText = input.items.map((item) => `[${item.role}]: ${item.trimmedText}`).join('\n\n');
-  const previousSummaryText = input.previousSummary ? `${input.previousSummary.summaryText}\n${JSON.stringify(input.previousSummary.structuredSummary)}` : '无';
+  const previousRecordText = input.previousRecord ? `${input.previousRecord.recordText}\n${JSON.stringify(input.previousRecord.structuredSummary)}` : '无';
 
-  return ['PREVIOUS_SUMMARY:', previousSummaryText, '', 'CONVERSATION_CONTENT:', conversationText, '', '请生成 JSON 格式的结构化摘要。'].join('\n');
+  return ['PREVIOUS_COMPRESSION_RECORD:', previousRecordText, '', 'CONVERSATION_CONTENT:', conversationText, '', '请生成 JSON 格式的结构化摘要。'].join('\n');
 }
 
 /**
- * 获取摘要模型配置。
- * 优先使用 'summarize' 服务配置，如果未配置则降级使用 'chat' 服务。
+ * 获取压缩记录生成所使用的模型配置。
+ * 统一使用当前聊天模型配置。
  */
-async function getSummaryModelConfig(): Promise<{ providerId: string; modelId: string } | null> {
-  // 优先使用 summarize 服务配置
-  const summarizeConfig = await serviceModelsStorage.getConfig('summarize');
-  if (summarizeConfig?.providerId && summarizeConfig?.modelId) {
-    const provider = await providerStorage.getProvider(summarizeConfig.providerId);
-    if (provider?.isEnabled) {
-      return {
-        providerId: summarizeConfig.providerId,
-        modelId: summarizeConfig.modelId
-      };
-    }
-  }
-
-  // 降级使用 chat 服务配置
+async function getCompressionModelConfig(): Promise<{ providerId: string; modelId: string } | null> {
   const chatConfig = await serviceModelsStorage.getConfig('chat');
   if (chatConfig?.providerId && chatConfig?.modelId) {
     const provider = await providerStorage.getProvider(chatConfig.providerId);
@@ -155,7 +142,7 @@ function generateFallbackSummary(items: TrimmedMessageItem[]): StructuredConvers
  * @returns 结构化摘要，失败时返回降级摘要
  */
 export async function generateStructuredSummary(input: GenerateStructuredSummaryInput): Promise<StructuredConversationSummary> {
-  const config = await getSummaryModelConfig();
+  const config = await getCompressionModelConfig();
   if (!config) {
     return generateFallbackSummary(input.items);
   }

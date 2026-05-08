@@ -9,7 +9,7 @@ import { is } from '@/components/BChatSidebar/utils/messageHelper';
 describe('compression message model', () => {
   test('creates a persistable compression message with pending status', () => {
     const message = createCompressionMessage({
-      summaryText: '准备压缩上下文…',
+      boundaryText: '准备压缩上下文…',
       status: 'pending',
       coveredUntilMessageId: undefined
     });
@@ -22,9 +22,9 @@ describe('compression message model', () => {
 
   test('marks a successful compression message as a model boundary', () => {
     const message = createCompressionMessage({
-      summaryText: '历史对话已压缩',
+      boundaryText: '历史对话已压缩',
       status: 'success',
-      summaryId: 'summary-1',
+      recordId: 'record-1',
       coveredUntilMessageId: 'message-42',
       sourceMessageIds: ['message-1', 'message-42']
     });
@@ -34,7 +34,7 @@ describe('compression message model', () => {
 
   test('supports cancelled compression messages without marking them as model boundaries', () => {
     const message = createCompressionMessage({
-      summaryText: '',
+      boundaryText: '',
       status: 'cancelled',
       errorMessage: '用户已取消'
     });

@@ -1,19 +1,18 @@
 /**
  * @file types.ts
- * @description 上下文压缩模块类型定义，包含摘要结构、压缩记录、状态枚举等。
+ * @description 上下文压缩模块类型定义，包含压缩记录结构、策略结果与存储接口。
  */
-import type { ModelMessage } from 'ai';
 import type { Message } from '@/components/BChatSidebar/utils/types';
 
 // ─── 摘要构建模式 ─────────────────────────────────────────────────────────────
 
-/** 摘要构建模式 */
-export type SummaryBuildMode = 'incremental' | 'full_rebuild';
+/** 压缩记录构建模式 */
+export type CompressionBuildMode = 'incremental' | 'full_rebuild';
 
 // ─── 压缩状态 ─────────────────────────────────────────────────────────────────
 
-/** 摘要记录状态 */
-export type SummaryRecordStatus = 'draft' | 'valid' | 'superseded' | 'invalid';
+/** 压缩记录状态 */
+export type CompressionRecordStatus = 'draft' | 'valid' | 'superseded' | 'invalid';
 
 // ─── 触发原因 ─────────────────────────────────────────────────────────────────
 
@@ -69,30 +68,30 @@ export interface StructuredConversationSummary {
 // ─── 摘要记录 ────────────────────────────────────────────────────────────────
 
 /**
- * 会话摘要持久化记录。
+ * 会话压缩记录持久化对象。
  */
-export interface ConversationSummaryRecord {
-  /** 摘要记录唯一标识 */
+export interface CompressionRecord {
+  /** 压缩记录唯一标识 */
   id: string;
   /** 所属会话 ID */
   sessionId: string;
-  /** 摘要构建模式 */
-  buildMode: SummaryBuildMode;
-  /** 继承的上一条摘要 ID（增量模式下使用） */
-  derivedFromSummaryId?: string;
-  /** 摘要覆盖区间起点消息 ID */
+  /** 压缩记录构建模式 */
+  buildMode: CompressionBuildMode;
+  /** 继承的上一条压缩记录 ID（增量模式下使用） */
+  derivedFromRecordId?: string;
+  /** 压缩记录覆盖区间起点消息 ID */
   coveredStartMessageId: string;
-  /** 摘要覆盖区间终点消息 ID（摘要实际分析到的最后一条消息） */
+  /** 压缩记录覆盖区间终点消息 ID（记录实际分析到的最后一条消息） */
   coveredEndMessageId: string;
   /** 上下文截断边界消息 ID（ID 在此之后的消息作为原文注入） */
   coveredUntilMessageId: string;
-  /** 实际进入摘要的消息 ID 列表 */
+  /** 实际进入压缩记录的消息 ID 列表 */
   sourceMessageIds: string[];
   /** 位于覆盖区间内但必须原文穿透的消息 ID 列表 */
   preservedMessageIds: string[];
-  /** 可读摘要文本 */
-  summaryText: string;
-  /** 结构化摘要 */
+  /** 可读压缩记录文本 */
+  recordText: string;
+  /** 结构化摘要内容 */
   structuredSummary: StructuredConversationSummary;
   /** 触发原因 */
   triggerReason: TriggerReason;
@@ -102,10 +101,10 @@ export interface ConversationSummaryRecord {
   charCountSnapshot: number;
   /** 生成时的 token 体积快照（第三阶段） */
   tokenCountSnapshot?: number;
-  /** 摘要 schema 版本 */
+  /** 压缩记录 schema 版本 */
   schemaVersion: number;
-  /** 摘要状态 */
-  status: SummaryRecordStatus;
+  /** 压缩记录状态 */
+  status: CompressionRecordStatus;
   /** 失效原因 */
   invalidReason?: string;
   /** 降级原因（手动压缩触发体量降级时记录） */
@@ -114,21 +113,20 @@ export interface ConversationSummaryRecord {
   createdAt: string;
   /** 更新时间 */
   updatedAt: string;
-  /** 摘要集标识，同一次生成的多个 segment 共享同一个 summarySetId（多段摘要） */
-  summarySetId?: string;
-  /** 摘要分段索引，从 0 开始，同一摘要集内按时间顺序递增（多段摘要） */
+  /** 记录集标识，同一次生成的多个 segment 共享同一个 recordSetId（多段压缩） */
+  recordSetId?: string;
+  /** 记录分段索引，从 0 开始，同一记录集内按时间顺序递增（多段压缩） */
   segmentIndex?: number;
-  /** 本次摘要集的总段数（多段摘要） */
+  /** 本次记录集的总段数（多段压缩） */
   segmentCount?: number;
-  /** 摘要主题标签，由 AI 摘要模型生成（多段摘要） */
+  /** 记录主题标签，由 AI 摘要模型生成（多段压缩） */
   topicTags?: string[];
-  /** 摘要相关性向量（预留） */
+  /** 记录相关性向量（预留） */
   relevanceEmbedding?: number[];
 }
 
 /**
  * 上下文预算快照，用于 policy 判断。
- * 由 coordinator 在 prepareMessagesBeforeSend 中产出，传给 policy 评估。
  */
 export interface ContextBudgetSnapshot {
   /** 字符级体积估算 */
@@ -159,8 +157,8 @@ export interface CompressionPolicyResult {
   charCount: number;
   /** 当前上下文 token 估算体积（第三阶段） */
   tokenCount?: number;
-  /** 有效摘要（若有） */
-  currentSummary?: ConversationSummaryRecord;
+  /** 当前有效压缩记录（若有） */
+  currentRecord?: CompressionRecord;
 }
 
 // ─── 消息分类 ─────────────────────────────────────────────────────────────────
@@ -182,11 +180,11 @@ export interface MessageClassificationResult {
 // ─── 摘要构建结果 ─────────────────────────────────────────────────────────────
 
 /**
- * buildSummaryRecord / buildMultiSegmentSummary 的返回值类型。
+ * buildCompressionRecord / buildMultiSegmentSummary 的返回值类型。
  */
-export interface BuildSummaryResult {
-  /** 新生成的摘要记录 */
-  summaryRecord: ConversationSummaryRecord;
+export interface BuildCompressionRecordResult {
+  /** 新生成的压缩记录 */
+  compressionRecord: CompressionRecord;
   /** 消息分类结果 */
   classification: MessageClassificationResult;
 }
@@ -211,8 +209,8 @@ export interface TrimmedMessageItem {
 export interface GenerateStructuredSummaryInput {
   /** 规则裁剪后的消息项列表 */
   items: TrimmedMessageItem[];
-  /** 上一条摘要记录（增量模式下传入） */
-  previousSummary?: Pick<ConversationSummaryRecord, 'summaryText' | 'structuredSummary'>;
+  /** 上一条压缩记录（增量模式下传入） */
+  previousRecord?: Pick<CompressionRecord, 'recordText' | 'structuredSummary'>;
 }
 
 /**
@@ -227,78 +225,18 @@ export interface RuleTrimResult {
   truncated: boolean;
 }
 
-// ─── 上下文组装 ─────────────────────────────────────────────────────────────────
-
-/**
- * Assembler 的输入参数。
- */
-export interface AssemblerInput {
-  /** 系统提示词（若有） */
-  systemPrompt?: string;
-  /** 会话摘要记录（若有有效摘要） */
-  summaryRecord?: ConversationSummaryRecord;
-  /** 多段摘要记录列表（多段摘要模式） */
-  summaryRecords?: ConversationSummaryRecord[];
-  /** 穿透的历史原文消息列表 */
-  preservedMessages: Message[];
-  /** coveredUntilMessageId 之后的近期原文消息列表 */
-  recentMessages: Message[];
-  /** 当前用户消息 */
-  currentUserMessage: Message;
-}
-
-/**
- * Assembler 的输出结果。
- */
-export interface AssembledContext {
-  /** 组装后的模型消息列表 */
-  modelMessages: ModelMessage[];
-}
-
-// ─── Compressor（协调层）─────────────────────────────────────────────────────
-
-/**
- * Coordinator 的 prepareMessagesBeforeSend 输入参数。
- */
-export interface PrepareMessagesInput {
-  /** 会话 ID */
-  sessionId: string;
-  /** 全量消息列表 */
-  messages: Message[];
-  /** 当前用户消息 */
-  currentUserMessage: Message;
-  /** 需要在压缩时排除的消息 ID 列表 */
-  excludeMessageIds?: string[];
-  /** 当前提供商 ID（用于读取模型上下文窗口） */
-  providerId?: string;
-  /** 当前模型 ID（用于 token 估算） */
-  modelId?: string;
-  /** 本次请求附带的工具定义（用于预算估算） */
-  toolDefinitions?: unknown[];
-}
-
-/**
- * Coordinator 的 prepareMessagesBeforeSend 输出结果。
- */
-export interface PrepareMessagesOutput {
-  /** 组装后的模型消息列表，可直接传入 stream */
-  modelMessages: ModelMessage[];
-  /** 是否发生了压缩 */
-  compressed: boolean;
-}
-
 // ─── 存储层接口 ───────────────────────────────────────────────────────────────
 
 /**
- * 摘要存储层接口。
+ * 压缩记录存储层接口。
  */
-export interface SummaryStorage {
-  /** 获取会话的最新有效摘要 */
-  getValidSummary(sessionId: string): Promise<ConversationSummaryRecord | undefined>;
-  /** 创建摘要记录 */
-  createSummary(record: Omit<ConversationSummaryRecord, 'id' | 'createdAt' | 'updatedAt'>): Promise<ConversationSummaryRecord>;
-  /** 更新摘要状态 */
-  updateSummaryStatus(id: string, status: SummaryRecordStatus, invalidReason?: string): Promise<void>;
-  /** 获取会话的所有摘要记录 */
-  getAllSummaries(sessionId: string): Promise<ConversationSummaryRecord[]>;
+export interface CompressionRecordStorage {
+  /** 获取会话的最新有效压缩记录 */
+  getLatestValidRecord(sessionId: string): Promise<CompressionRecord | undefined>;
+  /** 创建压缩记录 */
+  createRecord(record: Omit<CompressionRecord, 'id' | 'createdAt' | 'updatedAt'>): Promise<CompressionRecord>;
+  /** 更新压缩记录状态 */
+  updateRecordStatus(id: string, status: CompressionRecordStatus, invalidReason?: string): Promise<void>;
+  /** 获取会话的所有压缩记录 */
+  getAllRecords(sessionId: string): Promise<CompressionRecord[]>;
 }

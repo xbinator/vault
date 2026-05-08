@@ -61,9 +61,9 @@ const {
   modelSelectorOpenMock: vi.fn(),
   compressionHookTriggerMock: vi.fn(async () => ({
     success: true,
-    summary: {
-      id: 'summary-1',
-      summaryText: '历史对话已压缩',
+    record: {
+      id: 'record-1',
+      recordText: '历史对话已压缩',
       coveredUntilMessageId: 'message-2',
       sourceMessageIds: ['message-1', 'message-2']
     }
@@ -515,7 +515,7 @@ describe('chatSlashCommands', () => {
     expect(addSessionMessageMock.mock.calls[0]?.[1]?.role).toBe('compression');
     expect(chatHistoryState.messages.at(-1)?.role).toBe('compression');
     expect(chatHistoryState.messages.at(-1)?.compression?.status).toBe('success');
-    expect(chatHistoryState.messages.at(-1)?.compression?.summaryId).toBe('summary-1');
+    expect(chatHistoryState.messages.at(-1)?.compression?.recordId).toBe('record-1');
     expect(setSessionMessagesMock).toHaveBeenCalledTimes(1);
   });
 

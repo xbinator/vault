@@ -13,9 +13,9 @@ describe('MessageBubble compression rendering', () => {
     const wrapper = mount(MessageBubble, {
       props: {
         message: createCompressionMessage({
-          summaryText: '内部摘要正文不应该展示给用户',
+          boundaryText: '内部摘要正文不应该展示给用户',
           status: 'success',
-          summaryId: 'summary-1',
+          recordId: 'record-1',
           coveredUntilMessageId: 'message-24',
           sourceMessageIds: ['message-1', 'message-24']
         })
@@ -42,7 +42,7 @@ describe('MessageBubble compression rendering', () => {
     const wrapper = mount(MessageBubble, {
       props: {
         message: createCompressionMessage({
-          summaryText: '失败时也不应该展示这段文本',
+          boundaryText: '失败时也不应该展示这段文本',
           status: 'failed',
           errorMessage: '摘要保存失败'
         })
@@ -70,9 +70,9 @@ describe('MessageBubble compression rendering', () => {
     const wrapper = mount(MessageBubble, {
       props: {
         message: createCompressionMessage({
-          summaryText: '不会展示',
+          boundaryText: '不会展示',
           status: 'success',
-          summaryId: 'summary-1',
+          recordId: 'record-1',
           coveredUntilMessageId: 'message-24',
           sourceMessageIds: ['message-1', 'message-24']
         })
@@ -97,7 +97,7 @@ describe('MessageBubble compression rendering', () => {
     const wrapper = mount(MessageBubble, {
       props: {
         message: createCompressionMessage({
-          summaryText: '',
+          boundaryText: '',
           status: 'cancelled',
           errorMessage: '用户已取消'
         })

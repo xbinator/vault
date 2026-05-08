@@ -2,10 +2,10 @@
  * @file useCompression.ts
  * @description 会话压缩管理 hook，提供手动压缩能力。
  */
-import type { ConversationSummaryRecord } from '../utils/compression/types';
+import type { CompressionRecord } from '../utils/compression/types';
 import type { Message } from '../utils/types';
 import { computed, ref } from 'vue';
-import { chatSummariesStorage } from '@/shared/storage/chat-summaries';
+import { chatCompressionRecordsStorage } from '@/shared/storage/chat-compression-records';
 import { createCompressionCoordinator } from '../utils/compression/coordinator';
 import { CompressionCancelledError, CompressionError, getCompressionErrorMessage } from '../utils/compression/error';
 
@@ -17,10 +17,6 @@ interface CompressionOptions {
   getSessionId: () => string | undefined;
   /** 获取消息列表 */
   getMessages: () => Message[];
-  /** 开始压缩任务并返回取消信号 */
-  beginCompressionTask: (onAbort?: () => void) => AbortSignal | undefined;
-  /** 结束压缩任务 */
-  finishCompressionTask: () => void;
 }
 
 /**
@@ -29,8 +25,8 @@ interface CompressionOptions {
 export interface CompressionExecutionResult {
   /** 是否成功完成压缩 */
   success: boolean;
-  /** 新生成的摘要记录 */
-  summary?: ConversationSummaryRecord;
+  /** 新生成的压缩记录，供 compression message 回填使用 */
+  record?: CompressionRecord;
   /** 错误信息 */
   errorMessage?: string;
   /** 是否为用户主动取消 */
@@ -43,7 +39,7 @@ export interface CompressionExecutionResult {
  * @returns 压缩状态和操作方法
  */
 export function useCompression(options: CompressionOptions) {
-  const { getSessionId, getMessages, beginCompressionTask, finishCompressionTask } = options;
+  const { getSessionId, getMessages } = options;
 
   /** 压缩状态 */
   const compressing = ref(false);
@@ -51,7 +47,7 @@ export function useCompression(options: CompressionOptions) {
   const error = ref<string | undefined>();
 
   /** 压缩协调器（稳定引用，避免重复创建） */
-  const coordinator = computed(() => createCompressionCoordinator(chatSummariesStorage));
+  const coordinator = computed(() => createCompressionCoordinator(chatCompressionRecordsStorage));
 
   /**
    * 统一设置错误信息
@@ -67,10 +63,10 @@ export function useCompression(options: CompressionOptions) {
 
   /**
    * 手动触发压缩
-   * @param callbacks - 压缩过程回调
+   * @param signal - 压缩过程取消信号
    * @returns 是否压缩成功
    */
-  async function compress(callbacks?: { onAbort?: () => void }): Promise<CompressionExecutionResult> {
+  async function compress(signal?: AbortSignal): Promise<CompressionExecutionResult> {
     const sessionId = getSessionId();
     if (!sessionId) {
       error.value = '没有活跃的会话';
@@ -85,7 +81,6 @@ export function useCompression(options: CompressionOptions) {
 
     compressing.value = true;
     error.value = undefined;
-    const signal = beginCompressionTask(callbacks?.onAbort);
 
     try {
       const result = await coordinator.value.compressSessionManually({ sessionId, messages, signal });
@@ -99,7 +94,7 @@ export function useCompression(options: CompressionOptions) {
       if (result.degradeReason === 'degraded_to_incremental') {
         error.value = undefined;
       }
-      return { success: true, summary: result };
+      return { success: true, record: result };
     } catch (err) {
       if (err instanceof CompressionCancelledError) {
         error.value = undefined;
@@ -109,7 +104,6 @@ export function useCompression(options: CompressionOptions) {
       return { success: false, errorMessage: error.value };
     } finally {
       compressing.value = false;
-      finishCompressionTask();
     }
   }
 
