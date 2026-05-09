@@ -44,6 +44,8 @@
         :on-close="usagePanel.close"
       />
 
+      <InteractionContainer />
+
       <div class="b-chat-sidebar__input">
         <div class="b-chat-sidebar__input-container">
           <ImagePreview :images="inputImages" :supports-vision="supportsVision" :on-remove-image="inputEvents.removeImage" />
@@ -105,6 +107,7 @@ import type { FileReferenceNavigationTarget } from '@/utils/fileReference/types'
 import ConversationView from './components/ConversationView.vue';
 import ImagePreview from './components/ImagePreview.vue';
 import InputToolbar from './components/InputToolbar.vue';
+import InteractionContainer from './components/InteractionContainer/index.vue';
 import SessionHistory from './components/SessionHistory.vue';
 import UsagePanel from './components/UsagePanel.vue';
 import { useAutoName } from './hooks/useAutoName';
