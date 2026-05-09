@@ -53,7 +53,6 @@ const CHAT_COMMAND_DEFINITIONS = [
   { id: 'model', title: '模型', description: '切换当前使用的模型。', concurrencyPolicy: 'allowAlways' },
   { id: 'usage', title: '使用情况', description: '显示当前会话的 token 使用情况。', concurrencyPolicy: 'allowAlways' },
   { id: 'new', title: '新建聊天', description: '开始一个新的聊天会话。', concurrencyPolicy: 'allowWhenIdleOnly' },
-  { id: 'clear', title: '清空输入', description: '清除当前聊天输入内容。', concurrencyPolicy: 'allowAlways' },
   { id: 'compact', title: '压缩上下文', description: '立即执行一次手动上下文压缩。', concurrencyPolicy: 'allowWhenIdleOnly' }
 ] satisfies Array<{ id: CommandId; title: string; description: string; concurrencyPolicy: CommandConcurrencyPolicy }>;
 
@@ -92,7 +91,7 @@ export function useSlashCommands(handlers: CommandHandlers) {
       return;
     }
 
-    await handlers[handlerKey]?.();
+    handlers[handlerKey]?.();
   }
 
   return { handleSlashCommand };

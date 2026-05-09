@@ -81,7 +81,7 @@
     </div>
 
     <!-- 全局模型选择器 -->
-    <BModelSelect ref="modelSelectRef" v-model:open="modelSelectOpen" :model="selectedModel" @change="handleModelChange" />
+    <BModelSelect ref="modelSelectRef" v-model:open="modelSelectOpen" :model="selectedModel" @change="handleGlobalModelChange" />
   </div>
 </template>
 
@@ -497,6 +497,16 @@ function handleCancel(): void {
  */
 function handleModelChange(model: { providerId: string; modelId: string }): void {
   modelSelectionEvents.onModelChange(model);
+}
+
+/**
+ * 处理全局模型选择器变更。
+ * 选择完成后聚焦输入框。
+ * @param model - 新选中的模型标识
+ */
+function handleGlobalModelChange(model: { providerId: string; modelId: string }): void {
+  handleModelChange(model);
+  promptEditorRef.value?.focus();
 }
 
 /** 斜杠命令处理 hook */
