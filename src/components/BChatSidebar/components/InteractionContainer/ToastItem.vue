@@ -3,8 +3,8 @@
   @description 单个 Toast 提示组件，支持多种类型和自动关闭
 -->
 <template>
-  <div :class="['toast-item', `toast-item--${type}`]">
-    <div class="toast-item__icon">
+  <div class="toast-item">
+    <div :class="['toast-item__icon', `toast-item__icon--${type}`]">
       <Icon :icon="iconName" width="16" height="16" />
     </div>
     <div class="toast-item__content">{{ content }}</div>
@@ -106,22 +106,11 @@ onUnmounted(() => {
   cursor: pointer;
   background-color: var(--bg-secondary);
   border-radius: 6px;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 15%);
   transition: all 0.3s ease;
 
-  &--error {
-    border-left: 3px solid #ef4444;
-  }
-
-  &--warning {
-    border-left: 3px solid #f59e0b;
-  }
-
-  &--info {
-    border-left: 3px solid #3b82f6;
-  }
-
-  &--success {
-    border-left: 3px solid #10b981;
+  &:hover {
+    box-shadow: 0 4px 12px rgb(0 0 0 / 20%);
   }
 }
 
@@ -130,6 +119,22 @@ onUnmounted(() => {
   flex-shrink: 0;
   align-items: center;
   justify-content: center;
+
+  &--error {
+    color: var(--color-error);
+  }
+
+  &--warning {
+    color: var(--color-warning);
+  }
+
+  &--info {
+    color: var(--color-info);
+  }
+
+  &--success {
+    color: var(--color-success);
+  }
 }
 
 .toast-item__content {
