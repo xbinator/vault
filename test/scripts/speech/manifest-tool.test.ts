@@ -471,6 +471,152 @@ describe('speech manifest tool', () => {
     expect(savedManifest.platforms['darwin-arm64'].assets[1].url).toBe('http://127.0.0.1:8787/ggml-base.bin');
   });
 
+  it('validates a V2 catalog manifest without structural errors', () => {
+    const validationResult = validateManifestDefinition({
+      schemaVersion: 2,
+      binaries: {
+        'darwin-arm64': {
+          currentVersion: '2026.05.04',
+          versions: [
+            {
+              version: '2026.05.04',
+              url: 'https://example.com/whisper-darwin-arm64',
+              sha256: 'a'.repeat(64),
+              archiveType: 'file'
+            }
+          ]
+        }
+      },
+      models: [
+        {
+          id: 'ggml-base',
+          displayName: 'Base',
+          version: '1',
+          url: 'https://example.com/ggml-base.bin',
+          sha256: 'b'.repeat(64),
+          sizeBytes: 147000000
+        }
+      ]
+    });
+
+    expect(validationResult.errors).toEqual([]);
+  });
+
+  it('applies digests to V2 catalog binaries and models', () => {
+    const nextManifest = applyDigestsToManifest(
+      {
+        schemaVersion: 2,
+        binaries: {
+          'darwin-arm64': {
+            currentVersion: '2026.05.04',
+            versions: [
+              {
+                version: '2026.05.04',
+                url: 'https://example.com/whisper-darwin-arm64',
+                sha256: 'REPLACE_WITH_DARWIN_ARM64_WHISPER_SHA256',
+                archiveType: 'file'
+              }
+            ]
+          },
+          'darwin-x64': {
+            currentVersion: '2026.05.04',
+            versions: [
+              {
+                version: '2026.05.04',
+                url: 'https://example.com/whisper-darwin-x64',
+                sha256: 'REPLACE_WITH_DARWIN_X64_WHISPER_SHA256',
+                archiveType: 'file'
+              }
+            ]
+          },
+          'win32-x64': {
+            currentVersion: '2026.05.04',
+            versions: [
+              {
+                version: '2026.05.04',
+                url: 'https://example.com/whisper-win32-x64.exe',
+                sha256: 'REPLACE_WITH_WIN32_X64_WHISPER_SHA256',
+                archiveType: 'file'
+              }
+            ]
+          }
+        },
+        models: [
+          {
+            id: 'ggml-base',
+            displayName: 'Base',
+            version: '1',
+            url: 'https://example.com/ggml-base.bin',
+            sha256: 'REPLACE_WITH_GGML_BASE_SHA256',
+            sizeBytes: 147000000
+          }
+        ]
+      },
+      {
+        darwinArm64: 'a'.repeat(64),
+        darwinX64: 'b'.repeat(64),
+        win32X64: 'c'.repeat(64),
+        model: 'd'.repeat(64)
+      }
+    );
+
+    expect(nextManifest.binaries['darwin-arm64'].versions[0].sha256).toBe('a'.repeat(64));
+    expect(nextManifest.binaries['darwin-x64'].versions[0].sha256).toBe('b'.repeat(64));
+    expect(nextManifest.binaries['win32-x64'].versions[0].sha256).toBe('c'.repeat(64));
+    expect(nextManifest.models[0].sha256).toBe('d'.repeat(64));
+  });
+
+  it('localizes V2 catalog urls to a local static server', async () => {
+    const temporaryDirectory = await createTemporaryDirectory();
+    const manifestPath = join(temporaryDirectory, 'manifest.json');
+
+    await writeFile(
+      manifestPath,
+      JSON.stringify({
+        schemaVersion: 2,
+        binaries: {
+          'darwin-arm64': {
+            currentVersion: '2026.05.04',
+            versions: [
+              {
+                version: '2026.05.04',
+                url: 'https://example.com/whisper-darwin-arm64',
+                sha256: 'REPLACE_WITH_DARWIN_ARM64_WHISPER_SHA256',
+                archiveType: 'file'
+              }
+            ]
+          }
+        },
+        models: [
+          {
+            id: 'ggml-base',
+            displayName: 'Base',
+            version: '1',
+            url: 'https://example.com/ggml-base.bin',
+            sha256: 'REPLACE_WITH_GGML_BASE_SHA256',
+            sizeBytes: 147000000
+          }
+        ]
+      }),
+      'utf8'
+    );
+
+    await expect(
+      runLocalizeCommand({
+        manifestPath,
+        baseUrl: 'http://127.0.0.1:8787'
+      })
+    ).resolves.toBe(0);
+
+    const savedManifest = JSON.parse(await readFile(manifestPath, 'utf8')) as {
+      binaries: Record<string, { versions: Array<{ url: string }> }>;
+      models: Array<{ url: string }>;
+    };
+
+    expect(savedManifest.binaries['darwin-arm64'].versions[0].url).toBe('http://127.0.0.1:8787/whisper-darwin-arm64');
+    expect(savedManifest.models[0].url).toBe('http://127.0.0.1:8787/ggml-base.bin');
+  });
+
   it('supports pnpm style argument forwarding with a leading double dash', async () => {
     const temporaryDirectory = await createTemporaryDirectory();
     const filePath = join(temporaryDirectory, 'sample.txt');

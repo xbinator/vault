@@ -55,6 +55,24 @@ export interface SpeechRuntimeManifestFile {
 }
 
 /**
+ * 解析第一版 whisper 可执行文件名。
+ * @param platform - 平台标识
+ * @returns 可执行文件名
+ */
+function resolveLegacyWhisperBinaryName(platform: 'darwin' | 'win32'): string {
+  return platform === 'win32' ? 'whisper.exe' : 'whisper';
+}
+
+/**
+ * 构造第一版模型文件名。
+ * @param modelName - 模型名
+ * @returns 模型文件名
+ */
+function resolveLegacyModelFileName(modelName: string): string {
+  return `${modelName}.bin`;
+}
+
+/**
  * 获取平台标识。
  * @param context - 运行时上下文
  * @returns 平台标识
@@ -135,7 +153,7 @@ export async function readSpeechRuntimeState(context: SpeechRuntimeContext = {})
     const content = await readFile(getSpeechRuntimeStatePath(context), 'utf-8');
     return JSON.parse(content) as SpeechRuntimeStateFile;
   } catch {
-    return null;
+    return migrateLegacySpeechRuntime(context);
   }
 }
 
@@ -159,6 +177,69 @@ export async function readSpeechRuntimeManifest(context: SpeechRuntimeContext = 
   try {
     const content = await readFile(getSpeechRuntimeManifestPath(context), 'utf-8');
     return JSON.parse(content) as SpeechRuntimeManifestFile;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 将第一版 current 目录迁移到 V2 state.json 与版本化仓库。
+ * @param context - 可选测试上下文
+ * @returns 迁移后的状态，无法迁移时返回 null
+ */
+async function migrateLegacySpeechRuntime(context: SpeechRuntimeContext = {}): Promise<SpeechRuntimeStateFile | null> {
+  const legacyManifest = await readSpeechRuntimeManifest(context);
+  if (!legacyManifest) {
+    return null;
+  }
+
+  const runtimeRoot = getSpeechRuntimeRoot(context);
+  const legacyCurrentDir = join(runtimeRoot, legacyManifest.currentDir);
+  const legacyBinaryPath = join(legacyCurrentDir, 'bin', resolveLegacyWhisperBinaryName(legacyManifest.platform));
+  const legacyModelPath = join(legacyCurrentDir, 'models', resolveLegacyModelFileName(legacyManifest.modelName));
+  const binaryRelativePath = `binaries/${legacyManifest.platform}-${legacyManifest.arch}/${legacyManifest.version}/${resolveLegacyWhisperBinaryName(legacyManifest.platform)}`;
+  const modelRelativePath = `managed-models/${legacyManifest.modelName}/1/model.bin`;
+  const nextState = createEmptySpeechRuntimeState({
+    userDataPath: context.userDataPath,
+    platform: legacyManifest.platform,
+    arch: legacyManifest.arch
+  });
+
+  try {
+    // 先复制旧文件进入新仓库；只有全部成功后才会写 state 并清理旧目录。
+    const [legacyBinaryBytes, legacyModelBytes] = await Promise.all([readFile(legacyBinaryPath), readFile(legacyModelPath)]);
+    const binaryTargetPath = join(runtimeRoot, binaryRelativePath);
+    const modelTargetPath = join(runtimeRoot, modelRelativePath);
+
+    await mkdir(join(runtimeRoot, `binaries/${legacyManifest.platform}-${legacyManifest.arch}/${legacyManifest.version}`), { recursive: true });
+    await mkdir(join(runtimeRoot, `managed-models/${legacyManifest.modelName}/1`), { recursive: true });
+    await writeFile(binaryTargetPath, legacyBinaryBytes);
+    await writeFile(modelTargetPath, legacyModelBytes);
+
+    nextState.binaries.currentVersion = legacyManifest.version;
+    nextState.binaries.installed = [{
+      version: legacyManifest.version,
+      relativePath: binaryRelativePath,
+      sha256: ''
+    }];
+    nextState.managedModels = [{
+      id: legacyManifest.modelName,
+      displayName: legacyManifest.modelName,
+      version: '1',
+      relativePath: modelRelativePath,
+      sha256: '',
+      sizeBytes: legacyModelBytes.byteLength
+    }];
+    nextState.selectedModel = {
+      sourceType: 'managed',
+      modelId: legacyManifest.modelName
+    };
+
+    await writeSpeechRuntimeState(nextState, context);
+    await rm(legacyCurrentDir, { recursive: true, force: true });
+    await rm(getSpeechRuntimeManifestPath(context), { force: true, recursive: false });
+
+    return nextState;
   } catch {
     return null;
   }

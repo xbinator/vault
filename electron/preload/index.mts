@@ -224,6 +224,50 @@ const electronAPI: ElectronAPI = {
   getSpeechRuntimeSnapshot: () => ipcRenderer.invoke('speech:getRuntimeSnapshot'),
 
   /**
+   * 获取 catalog 官方模型列表。
+   * @returns 官方模型列表
+   */
+  listSpeechCatalogModels: () => ipcRenderer.invoke('speech:listCatalogModels'),
+
+  /**
+   * 安装官方模型。
+   * @param input - 模型安装输入
+   * @returns 最新运行时快照
+   */
+  installManagedSpeechModel: (input) => ipcRenderer.invoke('speech:installManagedModel', input),
+
+  /**
+   * 删除官方模型。
+   * @param modelId - 模型唯一标识
+   * @returns 最新运行时快照
+   */
+  removeManagedSpeechModel: (modelId) => ipcRenderer.invoke('speech:removeManagedModel', modelId),
+
+  /**
+   * 检查语音运行时更新。
+   * @returns 更新状态
+   */
+  checkSpeechRuntimeUpdates: () => ipcRenderer.invoke('speech:checkRuntimeUpdates'),
+
+  /**
+   * 下载语音运行时更新。
+   * @returns 最新运行时快照
+   */
+  downloadSpeechRuntimeUpdates: () => ipcRenderer.invoke('speech:downloadRuntimeUpdates'),
+
+  /**
+   * 应用语音运行时更新。
+   * @returns 最新运行时快照
+   */
+  applySpeechRuntimeUpdate: () => ipcRenderer.invoke('speech:applyRuntimeUpdate'),
+
+  /**
+   * 回滚语音运行时更新。
+   * @returns 最新运行时快照
+   */
+  rollbackSpeechRuntimeUpdate: () => ipcRenderer.invoke('speech:rollbackRuntimeUpdate'),
+
+  /**
    * 下载并安装语音运行时。
    * @returns 安装完成后的运行时状态
    */

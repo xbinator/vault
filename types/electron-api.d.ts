@@ -257,6 +257,23 @@ export interface ElectronSpeechManagedModelRecord {
 }
 
 /**
+ * 语音运行时更新状态。
+ */
+export interface ElectronSpeechRuntimeUpdatesState {
+  /** 是否自动检查。 */
+  autoCheck: boolean;
+  /** 是否自动下载。 */
+  autoDownload: boolean;
+  /** binary 更新。 */
+  binaryUpdate: { version: string } | null;
+  /** 官方模型更新列表。 */
+  modelUpdates: Array<{
+    modelId: string;
+    version: string;
+  }>;
+}
+
+/**
  * 语音运行时聚合快照。
  */
 export interface ElectronSpeechRuntimeSnapshot {
@@ -341,6 +358,13 @@ export interface ElectronAPI {
   transcribeAudio: (request: ElectronAudioTranscribeRequest) => Promise<ElectronAudioTranscribeResult>;
   getSpeechRuntimeStatus: () => Promise<ElectronSpeechRuntimeStatus>;
   getSpeechRuntimeSnapshot: () => Promise<ElectronSpeechRuntimeSnapshot>;
+  listSpeechCatalogModels: () => Promise<ElectronSpeechManagedModelRecord[]>;
+  installManagedSpeechModel: (input: { modelId: string; setActive?: boolean }) => Promise<ElectronSpeechRuntimeSnapshot>;
+  removeManagedSpeechModel: (modelId: string) => Promise<ElectronSpeechRuntimeSnapshot>;
+  checkSpeechRuntimeUpdates: () => Promise<ElectronSpeechRuntimeUpdatesState>;
+  downloadSpeechRuntimeUpdates: () => Promise<ElectronSpeechRuntimeSnapshot>;
+  applySpeechRuntimeUpdate: () => Promise<ElectronSpeechRuntimeSnapshot>;
+  rollbackSpeechRuntimeUpdate: () => Promise<ElectronSpeechRuntimeSnapshot>;
   installSpeechRuntime: () => Promise<ElectronSpeechRuntimeStatus>;
   removeSpeechRuntime: () => Promise<ElectronSpeechRuntimeStatus>;
   listExternalSpeechModels: () => Promise<ElectronSpeechExternalModelRecord[]>;

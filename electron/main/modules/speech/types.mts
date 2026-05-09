@@ -151,6 +151,62 @@ export interface SpeechRuntimeUpdatesState {
 }
 
 /**
+ * catalog 中的 binary 版本条目。
+ */
+export interface SpeechCatalogBinaryVersionRecord {
+  /** 版本号。 */
+  version: string;
+  /** 下载地址。 */
+  url: string;
+  /** 摘要。 */
+  sha256: string;
+  /** 分发类型。 */
+  archiveType: 'file' | 'zip';
+}
+
+/**
+ * catalog 中的平台 binary 列表。
+ */
+export interface SpeechCatalogBinaryPlatformRecord {
+  /** 当前推荐版本。 */
+  currentVersion: string;
+  /** 可用版本列表。 */
+  versions: SpeechCatalogBinaryVersionRecord[];
+}
+
+/**
+ * catalog 中的官方模型条目。
+ */
+export interface SpeechCatalogManagedModelRecord {
+  /** 模型唯一标识。 */
+  id: string;
+  /** 展示名称。 */
+  displayName: string;
+  /** 版本号。 */
+  version: string;
+  /** 下载地址。 */
+  url: string;
+  /** 摘要。 */
+  sha256: string;
+  /** 模型大小。 */
+  sizeBytes: number;
+  /** 推荐场景。 */
+  recommendedFor?: string;
+}
+
+/**
+ * 语音 catalog manifest V2。
+ */
+export interface SpeechCatalogManifest {
+  /** manifest 版本。 */
+  schemaVersion: 2;
+  /** 平台 binary 映射。 */
+  binaries: Record<string, SpeechCatalogBinaryPlatformRecord>;
+  /** 官方模型列表。 */
+  models: SpeechCatalogManagedModelRecord[];
+}
+
+/**
  * 语音运行时状态文件。
  */
 export interface SpeechRuntimeStateFile {

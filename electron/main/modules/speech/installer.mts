@@ -8,6 +8,7 @@ import { get } from 'node:http';
 import { get as getHttps } from 'node:https';
 import { dirname, join } from 'node:path';
 import type {
+  SpeechCatalogManifest,
   SpeechInstallProgress,
   SpeechManagedModelRecord,
   SpeechRuntimeAsset,
@@ -123,6 +124,14 @@ export interface ApplySpeechBinaryUpdateOptions {
 }
 
 /**
+ * 回滚 binary 更新的输入。
+ */
+export interface RollbackSpeechBinaryUpdateOptions {
+  /** 测试或调用方注入的 userData 根目录。 */
+  userDataPath?: string;
+}
+
+/**
  * 远程 speech runtime 总清单。
  */
 interface RemoteSpeechRuntimeIndexManifest {
@@ -130,6 +139,58 @@ interface RemoteSpeechRuntimeIndexManifest {
   currentVersion: string;
   /** 平台清单映射。 */
   platforms: Record<string, SpeechRuntimeManifestDefinition>;
+}
+
+/**
+ * 兼容从 V2 catalog 中还原旧安装入口所需的 manifest。
+ * @param catalogManifest - V2 catalog manifest
+ * @param platform - 平台标识
+ * @param arch - 架构标识
+ * @returns 旧安装入口兼容 manifest
+ */
+function resolveSpeechRuntimeManifestFromCatalog(
+  catalogManifest: SpeechCatalogManifest,
+  platform: 'darwin' | 'win32',
+  arch: 'arm64' | 'x64'
+): SpeechRuntimeManifestDefinition {
+  const platformKey = `${platform}-${arch}`;
+  const binaryPlatform = catalogManifest.binaries[platformKey];
+  if (!binaryPlatform) {
+    throw new Error(`Speech runtime platform is not supported: ${platformKey}`);
+  }
+
+  const currentBinary = binaryPlatform.versions.find((item) => item.version === binaryPlatform.currentVersion);
+  if (!currentBinary) {
+    throw new Error(`Speech runtime binary version is not available: ${binaryPlatform.currentVersion}`);
+  }
+
+  const managedModel = catalogManifest.models[0];
+  if (!managedModel) {
+    throw new Error('Speech runtime catalog is missing managed models');
+  }
+
+  return {
+    platform,
+    arch,
+    version: currentBinary.version,
+    modelName: managedModel.id,
+    assets: [
+      {
+        name: 'whisper',
+        url: currentBinary.url,
+        sha256: currentBinary.sha256,
+        archiveType: currentBinary.archiveType,
+        targetRelativePath: `bin/${resolveWhisperBinaryName(platform)}`
+      },
+      {
+        name: 'model',
+        url: managedModel.url,
+        sha256: managedModel.sha256,
+        archiveType: 'file',
+        targetRelativePath: `models/${managedModel.id}.bin`
+      }
+    ]
+  };
 }
 
 /**
@@ -243,8 +304,13 @@ async function resolveSpeechRuntimeManifestFromIndex(
   downloadUrl: (url: string) => Promise<Buffer>
 ): Promise<SpeechRuntimeManifestDefinition> {
   const bytes = await downloadUrl(manifestUrl);
-  const indexManifest = JSON.parse(bytes.toString('utf-8')) as RemoteSpeechRuntimeIndexManifest;
+  const parsedManifest = JSON.parse(bytes.toString('utf-8')) as RemoteSpeechRuntimeIndexManifest | SpeechCatalogManifest;
+  if ('schemaVersion' in parsedManifest && parsedManifest.schemaVersion === 2) {
+    return resolveSpeechRuntimeManifestFromCatalog(parsedManifest, platform, arch);
+  }
+
   const platformKey = `${platform}-${arch}`;
+  const indexManifest = parsedManifest as RemoteSpeechRuntimeIndexManifest;
   const manifest = indexManifest.platforms[platformKey];
   if (!manifest) {
     throw new Error(`Speech runtime platform is not supported: ${platformKey}`);
@@ -370,6 +436,42 @@ export async function installSpeechBinary(options: InstallSpeechBinaryOptions): 
 }
 
 /**
+ * 下载 binary 更新，但不切换当前版本。
+ * @param options - 下载选项
+ */
+export async function downloadSpeechBinaryUpdate(options: InstallSpeechBinaryOptions): Promise<void> {
+  const runtimeRoot = getSpeechRuntimeRoot({ userDataPath: options.userDataPath });
+  const outputFilePath = join(runtimeRoot, options.relativePath);
+  const downloadUrl = options.downloadUrl ?? downloadSpeechRuntimeUrl;
+  const bytes = await downloadUrl(options.url);
+  assertChecksum(options.sha256, bytes, 'whisper');
+
+  await writeDownloadedAsset(outputFilePath, bytes, options.archiveType, {
+    name: 'whisper',
+    url: options.url,
+    sha256: options.sha256,
+    archiveType: options.archiveType,
+    targetRelativePath: options.relativePath
+  }, options.extractZipAsset);
+
+  if (options.platform !== 'win32') {
+    await chmod(outputFilePath, 0o755);
+  }
+
+  const state = await readOrCreateRuntimeState(options.userDataPath, options.platform, options.arch);
+  state.binaries.installed = state.binaries.installed.filter((record) => record.version !== options.version);
+  state.binaries.installed.push({
+    version: options.version,
+    relativePath: options.relativePath,
+    sha256: options.sha256
+  });
+  state.updates.binaryUpdate = {
+    version: options.version
+  };
+  await writeSpeechRuntimeState(state, { userDataPath: options.userDataPath, platform: options.platform, arch: options.arch });
+}
+
+/**
  * 安装单个官方模型。
  * @param options - 安装选项
  */
@@ -434,6 +536,28 @@ export async function applySpeechBinaryUpdate(options: ApplySpeechBinaryUpdateOp
   }
 
   state.binaries.currentVersion = options.version;
+  state.updates.binaryUpdate = null;
+  await writeSpeechRuntimeState(state, { userDataPath: options.userDataPath, platform: state.platform, arch: state.arch });
+}
+
+/**
+ * 回滚到上一已安装 binary 版本。
+ * @param options - 回滚选项
+ */
+export async function rollbackSpeechBinaryUpdate(options: RollbackSpeechBinaryUpdateOptions): Promise<void> {
+  const state = await readSpeechRuntimeState({ userDataPath: options.userDataPath });
+  if (!state) {
+    throw new Error('Speech runtime state is not initialized');
+  }
+
+  const currentVersion = state.binaries.currentVersion;
+  const previousBinary = [...state.binaries.installed].reverse().find((record) => record.version !== currentVersion);
+  if (!previousBinary) {
+    throw new Error('No previous speech runtime binary version is available');
+  }
+
+  state.binaries.currentVersion = previousBinary.version;
+  state.updates.binaryUpdate = null;
   await writeSpeechRuntimeState(state, { userDataPath: options.userDataPath, platform: state.platform, arch: state.arch });
 }
 

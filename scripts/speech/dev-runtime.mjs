@@ -68,6 +68,59 @@ const DEFAULT_SPEECH_DIRECTORY_NAME = 'speech';
  */
 
 /**
+ * V2 binary 版本条目。
+ * @typedef {object} SpeechCatalogBinaryVersion
+ * @property {string} version 版本号。
+ * @property {string} url 下载地址。
+ * @property {string} sha256 摘要。
+ * @property {string} archiveType 分发类型。
+ */
+
+/**
+ * V2 平台 binary 定义。
+ * @typedef {object} SpeechCatalogBinaryPlatform
+ * @property {string} currentVersion 当前推荐版本。
+ * @property {SpeechCatalogBinaryVersion[]} versions 可用版本列表。
+ */
+
+/**
+ * V2 官方模型条目。
+ * @typedef {object} SpeechCatalogModel
+ * @property {string} id 模型标识。
+ * @property {string} displayName 展示名称。
+ * @property {string} version 版本号。
+ * @property {string} url 下载地址。
+ * @property {string} sha256 摘要。
+ * @property {number} sizeBytes 模型大小。
+ * @property {string} [recommendedFor] 推荐场景。
+ */
+
+/**
+ * V2 manifest 顶层结构。
+ * @typedef {object} SpeechCatalogManifestDefinition
+ * @property {2} schemaVersion manifest 版本。
+ * @property {Record<string, SpeechCatalogBinaryPlatform>} binaries 平台 binary 映射。
+ * @property {SpeechCatalogModel[]} models 官方模型列表。
+ */
+
+/**
+ * 判断 manifest 是否为 V2 结构。
+ * @param {unknown} manifestDefinition - 待判断 manifest。
+ * @returns {manifestDefinition is SpeechCatalogManifestDefinition} 是否为 V2。
+ */
+function isCatalogManifestDefinition(manifestDefinition) {
+  return (
+    typeof manifestDefinition === 'object' &&
+    manifestDefinition !== null &&
+    !Array.isArray(manifestDefinition) &&
+    manifestDefinition.schemaVersion === 2 &&
+    typeof manifestDefinition.binaries === 'object' &&
+    manifestDefinition.binaries !== null &&
+    Array.isArray(manifestDefinition.models)
+  );
+}
+
+/**
  * 标准化基础地址，避免重复斜杠。
  * @param {string} baseUrl - 原始基础地址。
  * @returns {string} 标准化后的基础地址。
@@ -164,6 +217,42 @@ async function readJsonFile(filePath) {
  * @returns {SpeechManifestDefinition} 当前平台专用 manifest。
  */
 function buildCurrentPlatformManifest(input) {
+  if (isCatalogManifestDefinition(input.manifestDefinition)) {
+    const binaryPlatform = input.manifestDefinition.binaries[input.platformKey];
+    const model = input.manifestDefinition.models.find((item) => item.id === 'ggml-base') ?? input.manifestDefinition.models[0];
+
+    if (!binaryPlatform) {
+      throw new Error(`Manifest template is missing platform entry: ${input.platformKey}`);
+    }
+    if (!model) {
+      throw new Error('Manifest template is missing managed speech models');
+    }
+
+    return {
+      schemaVersion: 2,
+      binaries: {
+        [input.platformKey]: {
+          currentVersion: binaryPlatform.currentVersion,
+          versions: [
+            {
+              ...(binaryPlatform.versions.find((item) => item.version === binaryPlatform.currentVersion) ?? binaryPlatform.versions[0]),
+              url: `${normalizeBaseUrl(input.baseUrl)}/whisper-cli`,
+              sha256: input.whisperSha256,
+              archiveType: 'file'
+            }
+          ]
+        }
+      },
+      models: [
+        {
+          ...model,
+          url: `${normalizeBaseUrl(input.baseUrl)}/${model.id}.bin`,
+          sha256: input.modelSha256
+        }
+      ]
+    };
+  }
+
   const platformDefinition = input.manifestDefinition.platforms[input.platformKey];
 
   if (!platformDefinition) {

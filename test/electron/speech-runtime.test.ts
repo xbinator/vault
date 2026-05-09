@@ -374,4 +374,96 @@ describe('speech runtime v2', () => {
       )
     ).rejects.toThrow('currently selected');
   });
+
+  it('migrates a legacy manifest/current runtime into V2 state.json and cleans up legacy files', async () => {
+    readFileMock.mockImplementation(async (filePath: string, encoding?: BufferEncoding) => {
+      if (filePath === '/tmp/runtime-test/speech-runtime/state.json') {
+        throw new Error('ENOENT');
+      }
+
+      if (filePath === '/tmp/runtime-test/speech-runtime/manifest.json') {
+        return JSON.stringify({
+          version: '2026.05.04',
+          modelName: 'ggml-base',
+          platform: 'darwin',
+          arch: 'arm64',
+          currentDir: 'current'
+        });
+      }
+
+      if (filePath === '/tmp/runtime-test/speech-runtime/current/bin/whisper') {
+        return encoding ? 'legacy-binary' : Buffer.from('legacy-binary');
+      }
+
+      if (filePath === '/tmp/runtime-test/speech-runtime/current/models/ggml-base.bin') {
+        return encoding ? 'legacy-model' : Buffer.from('legacy-model');
+      }
+
+      throw new Error(`Unexpected file read: ${filePath}`);
+    });
+    mkdirMock.mockResolvedValue(undefined);
+    writeFileMock.mockResolvedValue(undefined);
+    rmMock.mockResolvedValue(undefined);
+    accessMock.mockResolvedValue(undefined);
+
+    const { getSpeechRuntimeSnapshot } = await import('../../electron/main/modules/speech/runtime.mjs');
+    const snapshot = await getSpeechRuntimeSnapshot({
+      userDataPath: '/tmp/runtime-test',
+      platform: 'darwin',
+      arch: 'arm64'
+    });
+
+    expect(snapshot.binaryState).toBe('ready');
+    expect(snapshot.activeState).toBe('ready');
+    expect(snapshot.binaryVersion).toBe('2026.05.04');
+    expect(snapshot.selectedModel).toEqual({
+      sourceType: 'managed',
+      modelId: 'ggml-base'
+    });
+    expect(writeFileMock).toHaveBeenCalledWith('/tmp/runtime-test/speech-runtime/binaries/darwin-arm64/2026.05.04/whisper', Buffer.from('legacy-binary'));
+    expect(writeFileMock).toHaveBeenCalledWith('/tmp/runtime-test/speech-runtime/managed-models/ggml-base/1/model.bin', Buffer.from('legacy-model'));
+    expect(writeFileMock).toHaveBeenCalledWith('/tmp/runtime-test/speech-runtime/state.json', expect.stringContaining('"schemaVersion": 2'));
+    expect(rmMock).toHaveBeenCalledWith('/tmp/runtime-test/speech-runtime/current', { recursive: true, force: true });
+    expect(rmMock).toHaveBeenCalledWith('/tmp/runtime-test/speech-runtime/manifest.json', { force: true, recursive: false });
+  });
+
+  it('keeps legacy files untouched when V1 migration fails', async () => {
+    readFileMock.mockImplementation(async (filePath: string) => {
+      if (filePath === '/tmp/runtime-test/speech-runtime/state.json') {
+        throw new Error('ENOENT');
+      }
+
+      if (filePath === '/tmp/runtime-test/speech-runtime/manifest.json') {
+        return JSON.stringify({
+          version: '2026.05.04',
+          modelName: 'ggml-base',
+          platform: 'darwin',
+          arch: 'arm64',
+          currentDir: 'current'
+        });
+      }
+
+      if (filePath === '/tmp/runtime-test/speech-runtime/current/bin/whisper') {
+        return Buffer.from('legacy-binary');
+      }
+
+      if (filePath === '/tmp/runtime-test/speech-runtime/current/models/ggml-base.bin') {
+        throw new Error('ENOENT');
+      }
+
+      throw new Error(`Unexpected file read: ${filePath}`);
+    });
+
+    const { getSpeechRuntimeSnapshot } = await import('../../electron/main/modules/speech/runtime.mjs');
+    const snapshot = await getSpeechRuntimeSnapshot({
+      userDataPath: '/tmp/runtime-test',
+      platform: 'darwin',
+      arch: 'arm64'
+    });
+
+    expect(snapshot.binaryState).toBe('missing');
+    expect(snapshot.activeState).toBe('missing-model');
+    expect(writeFileMock).not.toHaveBeenCalled();
+    expect(rmMock).not.toHaveBeenCalled();
+  });
 });

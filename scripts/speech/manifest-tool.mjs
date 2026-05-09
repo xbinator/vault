@@ -35,6 +35,42 @@ import { resolve } from 'node:path';
  */
 
 /**
+ * V2 binary 版本条目。
+ * @typedef {object} SpeechCatalogBinaryVersion
+ * @property {string} version 版本号。
+ * @property {string} url 下载地址。
+ * @property {string} sha256 摘要。
+ * @property {string} archiveType 分发类型。
+ */
+
+/**
+ * V2 平台 binary 定义。
+ * @typedef {object} SpeechCatalogBinaryPlatform
+ * @property {string} currentVersion 当前推荐版本。
+ * @property {SpeechCatalogBinaryVersion[]} versions 可用版本列表。
+ */
+
+/**
+ * V2 官方模型条目。
+ * @typedef {object} SpeechCatalogModel
+ * @property {string} id 模型标识。
+ * @property {string} displayName 展示名称。
+ * @property {string} version 版本号。
+ * @property {string} url 下载地址。
+ * @property {string} sha256 摘要。
+ * @property {number} sizeBytes 模型大小。
+ * @property {string} [recommendedFor] 推荐场景。
+ */
+
+/**
+ * V2 catalog manifest 顶层结构。
+ * @typedef {object} SpeechCatalogManifestDefinition
+ * @property {2} schemaVersion manifest 版本。
+ * @property {Record<string, SpeechCatalogBinaryPlatform>} binaries 平台 binary 映射。
+ * @property {SpeechCatalogModel[]} models 官方模型列表。
+ */
+
+/**
  * fill 命令所需的参数集合。
  * @typedef {object} FillManifestOptions
  * @property {string} manifestPath 目标 manifest 路径。
@@ -74,6 +110,15 @@ function isRecord(value) {
  */
 function containsPlaceholder(value) {
   return value.includes('OWNER/REPO') || value.includes('REPLACE_WITH_');
+}
+
+/**
+ * 判断 manifest 是否为 V2 catalog 结构。
+ * @param {unknown} definition - 待判断 manifest。
+ * @returns {definition is SpeechCatalogManifestDefinition} 是否为 V2。
+ */
+function isCatalogManifestDefinition(definition) {
+  return isRecord(definition) && definition.schemaVersion === 2 && isRecord(definition.binaries) && Array.isArray(definition.models);
 }
 
 /**
@@ -161,6 +206,84 @@ function validateAsset(asset, assetPath, result) {
 }
 
 /**
+ * 校验 V2 binary 版本定义。
+ * @param {SpeechCatalogBinaryVersion} binaryVersion - binary 版本定义。
+ * @param {string} versionPath - 当前路径。
+ * @param {ManifestValidationResult} result - 当前累计结果。
+ */
+function validateBinaryVersion(binaryVersion, versionPath, result) {
+  if (!isRecord(binaryVersion)) {
+    result.errors.push(`${versionPath} 必须是对象`);
+    return;
+  }
+
+  if (typeof binaryVersion.version !== 'string' || binaryVersion.version.length === 0) {
+    result.errors.push(`${versionPath}.version 必须是非空字符串`);
+  }
+  if (typeof binaryVersion.url !== 'string' || binaryVersion.url.length === 0) {
+    result.errors.push(`${versionPath}.url 必须是非空字符串`);
+  } else if (!isAllowedAssetUrl(binaryVersion.url)) {
+    result.errors.push(`${versionPath}.url 必须使用 https://，本地开发仅允许 http://127.0.0.1 或 http://localhost`);
+  } else if (containsPlaceholder(binaryVersion.url)) {
+    result.warnings.push(`${versionPath}.url 仍包含模板占位符`);
+  }
+  if (typeof binaryVersion.sha256 !== 'string' || binaryVersion.sha256.length === 0) {
+    result.errors.push(`${versionPath}.sha256 必须是非空字符串`);
+  } else if (!/^[a-f0-9]{64}$/u.test(binaryVersion.sha256)) {
+    if (containsPlaceholder(binaryVersion.sha256)) {
+      result.warnings.push(`${versionPath}.sha256 仍包含模板占位符`);
+    } else {
+      result.errors.push(`${versionPath}.sha256 必须是 64 位十六进制字符串`);
+    }
+  }
+  if (typeof binaryVersion.archiveType !== 'string' || binaryVersion.archiveType.length === 0) {
+    result.errors.push(`${versionPath}.archiveType 必须是非空字符串`);
+  }
+}
+
+/**
+ * 校验 V2 官方模型定义。
+ * @param {SpeechCatalogModel} model - 官方模型定义。
+ * @param {string} modelPath - 当前路径。
+ * @param {ManifestValidationResult} result - 当前累计结果。
+ */
+function validateCatalogModel(model, modelPath, result) {
+  if (!isRecord(model)) {
+    result.errors.push(`${modelPath} 必须是对象`);
+    return;
+  }
+
+  if (typeof model.id !== 'string' || model.id.length === 0) {
+    result.errors.push(`${modelPath}.id 必须是非空字符串`);
+  }
+  if (typeof model.displayName !== 'string' || model.displayName.length === 0) {
+    result.errors.push(`${modelPath}.displayName 必须是非空字符串`);
+  }
+  if (typeof model.version !== 'string' || model.version.length === 0) {
+    result.errors.push(`${modelPath}.version 必须是非空字符串`);
+  }
+  if (typeof model.url !== 'string' || model.url.length === 0) {
+    result.errors.push(`${modelPath}.url 必须是非空字符串`);
+  } else if (!isAllowedAssetUrl(model.url)) {
+    result.errors.push(`${modelPath}.url 必须使用 https://，本地开发仅允许 http://127.0.0.1 或 http://localhost`);
+  } else if (containsPlaceholder(model.url)) {
+    result.warnings.push(`${modelPath}.url 仍包含模板占位符`);
+  }
+  if (typeof model.sha256 !== 'string' || model.sha256.length === 0) {
+    result.errors.push(`${modelPath}.sha256 必须是非空字符串`);
+  } else if (!/^[a-f0-9]{64}$/u.test(model.sha256)) {
+    if (containsPlaceholder(model.sha256)) {
+      result.warnings.push(`${modelPath}.sha256 仍包含模板占位符`);
+    } else {
+      result.errors.push(`${modelPath}.sha256 必须是 64 位十六进制字符串`);
+    }
+  }
+  if (typeof model.sizeBytes !== 'number' || !Number.isFinite(model.sizeBytes) || model.sizeBytes < 0) {
+    result.errors.push(`${modelPath}.sizeBytes 必须是非负数字`);
+  }
+}
+
+/**
  * 校验 manifest 的结构与关键字段。
  * @param {unknown} definition - 待校验的 manifest 内容。
  * @returns {ManifestValidationResult} 校验结果。
@@ -171,6 +294,41 @@ export function validateManifestDefinition(definition) {
 
   if (!isRecord(definition)) {
     result.errors.push('manifest 顶层必须是对象');
+    return result;
+  }
+
+  if (isCatalogManifestDefinition(definition)) {
+    const { binaries, models } = definition;
+
+    for (const [platformKey, binaryPlatform] of Object.entries(binaries)) {
+      const platformPath = `binaries.${platformKey}`;
+      if (!isRecord(binaryPlatform)) {
+        result.errors.push(`${platformPath} 必须是对象`);
+        continue;
+      }
+
+      if (typeof binaryPlatform.currentVersion !== 'string' || binaryPlatform.currentVersion.length === 0) {
+        result.errors.push(`${platformPath}.currentVersion 必须是非空字符串`);
+      }
+      if (!Array.isArray(binaryPlatform.versions) || binaryPlatform.versions.length === 0) {
+        result.errors.push(`${platformPath}.versions 必须是非空数组`);
+        continue;
+      }
+
+      binaryPlatform.versions.forEach((binaryVersion, versionIndex) => {
+        validateBinaryVersion(/** @type {SpeechCatalogBinaryVersion} */ (binaryVersion), `${platformPath}.versions[${versionIndex}]`, result);
+      });
+    }
+
+    if (!Array.isArray(models) || models.length === 0) {
+      result.errors.push('models 必须是非空数组');
+      return result;
+    }
+
+    models.forEach((model, modelIndex) => {
+      validateCatalogModel(/** @type {SpeechCatalogModel} */ (model), `models[${modelIndex}]`, result);
+    });
+
     return result;
   }
 
@@ -260,6 +418,29 @@ function parseNamedArguments(argumentsList) {
  * @returns {SpeechManifestDefinition} 更新后的 manifest 对象。
  */
 export function applyDigestsToManifest(manifestDefinition, digests) {
+  if (isCatalogManifestDefinition(manifestDefinition)) {
+    const clonedCatalog = /** @type {SpeechCatalogManifestDefinition} */ (structuredClone(manifestDefinition));
+    const binaryDigestMappings = [
+      { platformKey: 'darwin-arm64', digestKey: 'darwinArm64' },
+      { platformKey: 'darwin-x64', digestKey: 'darwinX64' },
+      { platformKey: 'win32-x64', digestKey: 'win32X64' }
+    ];
+
+    binaryDigestMappings.forEach(({ platformKey, digestKey }) => {
+      const binaryPlatform = clonedCatalog.binaries[platformKey];
+      const currentBinary = binaryPlatform?.versions.find((item) => item.version === binaryPlatform.currentVersion) ?? binaryPlatform?.versions[0];
+      if (currentBinary) {
+        currentBinary.sha256 = digests[digestKey];
+      }
+    });
+
+    clonedCatalog.models.forEach((model) => {
+      model.sha256 = digests.model;
+    });
+
+    return clonedCatalog;
+  }
+
   const clonedDefinition = /** @type {SpeechManifestDefinition} */ (structuredClone(manifestDefinition));
   const platformMappings = [
     { platformKey: 'darwin-arm64', assetName: 'whisper', digestKey: 'darwinArm64' },
@@ -424,6 +605,28 @@ export async function runFillCommand(options) {
  */
 export function localizeManifestAssetUrls(manifestDefinition, baseUrl) {
   const normalizedBaseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
+  if (isCatalogManifestDefinition(manifestDefinition)) {
+    const clonedCatalog = /** @type {SpeechCatalogManifestDefinition} */ (structuredClone(manifestDefinition));
+    const whisperFileNames = {
+      'darwin-arm64': 'whisper-darwin-arm64',
+      'darwin-x64': 'whisper-darwin-x64',
+      'win32-x64': 'whisper-win32-x64.exe'
+    };
+
+    Object.entries(clonedCatalog.binaries).forEach(([platformKey, binaryPlatform]) => {
+      const currentBinary = binaryPlatform.versions.find((item) => item.version === binaryPlatform.currentVersion) ?? binaryPlatform.versions[0];
+      if (currentBinary) {
+        currentBinary.url = `${normalizedBaseUrl}/${whisperFileNames[platformKey] ?? 'whisper-cli'}`;
+      }
+    });
+
+    clonedCatalog.models.forEach((model) => {
+      model.url = `${normalizedBaseUrl}/${model.id}.bin`;
+    });
+
+    return clonedCatalog;
+  }
+
   const clonedDefinition = /** @type {SpeechManifestDefinition} */ (structuredClone(manifestDefinition));
   const whisperFileNames = {
     'darwin-arm64': 'whisper-darwin-arm64',
