@@ -7,8 +7,8 @@
     <TransitionGroup name="toast" tag="div" class="toast-stack">
       <ToastItem
         v-for="toast in toastQueue"
-        :key="toast.id"
         :id="toast.id"
+        :key="toast.id"
         :type="toast.type"
         :content="toast.content"
         :duration="toast.duration"
@@ -30,7 +30,7 @@
 </template>
 
 <script setup lang="ts">
-import type { ToastItem, ConfirmState } from './types';
+import type { ToastItem as ToastItemType, ConfirmState } from './types';
 import ConfirmModal from './ConfirmModal.vue';
 import ToastItem from './ToastItem.vue';
 
@@ -39,7 +39,7 @@ import ToastItem from './ToastItem.vue';
  */
 interface Props {
   /** Toast 队列 */
-  toastQueue: ToastItem[];
+  toastQueue: ToastItemType[];
   /** Confirm 对话框状态 */
   confirmState: ConfirmState | null;
 }
