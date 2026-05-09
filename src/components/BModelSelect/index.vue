@@ -20,7 +20,6 @@
             :ref="(el) => setItemRef(el, groupIndex, modelIndex)"
             class="model-item"
             :class="{
-              'is-active': item.value === internalModel,
               'is-focused': isFocused(groupIndex, modelIndex)
             }"
             @click="handleModelSelect(item)"
@@ -237,26 +236,21 @@ function handleKeydown(event: KeyboardEvent): void {
     if (!currentGroup) return;
 
     if (delta === 1) {
-      // 向下移动
       if (focusedModelIndex.value < currentGroup.models.length - 1) {
         focusedModelIndex.value++;
       } else if (focusedGroupIndex.value < groups.length - 1) {
         focusedGroupIndex.value++;
         focusedModelIndex.value = 0;
       } else {
-        // 循环：最后一组的最后一个 -> 第一组的第一个
         focusedGroupIndex.value = 0;
         focusedModelIndex.value = 0;
       }
     } else if (focusedModelIndex.value > 0) {
-      // 向上移动：当前组内还有上一个
       focusedModelIndex.value--;
     } else if (focusedGroupIndex.value > 0) {
-      // 向上移动：移动到上一组的最后一个
       focusedGroupIndex.value--;
       focusedModelIndex.value = groups[focusedGroupIndex.value].models.length - 1;
     } else {
-      // 循环：第一组的第一个 -> 最后一组的最后一个
       focusedGroupIndex.value = groups.length - 1;
       focusedModelIndex.value = groups[focusedGroupIndex.value].models.length - 1;
     }
@@ -408,10 +402,6 @@ defineExpose<BModelSelectExpose>({
 .model-item:hover,
 .model-item.is-focused {
   background: var(--bg-hover);
-}
-
-.model-item.is-active {
-  background: var(--color-primary-bg);
 }
 
 .model-item__icon-wrap {
