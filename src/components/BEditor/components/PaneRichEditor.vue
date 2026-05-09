@@ -569,7 +569,6 @@ defineExpose(controller);
 
   p {
     min-height: 1em;
-    margin: 0.75em 0;
   }
 
   ul,

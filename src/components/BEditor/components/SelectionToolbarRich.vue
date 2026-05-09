@@ -4,6 +4,7 @@
     :editor="editor"
     :plugin-key="SELECTION_TOOLBAR_PLUGIN_KEY"
     :should-show="shouldShow"
+    :get-referenced-virtual-element="getReferencedVirtualElement"
     :options="bubbleMenuOptions"
     class="bubble-menu-wrapper"
   >
@@ -87,6 +88,33 @@ const bubbleMenuOptions = computed(() => ({
     // onHide 由 BubbleMenu 内置管理，不在此处操作编排状态
   }
 }));
+
+/**
+ * 归一化 rich 模式工具栏锚点位置。
+ * 全选（AllSelection）时 selection.from 可能为 0，此时应回退到文档内首个可定位位置。
+ * @param from - 当前选区起点
+ * @returns 可传给 coordsAtPos 的合法文档位置
+ */
+function resolveToolbarAnchorPos(from: number): number {
+  return Math.max(1, from);
+}
+
+/**
+ * 为 BubbleMenu 提供首行锚点，避免多行选区时默认吸附到整段选区矩形底部。
+ * rich 模式工具栏的交互语义与 source 模式保持一致：总是围绕选区起始行定位。
+ */
+const getReferencedVirtualElement = computed((): (() => { getBoundingClientRect: () => DOMRect; getClientRects: () => DOMRect[] }) => {
+  return () => {
+    const { from } = props.editor.state.selection;
+    const coords = props.editor.view.coordsAtPos(resolveToolbarAnchorPos(from));
+    const rect = new DOMRect(coords.left, coords.top, coords.right - coords.left, coords.bottom - coords.top);
+
+    return {
+      getBoundingClientRect: (): DOMRect => rect,
+      getClientRects: (): DOMRect[] => [rect]
+    };
+  };
+});
 
 /** 合并格式按钮的 active 态（基于当前编辑器状态） */
 const resolvedFormatButtons = computed(() =>
