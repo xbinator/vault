@@ -3,7 +3,7 @@
  * @description 注册语音转写相关的 IPC handlers。
  */
 import type { SpeechRuntimeStatus, SpeechTranscribeRequest, SpeechTranscribeResult } from './types.mjs';
-import { BrowserWindow, ipcMain } from 'electron';
+import { BrowserWindow, ipcMain, systemPreferences } from 'electron';
 import { installSpeechRuntime, resolveSpeechRuntimeManifest } from './installer.mjs';
 import { getSpeechRuntimeStatus, removeSpeechRuntime } from './runtime.mjs';
 import { transcribeAudioSegment } from './service.mjs';
@@ -42,5 +42,16 @@ export function registerSpeechHandlers(): void {
   ipcMain.handle('speech:removeRuntime', async (): Promise<SpeechRuntimeStatus> => {
     await removeSpeechRuntime();
     return getSpeechRuntimeStatus();
+  });
+
+  /**
+   * 请求系统麦克风权限（仅 macOS 需要，Windows getUserMedia 自动提示）。
+   */
+  ipcMain.handle('speech:requestMicrophonePermission', async (): Promise<boolean> => {
+    if (process.platform !== 'darwin') {
+      return true;
+    }
+
+    return systemPreferences.askForMediaAccess('microphone');
   });
 }

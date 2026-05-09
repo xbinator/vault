@@ -50,7 +50,6 @@ export function createBuiltinTools(options: CreateBuiltinToolsOptions = {}): AIT
   const allReadonlyTools: AIToolExecutor[] = [
     readTools.readCurrentDocument,
     environmentTools.getCurrentTime,
-    readTools.searchCurrentDocument,
     createAskUserChoiceTool({
       getPendingQuestion: options.getPendingQuestion ?? (() => null),
       createQuestionId: options.createQuestionId ?? (() => nanoid())

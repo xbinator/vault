@@ -12,9 +12,10 @@ import {
   isDefaultBuiltinWritableToolName
 } from '@/ai/tools/builtin/catalog';
 import { GET_CURRENT_TIME_TOOL_NAME } from '@/ai/tools/builtin/environment';
-import { READ_CURRENT_DOCUMENT_TOOL_NAME, SEARCH_CURRENT_DOCUMENT_TOOL_NAME } from '@/ai/tools/builtin/read';
+import { READ_CURRENT_DOCUMENT_TOOL_NAME } from '@/ai/tools/builtin/read';
 import { READ_DIRECTORY_TOOL_NAME, READ_FILE_TOOL_NAME } from '@/ai/tools/builtin/read-file';
 import { GET_SETTINGS_TOOL_NAME, UPDATE_SETTINGS_TOOL_NAME } from '@/ai/tools/builtin/settings';
+import { QUERY_LOGS_TOOL_NAME } from '@/ai/tools/builtin/logs';
 import { INSERT_AT_CURSOR_TOOL_NAME } from '@/ai/tools/builtin/write';
 
 describe('built-in tool catalog', () => {
@@ -22,11 +23,11 @@ describe('built-in tool catalog', () => {
     expect([...DEFAULT_BUILTIN_READONLY_TOOL_NAMES]).toEqual([
       READ_CURRENT_DOCUMENT_TOOL_NAME,
       GET_CURRENT_TIME_TOOL_NAME,
-      SEARCH_CURRENT_DOCUMENT_TOOL_NAME,
       ASK_USER_CHOICE_TOOL_NAME,
       READ_FILE_TOOL_NAME,
       READ_DIRECTORY_TOOL_NAME,
-      GET_SETTINGS_TOOL_NAME
+      GET_SETTINGS_TOOL_NAME,
+      QUERY_LOGS_TOOL_NAME
     ]);
   });
 
@@ -38,11 +39,11 @@ describe('built-in tool catalog', () => {
     expect(getDefaultBuiltinChatToolNames()).toEqual([
       READ_CURRENT_DOCUMENT_TOOL_NAME,
       GET_CURRENT_TIME_TOOL_NAME,
-      SEARCH_CURRENT_DOCUMENT_TOOL_NAME,
       ASK_USER_CHOICE_TOOL_NAME,
       READ_FILE_TOOL_NAME,
       READ_DIRECTORY_TOOL_NAME,
       GET_SETTINGS_TOOL_NAME,
+      QUERY_LOGS_TOOL_NAME,
       INSERT_AT_CURSOR_TOOL_NAME,
       UPDATE_SETTINGS_TOOL_NAME
     ]);

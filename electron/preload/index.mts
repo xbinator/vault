@@ -230,6 +230,13 @@ const electronAPI: ElectronAPI = {
   removeSpeechRuntime: () => ipcRenderer.invoke('speech:removeRuntime'),
 
   /**
+   * 请求系统麦克风权限。
+   * macOS 需要主动请求，Windows/浏览器端 getUserMedia 会自动触发权限提示。
+   * @returns 是否已授权
+   */
+  requestMicrophonePermission: () => ipcRenderer.invoke('speech:requestMicrophonePermission'),
+
+  /**
    * 监听语音运行时安装进度。
    * @param callback - 进度回调
    * @returns 取消监听函数

@@ -44,7 +44,13 @@
         :on-close="usagePanel.close"
       />
 
-      <InteractionContainer />
+      <InteractionContainer
+        :toast-queue="toastQueue"
+        :confirm-state="confirmState"
+        @remove-toast="removeToast"
+        @confirm="handleInteractionConfirm"
+        @cancel="handleInteractionCancel"
+      />
 
       <div class="b-chat-sidebar__input">
         <div class="b-chat-sidebar__input-container">
@@ -90,7 +96,7 @@
 <script setup lang="ts">
 import type { Message } from './utils/types';
 import type { AIUserChoiceAnswerData, ChatMessageConfirmationAction, ChatMessageConfirmationCustomInputPayload } from 'types/chat';
-import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { computed, onMounted, onUnmounted, provide, ref } from 'vue';
 import { Icon } from '@iconify/vue';
 import { message } from 'ant-design-vue';
 import { createBuiltinTools } from '@/ai/tools/builtin';
@@ -118,6 +124,7 @@ import { useChatTaskRuntime } from './hooks/useChatTaskRuntime';
 import { useCompactContext } from './hooks/useCompactContext';
 import { useFileReference } from './hooks/useFileReference';
 import { useImageUpload } from './hooks/useImageUpload';
+import { useInteractionState } from './hooks/useInteractionState';
 import { useModelSelection } from './hooks/useModelSelection';
 import { useSession } from './hooks/useSession';
 import { useSlashCommands, chatSlashCommands } from './hooks/useSlashCommands';
@@ -130,6 +137,19 @@ import { create, userChoice, buildMessageReferences } from './utils/messageHelpe
 const chatStore = useChatStore();
 /** 应用设置存储 */
 const settingStore = useSettingStore();
+
+/** 交互容器状态 */
+const {
+  api: interactionAPI,
+  toastQueue,
+  confirmState,
+  removeToast,
+  handleConfirm: handleInteractionConfirm,
+  handleCancel: handleInteractionCancel
+} = useInteractionState();
+
+/** 提供交互 API */
+provide('interaction', interactionAPI);
 
 /** 输入框编辑器引用 */
 const promptEditorRef = ref<InstanceType<typeof BPromptEditor>>();

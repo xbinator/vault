@@ -270,6 +270,7 @@ export interface ElectronAPI {
   getSpeechRuntimeStatus: () => Promise<ElectronSpeechRuntimeStatus>;
   installSpeechRuntime: () => Promise<ElectronSpeechRuntimeStatus>;
   removeSpeechRuntime: () => Promise<ElectronSpeechRuntimeStatus>;
+  requestMicrophonePermission: () => Promise<boolean>;
   onSpeechInstallProgress: (listener: (progress: ElectronSpeechInstallProgress) => void) => () => void;
 
   // AI 服务操作

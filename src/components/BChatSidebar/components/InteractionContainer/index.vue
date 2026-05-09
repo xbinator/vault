@@ -4,7 +4,18 @@
 -->
 <template>
   <div class="interaction-container">
-    <ToastStack ref="toastStackRef" :max-count="maxToastCount" />
+    <TransitionGroup name="toast" tag="div" class="toast-stack">
+      <ToastItem
+        v-for="toast in toastQueue"
+        :key="toast.id"
+        :id="toast.id"
+        :type="toast.type"
+        :content="toast.content"
+        :duration="toast.duration"
+        @close="removeToast"
+      />
+    </TransitionGroup>
+
     <ConfirmModal
       :visible="confirmState?.visible ?? false"
       :title="confirmState?.options.title"
@@ -19,98 +30,49 @@
 </template>
 
 <script setup lang="ts">
-import type { ToastOptions, ToastItem, ConfirmOptions, ConfirmState, InteractionAPI } from './types';
-import { provide, ref } from 'vue';
+import type { ToastItem, ConfirmState } from './types';
 import ConfirmModal from './ConfirmModal.vue';
-import ToastStack from './ToastStack.vue';
+import ToastItem from './ToastItem.vue';
 
 /**
  * InteractionContainer 属性
  */
 interface Props {
-  /** 最大 Toast 显示数量 */
-  maxToastCount?: number;
-  /** 默认 Toast 持续时间（毫秒） */
-  defaultDuration?: number;
+  /** Toast 队列 */
+  toastQueue: ToastItem[];
+  /** Confirm 对话框状态 */
+  confirmState: ConfirmState | null;
 }
 
-const props = withDefaults(defineProps<Props>(), {
-  maxToastCount: 3,
-  defaultDuration: 3000
-});
+defineProps<Props>();
 
-/** ToastStack 组件引用 */
-const toastStackRef = ref<InstanceType<typeof ToastStack>>();
-
-/** Confirm 对话框状态 */
-const confirmState = ref<ConfirmState | null>(null);
+const emit = defineEmits<{
+  (e: 'removeToast', id: string): void;
+  (e: 'confirm'): void;
+  (e: 'cancel'): void;
+}>();
 
 /**
- * 显示 Toast 提示
- * @param options - Toast 选项
+ * 移除 Toast
+ * @param id - Toast ID
  */
-function showToast(options: ToastOptions): void {
-  const toast: ToastItem = {
-    id: `toast-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-    type: options.type,
-    content: options.content,
-    duration: options.duration ?? props.defaultDuration,
-    createdAt: Date.now()
-  };
-
-  toastStackRef.value?.addToast(toast);
-}
-
-/**
- * 显示确认对话框
- * @param options - 确认对话框选项
- * @returns Promise<boolean> - 用户确认返回 true，取消返回 false
- */
-function showConfirm(options: ConfirmOptions): Promise<boolean> {
-  return new Promise((resolve) => {
-    confirmState.value = {
-      visible: true,
-      options,
-      resolve
-    };
-  });
+function removeToast(id: string): void {
+  emit('removeToast', id);
 }
 
 /**
  * 处理确认按钮点击
  */
 function handleConfirm(): void {
-  if (confirmState.value) {
-    confirmState.value.resolve(true);
-    confirmState.value.visible = false;
-
-    // 延迟清除状态，等待动画完成
-    setTimeout(() => {
-      confirmState.value = null;
-    }, 300);
-  }
+  emit('confirm');
 }
 
 /**
  * 处理取消按钮点击
  */
 function handleCancel(): void {
-  if (confirmState.value) {
-    confirmState.value.resolve(false);
-    confirmState.value.visible = false;
-
-    // 延迟清除状态，等待动画完成
-    setTimeout(() => {
-      confirmState.value = null;
-    }, 300);
-  }
+  emit('cancel');
 }
-
-/** 提供交互 API */
-provide<InteractionAPI>('interaction', {
-  showToast,
-  showConfirm
-});
 </script>
 
 <style scoped lang="less">
@@ -118,5 +80,46 @@ provide<InteractionAPI>('interaction', {
   position: relative;
   width: 100%;
   padding: 0 12px 12px;
+}
+
+.toast-stack {
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 8px;
+  width: 100%;
+}
+
+/* Toast 进入动画 */
+.toast-enter-active {
+  animation: toast-in 0.3s ease;
+}
+
+/* Toast 离开动画 */
+.toast-leave-active {
+  animation: toast-out 0.3s ease;
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes toast-out {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  to {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
 }
 </style>

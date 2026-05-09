@@ -48,7 +48,6 @@ describe('createBuiltinTools', () => {
     expect(getToolNames()).toEqual([
       'read_current_document',
       'get_current_time',
-      'search_current_document',
       'ask_user_choice',
       'read_file',
       READ_DIRECTORY_TOOL_NAME,
@@ -61,7 +60,6 @@ describe('createBuiltinTools', () => {
     expect(getToolNames(true)).toEqual([
       'read_current_document',
       'get_current_time',
-      'search_current_document',
       'ask_user_choice',
       'read_file',
       READ_DIRECTORY_TOOL_NAME,
@@ -84,7 +82,6 @@ describe('createBuiltinTools', () => {
     expect(tools.map((tool) => tool.definition.name)).toEqual([
       'read_current_document',
       'get_current_time',
-      'search_current_document',
       'ask_user_choice',
       'read_file',
       READ_DIRECTORY_TOOL_NAME,

@@ -36,7 +36,7 @@ describe('BChat tool loop guard', () => {
     const guard = createToolLoopGuard({ maxRounds: 5, maxRepeatedCalls: 1 });
 
     expect(guard.recordToolCall('read_current_document', {})).toEqual({ allowed: true });
-    expect(guard.recordToolCall('search_current_document', { query: 'AI' })).toEqual({ allowed: true });
+    expect(guard.recordToolCall('read_file', { path: 'src/main.ts' })).toEqual({ allowed: true });
     expect(guard.recordToolCall('read_current_document', {})).toEqual({ allowed: true });
   });
 });
