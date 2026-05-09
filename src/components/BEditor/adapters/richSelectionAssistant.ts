@@ -16,6 +16,24 @@ import { clearAISelectionHighlight, setAISelectionHighlight } from '../extension
 import { getSelectionSourceLineRange, getSelectionSourceLineRangeFromMarkdown } from './sourceLineMapping';
 
 /**
+ * 判断字符是否为行尾换行符。
+ * @param char - 待判断字符
+ * @returns 是否为换行符
+ */
+function isLineBreakChar(char: string): boolean {
+  return char === '\n' || char === '\r';
+}
+
+/**
+ * 判断 DOMRect 是否具有可见面积。
+ * @param rect - 待判断矩形
+ * @returns 是否为可见矩形
+ */
+function isVisibleDomRect(rect: DOMRect): boolean {
+  return rect.width > 0 && rect.height > 0;
+}
+
+/**
  * 创建 Rich 模式选区工具适配器。
  * @param editor - Tiptap Editor 实例
  * @param context - 编辑器上下文（文件元数据 + 浮层根容器）
@@ -41,6 +59,55 @@ export function createRichSelectionAssistantAdapter(editor: Editor, context: Sel
   }
 
   /**
+   * 将 viewport 坐标系下的 DOMRect 转换为相对 overlayRoot 的矩形。
+   * @param rect - viewport 坐标系矩形
+   * @returns overlayRoot 坐标系矩形
+   */
+  function domRectToOverlayRect(rect: DOMRect): {
+    top: number;
+    left: number;
+    width: number;
+    height: number;
+  } {
+    const overlayRect = context.overlayRoot.getBoundingClientRect();
+    return {
+      top: rect.top - overlayRect.top,
+      left: rect.left - overlayRect.left,
+      width: rect.width,
+      height: rect.height
+    };
+  }
+
+  /**
+   * 归一化 rich 选区起始锚点位置。
+   * ProseMirror 在全选场景下 selection.from 可能为 0，此时需要回退到第一个可定位位置。
+   * @param from - 原始选区起点
+   * @returns 可传给 coordsAtPos 的合法位置
+   */
+  function resolveToolbarAnchorPos(from: number): number {
+    return Math.max(1, from);
+  }
+
+  /**
+   * 将 rich 选区结束位置收敛到最后一个真实高亮字符之后。
+   * 末尾空行未被视觉高亮时，不应参与工具栏和 AI 面板的底部定位。
+   * @param range - 当前选区范围
+   * @returns 用于底部定位的结束位置
+   */
+  function resolveSelectionEndAnchorPos(range: SelectionAssistantRange): number {
+    let anchorPos = range.to;
+    while (anchorPos > range.from) {
+      const tailChar = editor.state.doc.textBetween(anchorPos - 1, anchorPos, '\0', '\0');
+      if (!isLineBreakChar(tailChar)) {
+        return anchorPos;
+      }
+      anchorPos -= 1;
+    }
+
+    return range.to;
+  }
+
+  /**
    * 计算视口在 overlayRoot 坐标系中的可见区域矩形。
    * 用于宿主组件做边界约束，确保工具栏/面板不会超出可视区域。
    * @param overlayRect - overlayRoot 的 getBoundingClientRect 结果
@@ -55,6 +122,55 @@ export function createRichSelectionAssistantAdapter(editor: Editor, context: Sel
       width: window.innerWidth - viewportLeft,
       height: window.innerHeight - viewportTop
     };
+  }
+
+  /**
+   * 读取浏览器真实选区矩形。
+   * 优先使用 DOM selection 的 client rects，以浏览器实际高亮区域为准，避免尾部空行或块边界扩张误导定位。
+   * @returns 选区矩形；若当前环境无法读取则返回 null
+   */
+  function getDomSelectionRect(): { top: number; left: number; width: number; height: number } | null {
+    const domSelection = window.getSelection();
+    if (!domSelection || domSelection.rangeCount === 0) {
+      return null;
+    }
+
+    const range = domSelection.getRangeAt(0);
+    const clientRects = Array.from(range.getClientRects()).filter(isVisibleDomRect);
+    if (clientRects.length === 0) {
+      const fallbackRect = range.getBoundingClientRect();
+      if (!isVisibleDomRect(fallbackRect)) {
+        return null;
+      }
+      return domRectToOverlayRect(fallbackRect);
+    }
+
+    const top = Math.min(...clientRects.map((rect) => rect.top));
+    const left = Math.min(...clientRects.map((rect) => rect.left));
+    const right = Math.max(...clientRects.map((rect) => rect.right));
+    const bottom = Math.max(...clientRects.map((rect) => rect.bottom));
+
+    return domRectToOverlayRect(new DOMRect(left, top, right - left, bottom - top));
+  }
+
+  /**
+   * 读取 AI 高亮装饰的真实矩形。
+   * rich 模式的视觉高亮以 `.ai-selection-highlight` 为准，因此工具栏下方定位应优先跟随这些真实 DOM 片段。
+   * @returns 高亮矩形；若当前未渲染高亮装饰则返回 null
+   */
+  function getHighlightDecorationRect(): { top: number; left: number; width: number; height: number } | null {
+    const highlightElements = Array.from(editor.view.dom.querySelectorAll<HTMLElement>('.ai-selection-highlight'));
+    const highlightRects = highlightElements.map((element) => element.getBoundingClientRect()).filter(isVisibleDomRect);
+    if (highlightRects.length === 0) {
+      return null;
+    }
+
+    const top = Math.min(...highlightRects.map((rect) => rect.top));
+    const left = Math.min(...highlightRects.map((rect) => rect.left));
+    const right = Math.max(...highlightRects.map((rect) => rect.right));
+    const bottom = Math.max(...highlightRects.map((rect) => rect.bottom));
+
+    return domRectToOverlayRect(new DOMRect(left, top, right - left, bottom - top));
   }
 
   return {
@@ -111,7 +227,7 @@ export function createRichSelectionAssistantAdapter(editor: Editor, context: Sel
     },
 
     getPanelPosition(range: SelectionAssistantRange): SelectionAssistantPosition | null {
-      const endCoords = editor.view.coordsAtPos(range.to);
+      const endCoords = editor.view.coordsAtPos(resolveSelectionEndAnchorPos(range), -1);
       const lineHeight = endCoords.bottom - endCoords.top;
       const overlayRect = context.overlayRoot.getBoundingClientRect();
       return {
@@ -122,11 +238,19 @@ export function createRichSelectionAssistantAdapter(editor: Editor, context: Sel
     },
 
     getToolbarPosition(range: SelectionAssistantRange): SelectionAssistantPosition | null {
-      const startCoords = editor.view.coordsAtPos(range.from);
+      const startCoords = editor.view.coordsAtPos(resolveToolbarAnchorPos(range.from));
+      const endCoords = editor.view.coordsAtPos(resolveSelectionEndAnchorPos(range), -1);
       const lineHeight = startCoords.bottom - startCoords.top;
       const overlayRect = context.overlayRoot.getBoundingClientRect();
+      const fallbackSelectionRect = {
+        top: Math.min(startCoords.top, endCoords.top) - overlayRect.top,
+        left: Math.min(startCoords.left, endCoords.left) - overlayRect.left,
+        width: Math.max(startCoords.right, endCoords.right) - Math.min(startCoords.left, endCoords.left),
+        height: Math.max(startCoords.bottom, endCoords.bottom) - Math.min(startCoords.top, endCoords.top)
+      };
       return {
         anchorRect: coordsToAnchorRect(startCoords),
+        selectionRect: getHighlightDecorationRect() ?? getDomSelectionRect() ?? fallbackSelectionRect,
         lineHeight,
         containerRect: getViewportContainerRect(overlayRect)
       };

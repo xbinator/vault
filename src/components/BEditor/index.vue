@@ -98,7 +98,7 @@ const editorState = defineModel<EditorState>('value', { default: () => ({ conten
  */
 const outlineContent = defineModel<string>('outlineContent', { default: '' });
 
-const richEditorPaneRef = ref<EditorController | null>(null);
+const richEditorPaneRef = ref<(EditorController & { recomputeSelectionOverlays?: () => void }) | null>(null);
 const sourceEditorPaneRef = ref<EditorController | null>(null);
 const findBarVisible = ref(false);
 
@@ -165,6 +165,7 @@ function handleEditorAnchorChange(record: AnchorRecord): void {
 function handleEditorScrollEvent(): void {
   if (isRichMode.value) {
     handleEditorScroll();
+    richEditorPaneRef.value?.recomputeSelectionOverlays?.();
     return;
   }
 

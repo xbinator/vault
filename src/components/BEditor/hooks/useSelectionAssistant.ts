@@ -178,8 +178,8 @@ export function useSelectionAssistant(options: UseSelectionAssistantOptions) {
       awaitingSelectionSyncAfterFocus.value = false;
       clearStickyHighlight();
       transitionTo('toolbar-visible');
-      recomputeToolbarPosition();
       adapter.showSelectionHighlight(selection);
+      recomputeToolbarPosition();
       return;
     }
 
@@ -192,12 +192,12 @@ export function useSelectionAssistant(options: UseSelectionAssistantOptions) {
           clearStickyHighlight();
         }
         transitionTo('toolbar-visible');
-        recomputeToolbarPosition();
         adapter.showSelectionHighlight(selection);
+        recomputeToolbarPosition();
         break;
       case 'toolbar-visible':
-        recomputeToolbarPosition();
         adapter.showSelectionHighlight(selection);
+        recomputeToolbarPosition();
         break;
       case 'ai-input-visible':
       case 'ai-streaming':

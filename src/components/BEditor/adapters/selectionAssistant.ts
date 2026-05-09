@@ -33,6 +33,8 @@ export interface SelectionAssistantRect {
 export interface SelectionAssistantPosition {
   /** 相对当前编辑器浮层容器的锚点矩形，默认基于当前选区末行 */
   anchorRect: SelectionAssistantRect;
+  /** 可选的完整选区矩形，供“显示在选区下方”这类场景使用 */
+  selectionRect?: SelectionAssistantRect;
   /** 当前选区末行的视觉高度，用于面板与工具栏的纵向间距计算 */
   lineHeight: number;
   /** 可选的容器矩形，供宿主做 viewport clamp 或溢出处理 */

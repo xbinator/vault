@@ -51,5 +51,13 @@ describe('rich editor markdown round trip', () => {
     const exportedMarkdown = roundTripMarkdown(markdown);
 
     expect(exportedMarkdown).toBe(markdown);
+    expect(exportedMarkdown).not.toContain('&nbsp;');
+  });
+
+  test('does not emit &nbsp; for consecutive blank lines', () => {
+    const exportedMarkdown = roundTripMarkdown('第一段\n\n\n第二段');
+
+    expect(exportedMarkdown).toBe('第一段\n\n第二段');
+    expect(exportedMarkdown).not.toContain('&nbsp;');
   });
 });

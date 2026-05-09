@@ -62,6 +62,41 @@ function getDocVersion(view: EditorView): number {
 }
 
 /**
+ * 判断字符是否为行尾换行符。
+ * @param char - 待判断字符
+ * @returns 是否为换行符
+ */
+function isLineBreakChar(char: string): boolean {
+  return char === '\n' || char === '\r';
+}
+
+/**
+ * 将选区结束位置收敛到最后一个真实高亮字符之后，避免尾部空行影响工具栏/面板的底部定位。
+ * CodeMirror 在选择若干结尾空行时，视觉高亮通常不会覆盖这些空行，因此下方回退也应基于最后一个可见高亮字符。
+ * @param view - CodeMirror EditorView 实例
+ * @param range - 当前选区范围
+ * @returns 用于定位的结束位置
+ */
+function resolveSelectionEndAnchorPos(view: EditorView, range: SelectionAssistantRange): number {
+  let anchorPos = range.to;
+  while (anchorPos > range.from) {
+    const tailChar = view.state.doc.sliceString(anchorPos - 1, anchorPos);
+    if (!isLineBreakChar(tailChar)) {
+      return anchorPos;
+    }
+    anchorPos -= 1;
+  }
+
+  return range.to;
+}
+
+/**
+ * 判断当前选区是否覆盖整个源码文档。
+ * @param view - CodeMirror EditorView 实例
+ * @param range - 当前选区范围
+ * @returns 是否为全选
+ */
+/**
  * 创建 Source 模式选区工具适配器。
  * @param view - CodeMirror EditorView 实例
  * @param context - 编辑器上下文（文件元数据 + 浮层根容器）
@@ -129,22 +164,7 @@ export function createSourceSelectionAssistantAdapter(
       const overlayRect = context.overlayRoot.getBoundingClientRect();
 
       // 若选区末尾落在空行上，向前找到最后一个非空行作为面板锚点。
-      let anchorPos = range.to;
-      const toLine = view.state.doc.lineAt(anchorPos);
-      if (toLine.length === 0) {
-        let searchPos = anchorPos;
-        while (searchPos >= range.from) {
-          const line = view.state.doc.lineAt(searchPos);
-          if (line.length > 0) {
-            anchorPos = line.from;
-            break;
-          }
-          if (line.from <= range.from) {
-            break;
-          }
-          searchPos = line.from - 1;
-        }
-      }
+      const anchorPos = resolveSelectionEndAnchorPos(view, range);
 
       const endCoords = view.coordsAtPos(anchorPos);
       if (!endCoords) {
@@ -195,16 +215,32 @@ export function createSourceSelectionAssistantAdapter(
         return null;
       }
 
+      const selectionEndCoords = view.coordsAtPos(resolveSelectionEndAnchorPos(view, range), -1);
+      if (!selectionEndCoords) {
+        return null;
+      }
+
       const lineHeight = getLineHeight(view, anchorPos);
       // 计算视口在 overlayRoot 坐标系中的可见区域，用于宿主做边界约束
       const viewportTop = Math.max(0, -overlayRect.top);
       const viewportLeft = Math.max(0, -overlayRect.left);
+      const selectionTop = Math.min(startCoords.top, selectionEndCoords.top);
+      const selectionBottom = Math.max(startCoords.bottom, selectionEndCoords.bottom);
+      const selectionLeft = Math.min(startCoords.left, selectionEndCoords.left);
+      const selectionRight = Math.max(startCoords.right, selectionEndCoords.right);
+
       return {
         anchorRect: {
           top: startCoords.top - overlayRect.top,
           left: startCoords.left - overlayRect.left,
           width: startCoords.right - startCoords.left,
           height: startCoords.bottom - startCoords.top
+        },
+        selectionRect: {
+          top: selectionTop - overlayRect.top,
+          left: selectionLeft - overlayRect.left,
+          width: selectionRight - selectionLeft,
+          height: selectionBottom - selectionTop
         },
         lineHeight,
         containerRect: {

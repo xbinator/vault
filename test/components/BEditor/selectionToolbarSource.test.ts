@@ -4,10 +4,10 @@
  * @vitest-environment jsdom
  */
 
-import type { SelectionAssistantPosition } from '@/components/BEditor/adapters/selectionAssistant';
 import { defineComponent, nextTick } from 'vue';
 import { mount } from '@vue/test-utils';
 import { afterEach, describe, expect, test } from 'vitest';
+import type { SelectionAssistantPosition } from '@/components/BEditor/adapters/selectionAssistant';
 import SelectionToolbarSource from '@/components/BEditor/components/SelectionToolbarSource.vue';
 
 /**
@@ -28,15 +28,22 @@ const SelectionToolbarStub = defineComponent({
  * 创建定位信息。
  * @param anchorLeft - 锚点横坐标
  * @param anchorTop - 锚点纵坐标
+ * @param selectionHeight - 完整选区高度
  * @returns 测试用定位信息
  */
-function createPosition(anchorLeft: number, anchorTop: number): SelectionAssistantPosition {
+function createPosition(anchorLeft: number, anchorTop: number, selectionHeight = 20): SelectionAssistantPosition {
   return {
     anchorRect: {
       top: anchorTop,
       left: anchorLeft,
       width: 0,
       height: 20
+    },
+    selectionRect: {
+      top: anchorTop,
+      left: anchorLeft,
+      width: 0,
+      height: selectionHeight
     },
     lineHeight: 20,
     containerRect: {
@@ -46,6 +53,17 @@ function createPosition(anchorLeft: number, anchorTop: number): SelectionAssista
       height: 160
     }
   };
+}
+
+/**
+ * 使用 DOMRect 模拟工具栏真实渲染尺寸。
+ * @param element - 工具栏宿主元素
+ */
+function mockToolbarRect(element: HTMLElement): void {
+  Object.defineProperty(element, 'getBoundingClientRect', {
+    configurable: true,
+    value: (): DOMRect => new DOMRect(0, 0, 120, 40)
+  });
 }
 
 /**
@@ -66,17 +84,6 @@ function mockToolbarSize(element: HTMLElement): void {
     }
   });
   mockToolbarRect(element);
-}
-
-/**
- * 使用 DOMRect 模拟工具栏真实渲染尺寸。
- * @param element - 工具栏宿主元素
- */
-function mockToolbarRect(element: HTMLElement): void {
-  Object.defineProperty(element, 'getBoundingClientRect', {
-    configurable: true,
-    value: (): DOMRect => new DOMRect(0, 0, 120, 40)
-  });
 }
 
 /**
@@ -260,5 +267,98 @@ describe('SelectionToolbarSource', () => {
     await nextTick();
 
     expect(readPx(toolbar, 'top')).toBe(38);
+  });
+
+  test('prefers rendering below when the selection anchor is above the visible viewport', async () => {
+    const overlayRoot = document.createElement('div');
+    document.body.appendChild(overlayRoot);
+
+    mount(SelectionToolbarSource, {
+      props: {
+        visible: true,
+        overlayRoot,
+        position: createPosition(190, -20, 60)
+      },
+      global: {
+        stubs: {
+          SelectionToolbar: SelectionToolbarStub
+        }
+      }
+    });
+
+    await nextTick();
+
+    const toolbar = getToolbarElement();
+    mockToolbarSize(toolbar);
+
+    window.dispatchEvent(new Event('resize'));
+    await nextTick();
+
+    expect(readPx(toolbar, 'left')).toBe(72);
+    expect(readPx(toolbar, 'top')).toBe(48);
+  });
+
+  test('uses the full selection bottom when there is not enough space above', async () => {
+    const overlayRoot = document.createElement('div');
+    document.body.appendChild(overlayRoot);
+
+    mount(SelectionToolbarSource, {
+      props: {
+        visible: true,
+        overlayRoot,
+        position: createPosition(80, 10, 60)
+      },
+      global: {
+        stubs: {
+          SelectionToolbar: SelectionToolbarStub
+        }
+      }
+    });
+
+    await nextTick();
+
+    const toolbar = getToolbarElement();
+    mockToolbarSize(toolbar);
+
+    window.dispatchEvent(new Event('resize'));
+    await nextTick();
+
+    expect(readPx(toolbar, 'top')).toBe(78);
+  });
+
+  test('pins the toolbar to the viewport bottom when both above and below positions are out of view', async () => {
+    const overlayRoot = document.createElement('div');
+    document.body.appendChild(overlayRoot);
+
+    mount(SelectionToolbarSource, {
+      props: {
+        visible: true,
+        overlayRoot,
+        position: {
+          ...createPosition(80, -20, 180),
+          containerRect: {
+            top: 0,
+            left: 0,
+            width: 200,
+            height: 120
+          }
+        }
+      },
+      global: {
+        stubs: {
+          SelectionToolbar: SelectionToolbarStub
+        }
+      }
+    });
+
+    await nextTick();
+
+    const toolbar = getToolbarElement();
+    mockToolbarSize(toolbar);
+
+    window.dispatchEvent(new Event('resize'));
+    await nextTick();
+
+    expect(readPx(toolbar, 'top')).toBe(72);
   });
 });

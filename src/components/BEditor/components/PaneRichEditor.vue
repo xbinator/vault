@@ -20,6 +20,8 @@
       ref="toolbarHostRef"
       :editor="editorInstance"
       :visible="assistant.toolbarVisible.value"
+      :position="assistant.toolbarPosition.value"
+      :overlay-root="overlayRootRef"
       :format-buttons="formatButtons"
       @ai="onToolbarAI"
       @reference="assistant.insertReference()"
@@ -429,6 +431,14 @@ function getActiveAnchorId(): string {
   return '';
 }
 
+/**
+ * 重新计算选区相关浮层位置。
+ * rich 模式实际滚动发生在外层 BScrollbar 中，因此需要由宿主在容器滚动时主动触发重算。
+ */
+function recomputeSelectionOverlays(): void {
+  assistant.recomputeAllPositions();
+}
+
 const controller: EditorController & { setContent: (text: string) => void } = {
   undo,
   redo,
@@ -455,7 +465,10 @@ useEventListener(window, 'resize', () => {
   assistant.recomputeAllPositions();
 });
 
-defineExpose(controller);
+defineExpose({
+  ...controller,
+  recomputeSelectionOverlays
+});
 </script>
 
 <style lang="less">

@@ -7,8 +7,8 @@
 import { EditorState } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { afterEach, describe, expect, test, vi } from 'vitest';
-import { createSourceSelectionAssistantAdapter } from '@/components/BEditor/adapters/sourceSelectionAssistant';
 import type { SelectionAssistantContext } from '@/components/BEditor/adapters/selectionAssistant';
+import { createSourceSelectionAssistantAdapter } from '@/components/BEditor/adapters/sourceSelectionAssistant';
 
 /**
  * 创建测试用 Source adapter。
@@ -65,8 +65,8 @@ describe('sourceSelectionAssistant', () => {
 
     const unbind = adapter.bindSelectionEvents({
       onSelectionChange,
-      onFocus: (): void => {},
-      onBlur: (): void => {},
+      onFocus: (): void => undefined,
+      onBlur: (): void => undefined,
       onPointerSelectionEnd
     });
 
@@ -79,5 +79,69 @@ describe('sourceSelectionAssistant', () => {
 
     unbind();
     cleanup();
+  });
+
+  test('ignores trailing empty lines when computing toolbar selection bottom', () => {
+    const docContent = 'title\n\n';
+    const overlayRoot = document.createElement('div');
+    const context: SelectionAssistantContext = {
+      editorState: {
+        id: 'editor-1',
+        name: 'demo.md',
+        content: docContent,
+        ext: 'md',
+        path: null
+      },
+      overlayRoot
+    };
+
+    Object.defineProperty(overlayRoot, 'getBoundingClientRect', {
+      configurable: true,
+      value: (): DOMRect => new DOMRect(0, 0, 400, 300)
+    });
+
+    const view = {
+      state: {
+        doc: {
+          sliceString: (from: number, to: number) => docContent.slice(from, to),
+          lineAt: () => ({ from: 0, to: 5, length: 5 })
+        }
+      },
+      coordsAtPos: vi.fn((pos: number, side?: -1 | 1) => {
+        if (pos === 0) {
+          return { top: 10, left: 20, right: 20, bottom: 30 };
+        }
+
+        if (pos === 5 && side === -1) {
+          return { top: 10, left: 100, right: 100, bottom: 30 };
+        }
+
+        if (pos === 6 && side === -1) {
+          return { top: 40, left: 20, right: 20, bottom: 60 };
+        }
+
+        return { top: 10, left: 20, right: 20, bottom: 30 };
+      }),
+      lineBlockAt: vi.fn(() => ({
+        top: 10,
+        bottom: 30
+      }))
+    } as unknown as EditorView;
+
+    const adapter = createSourceSelectionAssistantAdapter(view, context, () => true);
+    const position = adapter.getToolbarPosition({
+      from: 0,
+      to: 7,
+      text: 'title\n\n'
+    });
+
+    expect(position?.selectionRect).toEqual({
+      top: 10,
+      left: 20,
+      width: 80,
+      height: 20
+    });
+    expect(view.coordsAtPos).toHaveBeenCalledWith(5, -1);
+    expect(view.coordsAtPos).not.toHaveBeenCalledWith(6, -1);
   });
 });

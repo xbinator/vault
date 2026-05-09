@@ -503,7 +503,7 @@ export function useExtensions(editorInstanceId: Ref<string>, options: UseExtensi
 
       return helpers.createNode('paragraph', sourceLineAttrs, text ? [helpers.createTextNode(text)] : []);
     },
-    renderMarkdown: (node: JSONContent, helpers, context): string => {
+    renderMarkdown: (node: JSONContent, helpers): string => {
       const rawHtmlComment = getRawHtmlCommentFromParagraph(node);
 
       if (rawHtmlComment) {
@@ -513,8 +513,7 @@ export function useExtensions(editorInstanceId: Ref<string>, options: UseExtensi
       const content = Array.isArray(node.content) ? node.content : [];
 
       if (content.length === 0) {
-        const previousContent = Array.isArray(context?.previousNode?.content) ? context.previousNode.content : [];
-        return context?.previousNode?.type === 'paragraph' && previousContent.length === 0 ? '&nbsp;' : '';
+        return '';
       }
 
       return helpers.renderChildren(content);

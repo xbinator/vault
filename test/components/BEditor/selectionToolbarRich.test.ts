@@ -1,145 +1,292 @@
 /**
  * @file selectionToolbarRich.test.ts
- * @description SelectionToolbarRich 锚点定位回归测试。
+ * @description SelectionToolbarRich 绝对定位回归测试。
  * @vitest-environment jsdom
  */
 
 import type { Editor } from '@tiptap/vue-3';
-import { defineComponent } from 'vue';
+import { defineComponent, nextTick } from 'vue';
 import { mount } from '@vue/test-utils';
-import { beforeEach, describe, expect, test, vi } from 'vitest';
+import { afterEach, describe, expect, test, vi } from 'vitest';
+import type { SelectionAssistantPosition } from '@/components/BEditor/adapters/selectionAssistant';
 import SelectionToolbarRich from '@/components/BEditor/components/SelectionToolbarRich.vue';
 
 /**
- * 记录最近一次 BubbleMenu 接收到的 props，便于断言宿主传参。
+ * 模拟工具栏内容组件。
  */
-type BubbleMenuPropsSnapshot = {
-  getReferencedVirtualElement?: (() => { getBoundingClientRect: () => DOMRect; getClientRects: () => DOMRect[] } | null) | undefined;
-};
-
-const { bubbleMenuPropsRef } = vi.hoisted(() => ({
-  bubbleMenuPropsRef: {
-    current: null as BubbleMenuPropsSnapshot | null
-  }
-}));
-
-vi.mock('@tiptap/vue-3/menus', () => ({
-  BubbleMenu: defineComponent({
-    props: {
-      editor: {
-        type: Object,
-        required: true
-      },
-      pluginKey: {
-        type: [String, Object],
-        default: undefined
-      },
-      shouldShow: {
-        type: Function,
-        default: undefined
-      },
-      getReferencedVirtualElement: {
-        type: Function,
-        default: undefined
-      },
-      options: {
-        type: Object,
-        default: undefined
-      }
-    },
-    /**
-     * 记录 BubbleMenu props，供测试读取。
-     * @param props - 宿主传入的 BubbleMenu 参数
-     * @returns 默认插槽
-     */
-    setup(props, { slots }) {
-      bubbleMenuPropsRef.current = props as BubbleMenuPropsSnapshot;
-      return () => slots.default?.();
-    },
-    template: '<div class="bubble-menu-stub"><slot /></div>'
-  })
-}));
+const SelectionToolbarStub = defineComponent({
+  /**
+   * 渲染固定内容，便于宿主测量尺寸。
+   * @returns 工具栏占位节点
+   */
+  setup(): () => string {
+    return (): string => 'toolbar';
+  },
+  template: '<div class="mock-selection-toolbar">toolbar</div>'
+});
 
 /**
- * 构造最小可用的 Tiptap 编辑器桩对象。
- * @param selectionFrom - 选区起点
- * @param selectionTo - 选区终点
- * @returns 可供 SelectionToolbarRich 使用的编辑器实例
+ * 创建最小可用的 Tiptap 编辑器桩对象。
+ * @returns 测试用编辑器实例
  */
-function createEditorStub(selectionFrom = 1, selectionTo = 12): Editor {
+function createEditorStub(): Editor {
   return {
     isEditable: true,
     isActive: vi.fn(() => false),
-    on: vi.fn(),
-    off: vi.fn(),
-    state: {
-      selection: {
-        from: selectionFrom,
-        to: selectionTo
-      },
-      doc: {
-        textBetween: vi.fn(() => '标题\n第二行')
-      }
-    },
-    view: {
-      coordsAtPos: vi.fn((pos: number) => {
-        if (pos === 1) {
-          return { top: 10, left: 20, right: 80, bottom: 30 };
-        }
-
-        return { top: 40, left: 24, right: 100, bottom: 60 };
-      }),
-      dispatch: vi.fn()
-    }
+    chain: vi.fn(() => ({
+      focus: () => ({
+        toggleBold: () => ({ run: vi.fn() }),
+        toggleItalic: () => ({ run: vi.fn() }),
+        toggleUnderline: () => ({ run: vi.fn() }),
+        toggleStrike: () => ({ run: vi.fn() }),
+        toggleCode: () => ({ run: vi.fn() })
+      })
+    }))
   } as unknown as Editor;
 }
 
+/**
+ * 创建定位信息。
+ * @param anchorLeft - 锚点横坐标
+ * @param anchorTop - 锚点纵坐标
+ * @param selectionHeight - 完整选区高度
+ * @returns 测试用定位信息
+ */
+function createPosition(anchorLeft: number, anchorTop: number, selectionHeight = 20): SelectionAssistantPosition {
+  return {
+    anchorRect: {
+      top: anchorTop,
+      left: anchorLeft,
+      width: 0,
+      height: 20
+    },
+    selectionRect: {
+      top: anchorTop,
+      left: anchorLeft,
+      width: 80,
+      height: selectionHeight
+    },
+    lineHeight: 20,
+    containerRect: {
+      top: 0,
+      left: 0,
+      width: 200,
+      height: 160
+    }
+  };
+}
+
+/**
+ * 使用 DOMRect 模拟工具栏真实渲染尺寸。
+ * @param element - 工具栏宿主元素
+ */
+function mockToolbarRect(element: HTMLElement): void {
+  Object.defineProperty(element, 'getBoundingClientRect', {
+    configurable: true,
+    value: (): DOMRect => new DOMRect(0, 0, 120, 40)
+  });
+}
+
+/**
+ * 设置工具栏宿主尺寸，模拟真实布局测量结果。
+ * @param element - 工具栏宿主元素
+ */
+function mockToolbarSize(element: HTMLElement): void {
+  Object.defineProperty(element, 'offsetWidth', {
+    configurable: true,
+    get(): number {
+      return 120;
+    }
+  });
+  Object.defineProperty(element, 'offsetHeight', {
+    configurable: true,
+    get(): number {
+      return 40;
+    }
+  });
+  mockToolbarRect(element);
+}
+
+/**
+ * 读取工具栏 style 中的像素值。
+ * @param element - 工具栏宿主元素
+ * @param property - 样式属性名
+ * @returns 解析后的数字像素值
+ */
+function readPx(element: HTMLElement, property: 'top' | 'left'): number {
+  return Number.parseFloat(element.style[property]);
+}
+
+/**
+ * 获取被 Teleport 渲染后的工具栏宿主节点。
+ * @returns 工具栏宿主元素
+ */
+function getToolbarElement(): HTMLElement {
+  const element = document.body.querySelector('.rich-selection-toolbar');
+  if (!(element instanceof HTMLElement)) {
+    throw new Error('Selection toolbar element was not rendered.');
+  }
+  return element;
+}
+
 describe('SelectionToolbarRich', () => {
-  beforeEach(() => {
-    bubbleMenuPropsRef.current = null;
+  afterEach(() => {
+    document.body.innerHTML = '';
   });
 
-  test('anchors BubbleMenu to the selection start line in rich mode', () => {
+  test('keeps the toolbar hidden until the first measured position is ready', async () => {
+    const overlayRoot = document.createElement('div');
+    document.body.appendChild(overlayRoot);
+
     mount(SelectionToolbarRich, {
       props: {
         editor: createEditorStub(),
         visible: true,
+        overlayRoot,
+        position: createPosition(80, 60),
         formatButtons: []
       },
       global: {
         stubs: {
-          SelectionToolbar: true
+          SelectionToolbar: SelectionToolbarStub
         }
       }
     });
 
-    expect(bubbleMenuPropsRef.current?.getReferencedVirtualElement).toBeTypeOf('function');
+    await nextTick();
 
-    const virtualElement = bubbleMenuPropsRef.current?.getReferencedVirtualElement?.();
+    const toolbar = getToolbarElement();
 
-    expect(virtualElement?.getBoundingClientRect()).toEqual(new DOMRect(20, 10, 60, 20));
-    expect(virtualElement?.getClientRects()).toEqual([new DOMRect(20, 10, 60, 20)]);
+    expect(toolbar.style.visibility).toBe('hidden');
   });
 
-  test('normalizes all-selection anchor to the first document position', () => {
-    const editor = createEditorStub(0, 12);
+  test('renders above the selection when there is enough space', async () => {
+    const overlayRoot = document.createElement('div');
+    document.body.appendChild(overlayRoot);
 
     mount(SelectionToolbarRich, {
       props: {
-        editor,
+        editor: createEditorStub(),
         visible: true,
+        overlayRoot,
+        position: createPosition(80, 60),
         formatButtons: []
       },
       global: {
         stubs: {
-          SelectionToolbar: true
+          SelectionToolbar: SelectionToolbarStub
         }
       }
     });
 
-    bubbleMenuPropsRef.current?.getReferencedVirtualElement?.();
+    await nextTick();
 
-    expect(editor.view.coordsAtPos).toHaveBeenCalledWith(1);
-    expect(editor.view.coordsAtPos).not.toHaveBeenCalledWith(0);
+    const toolbar = getToolbarElement();
+    mockToolbarSize(toolbar);
+
+    window.dispatchEvent(new Event('resize'));
+    await nextTick();
+
+    expect(readPx(toolbar, 'top')).toBe(12);
+    expect(readPx(toolbar, 'left')).toBe(20);
+  });
+
+  test('renders below the selection when there is not enough space above', async () => {
+    const overlayRoot = document.createElement('div');
+    document.body.appendChild(overlayRoot);
+
+    mount(SelectionToolbarRich, {
+      props: {
+        editor: createEditorStub(),
+        visible: true,
+        overlayRoot,
+        position: createPosition(80, 10, 60),
+        formatButtons: []
+      },
+      global: {
+        stubs: {
+          SelectionToolbar: SelectionToolbarStub
+        }
+      }
+    });
+
+    await nextTick();
+
+    const toolbar = getToolbarElement();
+    mockToolbarSize(toolbar);
+
+    window.dispatchEvent(new Event('resize'));
+    await nextTick();
+
+    expect(readPx(toolbar, 'top')).toBe(78);
+  });
+
+  test('prefers the full selection bottom when the anchor is above the visible viewport', async () => {
+    const overlayRoot = document.createElement('div');
+    document.body.appendChild(overlayRoot);
+
+    mount(SelectionToolbarRich, {
+      props: {
+        editor: createEditorStub(),
+        visible: true,
+        overlayRoot,
+        position: createPosition(190, -20, 60),
+        formatButtons: []
+      },
+      global: {
+        stubs: {
+          SelectionToolbar: SelectionToolbarStub
+        }
+      }
+    });
+
+    await nextTick();
+
+    const toolbar = getToolbarElement();
+    mockToolbarSize(toolbar);
+
+    window.dispatchEvent(new Event('resize'));
+    await nextTick();
+
+    expect(readPx(toolbar, 'left')).toBe(72);
+    expect(readPx(toolbar, 'top')).toBe(48);
+  });
+
+  test('keeps rendering at the selection bottom even when the below position overflows the viewport', async () => {
+    const overlayRoot = document.createElement('div');
+    document.body.appendChild(overlayRoot);
+
+    mount(SelectionToolbarRich, {
+      props: {
+        editor: createEditorStub(),
+        visible: true,
+        overlayRoot,
+        position: {
+          ...createPosition(80, -20, 180),
+          containerRect: {
+            top: 0,
+            left: 0,
+            width: 200,
+            height: 120
+          }
+        },
+        formatButtons: []
+      },
+      global: {
+        stubs: {
+          SelectionToolbar: SelectionToolbarStub
+        }
+      }
+    });
+
+    await nextTick();
+
+    const toolbar = getToolbarElement();
+    mockToolbarSize(toolbar);
+
+    window.dispatchEvent(new Event('resize'));
+    await nextTick();
+
+    expect(readPx(toolbar, 'top')).toBe(168);
   });
 });

@@ -128,7 +128,7 @@ function resolveContainerRect(position: SelectionAssistantPosition) {
 
 /**
  * 基于当前锚点、工具栏尺寸和容器边界同步最终定位。
- * 顶部空间不足时翻转到选区下方，左右位置约束在容器内。
+ * 顶部空间不足时翻转到选区下方；若上下两种位置都不在当前视图内，则固定贴到视图底边。
  */
 function syncStyle(): void {
   if (shouldHide()) {
@@ -151,6 +151,9 @@ function syncStyle(): void {
 
   const containerRect = resolveContainerRect(position!);
   const anchorCenterX = position!.anchorRect.left + position!.anchorRect.width / 2;
+  const belowRect = position!.selectionRect ?? position!.anchorRect;
+  const topBelow = belowRect.top + belowRect.height + TOOLBAR_GAP;
+  const preferBelow = position!.anchorRect.top < containerRect.top;
 
   // 水平：居中对齐锚点，并约束在容器内
   const minLeft = containerRect.left + TOOLBAR_PADDING;
@@ -159,10 +162,14 @@ function syncStyle(): void {
 
   // 垂直：优先显示在选区上方，空间不足时翻转到下方
   const topAbove = position!.anchorRect.top - toolbarHeight - TOOLBAR_GAP;
-  const topBelow = position!.anchorRect.top + position!.lineHeight + TOOLBAR_GAP;
   const minTop = containerRect.top + TOOLBAR_PADDING;
   const maxTop = containerRect.top + containerRect.height - toolbarHeight - TOOLBAR_PADDING;
-  const top = topAbove >= minTop ? topAbove : Math.min(topBelow, Math.max(minTop, maxTop));
+  let top = topBelow;
+  if (!preferBelow && topAbove >= minTop) {
+    top = topAbove;
+  } else if (topBelow < minTop || topBelow > maxTop) {
+    top = maxTop;
+  }
 
   style.value = {
     position: 'absolute',
