@@ -111,6 +111,7 @@ function handleToggle(enabled: boolean): void {
   font-size: 16px;
   font-weight: 500;
   color: var(--text-primary);
+  user-select: text;
 }
 
 .provider-type-tag {

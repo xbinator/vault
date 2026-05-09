@@ -592,7 +592,6 @@ onUnmounted(() => {
   height: 100%;
   margin-right: 6px;
   overflow: hidden;
-  user-select: text;
   background: var(--bg-primary);
   border-radius: 8px;
 }
@@ -634,8 +633,10 @@ onUnmounted(() => {
 
 .b-chat-sidebar__floating-container {
   position: absolute;
-  inset: auto 0 0;
-  z-index: 100;
+  inset: auto 16px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
   pointer-events: none;
 }
 

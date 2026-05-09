@@ -3,31 +3,29 @@
   @description 交互容器主组件，管理 Toast 和 Confirm 的显示
 -->
 <template>
-  <div class="interaction-container">
-    <div v-if="toastQueue.length > 0" class="toast-stack">
-      <ToastItem
-        v-for="toast in toastQueue"
-        :id="toast.id"
-        :key="toast.id"
-        :type="toast.type"
-        :content="toast.content"
-        :duration="toast.duration"
-        :shake="toast.shake"
-        @close="removeToast"
-      />
-    </div>
-
-    <ConfirmModal
-      :visible="confirmState?.visible ?? false"
-      :title="confirmState?.options.title"
-      :content="confirmState?.options.content ?? ''"
-      :confirm-text="confirmState?.options.confirmText"
-      :cancel-text="confirmState?.options.cancelText"
-      :danger="confirmState?.options.danger"
-      @confirm="handleConfirm"
-      @cancel="handleCancel"
+  <template v-if="toastQueue.length">
+    <ToastItem
+      v-for="toast in toastQueue"
+      :id="toast.id"
+      :key="toast.id"
+      :type="toast.type"
+      :content="toast.content"
+      :duration="toast.duration"
+      :shake="toast.shake"
+      @close="removeToast"
     />
-  </div>
+  </template>
+
+  <ConfirmModal
+    :visible="confirmState?.visible ?? false"
+    :title="confirmState?.options.title"
+    :content="confirmState?.options.content ?? ''"
+    :confirm-text="confirmState?.options.confirmText"
+    :cancel-text="confirmState?.options.cancelText"
+    :danger="confirmState?.options.danger"
+    @confirm="handleConfirm"
+    @cancel="handleCancel"
+  />
 </template>
 
 <script setup lang="ts">
@@ -76,19 +74,4 @@ function handleCancel(): void {
 }
 </script>
 
-<style scoped lang="less">
-.interaction-container {
-  position: relative;
-  width: 100%;
-}
-
-.toast-stack {
-  position: absolute;
-  inset: auto 16px 16px;
-  z-index: 1000;
-  display: flex;
-  flex-direction: column-reverse;
-  gap: 8px;
-  overflow-y: auto;
-}
-</style>
+<style scoped lang="less"></style>

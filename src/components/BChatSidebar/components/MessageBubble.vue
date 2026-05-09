@@ -175,6 +175,7 @@ function handleCopy(message: Message): void {
   display: flex;
   flex-direction: column;
   margin-bottom: 16px;
+  user-select: text;
 
   &:hover {
     .message-bubble__toolbar {

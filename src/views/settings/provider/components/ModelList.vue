@@ -261,6 +261,7 @@ async function handleDeleteModel(modelId: string): Promise<void> {
   font-weight: 500;
   color: var(--text-primary);
   white-space: nowrap;
+  user-select: text;
 }
 
 .model-id {
@@ -274,6 +275,7 @@ async function handleDeleteModel(modelId: string): Promise<void> {
   font-size: 11px;
   color: var(--text-secondary);
   white-space: nowrap;
+  user-select: text;
   background: var(--bg-secondary);
   border-radius: 4px;
 }
