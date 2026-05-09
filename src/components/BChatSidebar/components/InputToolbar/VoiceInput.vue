@@ -26,9 +26,8 @@
 <script setup lang="ts">
 import { computed, onUnmounted, ref } from 'vue';
 import { Icon } from '@iconify/vue';
-import { message } from 'ant-design-vue';
 import { getElectronAPI, hasElectronAPI } from '@/shared/platform/electron-api';
-import { Modal } from '@/utils/modal';
+import { useInteraction } from '../../hooks/useInteraction';
 import { useVoiceRecorder } from '../../hooks/useVoiceRecorder';
 import { useVoiceSession } from '../../hooks/useVoiceSession';
 
@@ -48,6 +47,8 @@ const emit = defineEmits<{
   (e: 'start'): void;
   (e: 'complete', payload: { text: string }): void;
 }>();
+
+const { showToast, showConfirm } = useInteraction();
 
 /**
  * 录音状态与控制器。
@@ -123,24 +124,35 @@ async function ensureSpeechRuntimeReady(): Promise<boolean> {
   }
 
   const electronAPI = getElectronAPI();
+
+  // 1. 请求系统级麦克风权限（macOS 必须，否则 getUserMedia 会抛 NotAllowedError）
+  const micGranted = await electronAPI.requestMicrophonePermission();
+  if (!micGranted) {
+    showToast({ type: 'error', content: '麦克风权限未开启，请在系统设置中开启' });
+    return false;
+  }
+
+  // 2. 检查语音运行时是否已安装
   const status = await electronAPI.getSpeechRuntimeStatus();
   if (status.state === 'ready') {
     return true;
   }
 
-  const [cancelled] = await Modal.confirm('语音组件未安装', '首次使用语音输入需要下载语音组件，是否立即下载？', {
+  const confirmed = await showConfirm({
+    title: '语音组件未安装',
+    content: '首次使用语音输入需要下载语音组件，是否立即下载？',
     confirmText: '下载'
   });
-  if (cancelled) {
+  if (!confirmed) {
     return false;
   }
 
   installingRuntime.value = true;
   disposeInstallProgressListener();
   unbindInstallProgress.value = electronAPI.onSpeechInstallProgress((progress) => {
-    message.loading({
+    showToast({
+      type: 'info',
       content: `正在安装语音组件：${progress.message}`,
-      key: 'speech-runtime-install',
       duration: 0
     });
   });
@@ -151,12 +163,12 @@ async function ensureSpeechRuntimeReady(): Promise<boolean> {
       throw new Error(installedStatus.errorMessage || '语音组件安装失败');
     }
 
-    message.success({ content: '语音组件安装完成', key: 'speech-runtime-install' });
+    showToast({ type: 'success', content: '语音组件安装完成' });
     return true;
   } catch (error) {
-    message.error({
-      content: error instanceof Error ? error.message : '语音组件安装失败',
-      key: 'speech-runtime-install'
+    showToast({
+      type: 'error',
+      content: error instanceof Error ? error.message : '语音组件安装失败'
     });
     return false;
   } finally {
@@ -166,7 +178,7 @@ async function ensureSpeechRuntimeReady(): Promise<boolean> {
 }
 
 /**
- * 启动录音。
+ * 启动录音
  */
 async function handleStart(): Promise<void> {
   const ready = await ensureSpeechRuntimeReady();
@@ -177,7 +189,18 @@ async function handleStart(): Promise<void> {
   nextSeparator.value = '';
   nextSegmentIndex.value = 0;
   session.resetSession();
-  await recorder.start();
+
+  try {
+    await recorder.start();
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'NotAllowedError') {
+      showToast({ type: 'error', content: '麦克风权限未开启，请在系统设置中开启' });
+    } else {
+      showToast({ type: 'error', content: '启动录音失败，请重试' });
+    }
+    return;
+  }
+
   emit('start');
 }
 
@@ -191,6 +214,8 @@ async function handleStop(): Promise<void> {
   try {
     const payload = await session.completeSession();
     emit('complete', payload);
+  } catch (error) {
+    showToast({ type: 'error', content: '语音转写失败，请重试' });
   } finally {
     isTranscribing.value = false;
   }
