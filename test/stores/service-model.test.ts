@@ -2,9 +2,9 @@
  * @file service-model.test.ts
  * @description 验证 service-model store 的 chatModel 状态管理和乐观更新机制
  */
+import type { ModelServiceConfig } from 'types/model';
 import { createPinia, setActivePinia } from 'pinia';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ModelServiceConfig } from 'types/model';
 
 type GetConfigMock = (serviceType: string) => Promise<ModelServiceConfig | null>;
 type SaveConfigMock = (serviceType: string, config: Partial<ModelServiceConfig>) => Promise<void>;
@@ -108,7 +108,11 @@ describe('service-model store — chatModel', () => {
 
       // 第一次 save 延迟完成，第二次立即完成
       let resolveFirst: () => void;
-      mocks.saveConfig.mockReturnValueOnce(new Promise<void>((r) => { resolveFirst = r; }));
+      mocks.saveConfig.mockReturnValueOnce(
+        new Promise<void>((r) => {
+          resolveFirst = r;
+        })
+      );
       mocks.saveConfig.mockResolvedValue(undefined);
 
       // 第一次切换（save 被阻塞）
@@ -122,7 +126,7 @@ describe('service-model store — chatModel', () => {
       expect(mocks.dispatchServiceModelUpdated).toHaveBeenCalledWith('chat');
 
       // 完成第一次 save，版本号已过期，不再派发事件
-      resolveFirst();
+      resolveFirst!();
       await firstCall;
 
       expect(mocks.dispatchServiceModelUpdated).toHaveBeenCalledTimes(1);

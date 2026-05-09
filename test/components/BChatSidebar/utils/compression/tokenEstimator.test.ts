@@ -10,10 +10,8 @@ import type { Message } from '@/components/BChatSidebar/utils/types';
  */
 function makeMsg(overrides: Partial<Message> & { id: string; content: string }): Message {
   return {
-    id: overrides.id,
-    role: overrides.role ?? 'user',
-    content: overrides.content,
-    parts: overrides.parts ?? [{ type: 'text', text: overrides.content } as never],
+    role: 'user',
+    parts: [{ type: 'text', text: overrides.content } as never],
     loading: false,
     createdAt: new Date().toISOString(),
     ...overrides

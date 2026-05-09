@@ -64,26 +64,28 @@ describe('imageUtils', () => {
     beforeEach(() => {
       vi.resetModules();
       // Stub FileReader 用于 base64 转换
-      vi.stubGlobal('FileReader', class MockFileReader {
-        private result: string | null = null;
-        onload: (() => void) | null = null;
-        onerror: (() => void) | null = null;
+      vi.stubGlobal(
+        'FileReader',
+        class MockFileReader {
+          onload: (() => void) | null = null;
 
-        readAsDataURL(blob: Blob): void {
-          // 异步调用 onload，模拟真实 FileReader 行为
-          Promise.resolve().then(async () => {
-            const buffer = await blob.arrayBuffer();
+          onerror: (() => void) | null = null;
+
+          readAsDataURL(blob: Blob): void {
+            // 异步调用 onload，模拟真实 FileReader 行为
+            Promise.resolve().then(async () => {
+              const buffer = await blob.arrayBuffer();
             const bytes = new Uint8Array(buffer);
             let binary = '';
             for (let i = 0; i < bytes.length; i++) {
               binary += String.fromCharCode(bytes[i]);
             }
-            const base64 = btoa(binary);
-            this.result = `data:${blob.type};base64,${base64}`;
+            btoa(binary);
             this.onload?.();
-          });
+            });
+          }
         }
-      });
+      );
     });
 
     /**

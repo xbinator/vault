@@ -131,7 +131,7 @@ describe('useFilesStore openedAt actions', () => {
     await store.ensureLoaded();
     expect(store.recentFiles?.map((file) => file.id)).toEqual(['b', 'a']);
 
-    const opened = await store.openExistingFile('a', 'welcome');
+    const opened = await store.openExistingFile('a');
 
     expect(storageMocks.touchRecentFile).toHaveBeenCalledWith('a');
     expect(opened.id).toBe('a');
@@ -145,7 +145,7 @@ describe('useFilesStore openedAt actions', () => {
     const { useFilesStore } = await import('@/stores/files');
     const store = useFilesStore();
 
-    const opened = await store.openOrCreateByPath('/c.md', 'native-open');
+    const opened = await store.openOrCreateByPath('/c.md');
 
     expect(nativeMocks.readFile).toHaveBeenCalledWith('/c.md');
     expect(storageMocks.addRecentFile).toHaveBeenCalledTimes(1);
@@ -165,16 +165,13 @@ describe('useFilesStore openedAt actions', () => {
     const { useFilesStore } = await import('@/stores/files');
     const store = useFilesStore();
 
-    const created = await store.createAndOpen(
-      {
-        id: 'draft',
-        path: null,
-        name: 'draft',
-        ext: 'md',
-        content: 'draft'
-      },
-      'new'
-    );
+    const created = await store.createAndOpen({
+      id: 'draft',
+      path: null,
+      name: 'draft',
+      ext: 'md',
+      content: 'draft'
+    });
 
     expect(storageMocks.addRecentFile).toHaveBeenCalledTimes(1);
     expect(created.createdAt).toBe(500);

@@ -4,14 +4,15 @@
  * @description UsagePanel state rendering and layout guard tests.
  */
 import { mount } from '@vue/test-utils';
-import { describe, expect, test } from 'vitest';
+import { describe, expect, test, vi } from 'vitest';
 import UsagePanel from '@/components/BChatSidebar/components/UsagePanel.vue';
 
 describe('UsagePanel', () => {
   test('renders a loading state before usage data arrives', () => {
     const wrapper = mount(UsagePanel, {
       props: {
-        loading: true
+        loading: true,
+        onClose: vi.fn()
       }
     });
 
@@ -29,7 +30,8 @@ describe('UsagePanel', () => {
           inputTokens: 12,
           outputTokens: 8,
           totalTokens: 20
-        }
+        },
+        onClose: vi.fn()
       }
     });
 
@@ -42,7 +44,8 @@ describe('UsagePanel', () => {
   test('renders an empty state when there is no persisted usage', () => {
     const wrapper = mount(UsagePanel, {
       props: {
-        loading: false
+        loading: false,
+        onClose: vi.fn()
       }
     });
 
@@ -54,7 +57,8 @@ describe('UsagePanel', () => {
     const wrapper = mount(UsagePanel, {
       props: {
         loading: false,
-        error: 'Unable to load usage'
+        error: 'Unable to load usage',
+        onClose: vi.fn()
       }
     });
 

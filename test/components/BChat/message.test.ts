@@ -2,7 +2,7 @@
  * @file message.test.ts
  * @description BChat 消息工具行为测试
  */
-import type { ChatMessageFile, ChatMessageFileReference } from 'types/chat';
+import type { ChatMessageFile } from 'types/chat';
 import { describe, expect, it } from 'vitest';
 import { append, convert, create, is, userChoice } from '@/components/BChatSidebar/utils/messageHelper';
 import type { Message } from '@/components/BChatSidebar/utils/types';
@@ -43,24 +43,6 @@ function createImageFile(overrides: Partial<ChatMessageFile> = {}): ChatMessageF
     extension: 'png',
     url: 'data:image/png;base64,ZmFrZS1pbWFnZQ==',
     contentHash: 'hash-1',
-    ...overrides
-  };
-}
-
-/**
- * 创建测试文件引用。
- * @param overrides - 覆盖默认字段
- * @returns 测试文件引用
- */
-function createFileReference(overrides: Partial<ChatMessageFileReference> = {}): ChatMessageFileReference {
-  return {
-    id: 'doc-1',
-    token: '{{@foo.ts:3-5}}',
-    documentId: 'doc-1',
-    fileName: 'foo.ts',
-    line: '3-5',
-    path: '/workspace/foo.ts',
-    snapshotId: '',
     ...overrides
   };
 }

@@ -14,7 +14,7 @@ afterEach(() => {
 
 describe('database utils', () => {
   it('retries dbSelect until the database becomes available', async () => {
-    (window as Window & { electronAPI?: unknown }).electronAPI = {
+    (window as any).electronAPI = {
       dbSelect: vi
         .fn()
         .mockRejectedValueOnce(new Error("Error invoking remote method 'db:select': Error: Database not initialized"))
@@ -28,7 +28,7 @@ describe('database utils', () => {
   });
 
   it('keeps retrying dbSelect across longer database startup races', async () => {
-    (window as Window & { electronAPI?: unknown }).electronAPI = {
+    (window as any).electronAPI = {
       dbSelect: vi
         .fn()
         .mockRejectedValueOnce(new Error("Error invoking remote method 'db:select': Error: Database not initialized"))
@@ -46,7 +46,7 @@ describe('database utils', () => {
   });
 
   it('returns empty rows when dbSelect races with database initialization', async () => {
-    (window as Window & { electronAPI?: unknown }).electronAPI = {
+    (window as any).electronAPI = {
       dbSelect: vi.fn().mockRejectedValue(new Error("Error invoking remote method 'db:select': Error: Database not initialized")),
       dbExecute: vi.fn()
     };
@@ -57,15 +57,12 @@ describe('database utils', () => {
   });
 
   it('retries dbExecute until the database becomes available', async () => {
-    (window as Window & { electronAPI?: unknown }).electronAPI = {
+    (window as any).electronAPI = {
       dbSelect: vi.fn(),
-      dbExecute: vi
-        .fn()
-        .mockRejectedValueOnce(new Error("Error invoking remote method 'db:execute': Error: Database not initialized"))
-        .mockResolvedValueOnce({
-          changes: 1,
-          lastInsertRowid: 42
-        })
+      dbExecute: vi.fn().mockRejectedValueOnce(new Error("Error invoking remote method 'db:execute': Error: Database not initialized")).mockResolvedValueOnce({
+        changes: 1,
+        lastInsertRowid: 42
+      })
     };
 
     const { dbExecute } = await import('@/shared/storage/utils/database');
@@ -77,7 +74,7 @@ describe('database utils', () => {
   });
 
   it('keeps retrying dbExecute across longer database startup races', async () => {
-    (window as Window & { electronAPI?: unknown }).electronAPI = {
+    (window as any).electronAPI = {
       dbSelect: vi.fn(),
       dbExecute: vi
         .fn()
@@ -101,7 +98,7 @@ describe('database utils', () => {
   });
 
   it('keeps throwing when dbExecute races with database initialization', async () => {
-    (window as Window & { electronAPI?: unknown }).electronAPI = {
+    (window as any).electronAPI = {
       dbSelect: vi.fn(),
       dbExecute: vi.fn().mockRejectedValue(new Error("Error invoking remote method 'db:execute': Error: Database not initialized"))
     };

@@ -158,7 +158,7 @@ describe('createBuiltinReadFileTool', () => {
       readWorkspaceFile: async () => ({ path: '', content: '', totalLines: 0, readLines: 0, hasMore: false, nextOffset: null })
     });
 
-    const result = await tool.execute({});
+    const result = await tool.execute({} as any);
 
     expect(result.status).toBe('failure');
     expect(result.error?.code).toBe('INVALID_INPUT');
@@ -195,9 +195,9 @@ describe('createBuiltinReadFileTool', () => {
         capturedOptions = options;
         return expectedResult;
       }
-    });
+    } as any);
 
-    const result = await tool.execute({ documentId: 'doc-1' });
+    const result = await tool.execute({ documentId: 'doc-1' } as any);
 
     expect(capturedOptions).toEqual({
       filePath: '/workspace\\src\\note.md',
@@ -224,9 +224,9 @@ describe('createBuiltinReadFileTool', () => {
         capturedOptions = options;
         return expectedResult;
       }
-    });
+    } as any);
 
-    const result = await tool.execute({ documentId: 'unknown-doc', path: 'src/fallback.md' });
+    const result = await tool.execute({ documentId: 'unknown-doc', path: 'src/fallback.md' } as any);
 
     expect(capturedOptions).toEqual({
       filePath: 'src/fallback.md',
@@ -241,9 +241,9 @@ describe('createBuiltinReadFileTool', () => {
       getWorkspaceRoot: () => '/workspace',
       getEditorContext: () => undefined,
       readWorkspaceFile: async () => ({ path: '', content: '', totalLines: 0, readLines: 0, hasMore: false, nextOffset: null })
-    });
+    } as any);
 
-    const result = await tool.execute({ documentId: 'unknown-doc' });
+    const result = await tool.execute({ documentId: 'unknown-doc' } as any);
 
     expect(result.status).toBe('failure');
     expect(result.error?.code).toBe('INVALID_INPUT');
@@ -268,9 +268,9 @@ describe('createBuiltinReadFileTool', () => {
       getWorkspaceRoot: () => '/workspace',
       getEditorContext: (documentId: string) => (documentId === 'unsaved-doc' ? editorContext : undefined),
       readWorkspaceFile: async () => ({ path: '', content: '', totalLines: 0, readLines: 0, hasMore: false, nextOffset: null })
-    });
+    } as any);
 
-    const result = await tool.execute({ documentId: 'unsaved-doc' });
+    const result = await tool.execute({ documentId: 'unsaved-doc' } as any);
 
     expect(result.status).toBe('failure');
     expect(result.error?.code).toBe('INVALID_INPUT');
@@ -307,9 +307,9 @@ describe('createBuiltinReadFileTool', () => {
         capturedOptions = options;
         return expectedResult;
       }
-    });
+    } as any);
 
-    const result = await tool.execute({ documentId: 'doc-1', path: 'src/other.md' });
+    const result = await tool.execute({ documentId: 'doc-1', path: 'src/other.md' } as any);
 
     expect(capturedOptions).toEqual({
       filePath: '/workspace\\src\\from-docid.md',
