@@ -104,6 +104,7 @@ onUnmounted(() => {
   font-size: 13px;
   color: var(--text-primary);
   cursor: pointer;
+  background-color: var(--bg-secondary);
   border-radius: 6px;
   box-shadow: 0 2px 8px rgb(0 0 0 / 15%);
   transition: all 0.3s ease;
@@ -113,22 +114,18 @@ onUnmounted(() => {
   }
 
   &--error {
-    background-color: #fee2e2;
     border-left: 3px solid #ef4444;
   }
 
   &--warning {
-    background-color: #fef3c7;
     border-left: 3px solid #f59e0b;
   }
 
   &--info {
-    background-color: #dbeafe;
     border-left: 3px solid #3b82f6;
   }
 
   &--success {
-    background-color: #d1fae5;
     border-left: 3px solid #10b981;
   }
 }
