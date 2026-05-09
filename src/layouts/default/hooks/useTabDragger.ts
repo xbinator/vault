@@ -18,12 +18,85 @@ import type { TabMovePosition } from '@/stores/tabs';
 export type ClosestEdge = 'top' | 'right' | 'bottom' | 'left';
 
 /**
+ * 标签页在滚动内容坐标系下的几何信息。
+ */
+export interface HeaderTabRect {
+  /** 标签页唯一标识 */
+  id: string;
+  /** 元素左侧相对滚动内容起点的位置 */
+  left: number;
+  /** 元素宽度 */
+  width: number;
+}
+
+/**
+ * 指针离开具体标签命中区后，仍可回退到的插入指示线锚点。
+ */
+export interface DetachedIndicatorPlacement {
+  /** 作为排序参照的目标标签 ID */
+  tabId: string;
+  /** 插入位置 */
+  position: TabMovePosition;
+  /** 插入指示线在滚动内容中的横向偏移 */
+  offset: number;
+}
+
+/**
  * 将 Pragmatic hitbox 的 ClosestEdge 枚举映射为标签排序插入位置。
  * @param edge - 命中区域判定的最近边，null 时默认视为 'after'
  * @returns 排序插入位置
  */
 export function closestEdgeToMovePosition(edge: ClosestEdge | null): TabMovePosition {
   return edge === 'left' ? 'before' : 'after';
+}
+
+/**
+ * 根据目标标签与插入方向，计算独立插入指示线的内容坐标。
+ * @param tabRect - 目标标签的几何信息
+ * @param position - 插入到目标标签前方或后方
+ * @returns 指示线在滚动内容中的横向偏移
+ */
+export function getDropIndicatorOffset(tabRect: HeaderTabRect, position: TabMovePosition): number {
+  return position === 'before' ? tabRect.left : tabRect.left + tabRect.width;
+}
+
+/**
+ * 当指针离开标签命中区时，按首尾边界回退到可见的插入指示线。
+ * @param params - 指针位置与当前标签几何信息
+ * @returns 回退后的插入锚点，若指针仍在有效标签区间内则返回 null
+ */
+export function getDetachedIndicatorPlacement(params: {
+  /** 指针在滚动内容坐标系中的横向位置 */
+  pointerX: number;
+  /** 当前可见标签的几何信息 */
+  tabs: HeaderTabRect[];
+}): DetachedIndicatorPlacement | null {
+  const { pointerX, tabs } = params;
+  if (tabs.length === 0) {
+    return null;
+  }
+
+  const firstTab = tabs[0];
+  const lastTab = tabs[tabs.length - 1];
+  const lastTabRight = lastTab.left + lastTab.width;
+
+  if (pointerX <= firstTab.left) {
+    return {
+      tabId: firstTab.id,
+      position: 'before',
+      offset: getDropIndicatorOffset(firstTab, 'before')
+    };
+  }
+
+  if (pointerX >= lastTabRight) {
+    return {
+      tabId: lastTab.id,
+      position: 'after',
+      offset: getDropIndicatorOffset(lastTab, 'after')
+    };
+  }
+
+  return null;
 }
 
 /**
@@ -36,6 +109,8 @@ export interface TabDraggerState {
   dropTargetTabId: ShallowRef<string | null>;
   /** 插入位置，无有效目标时为 null */
   dragInsertPosition: ShallowRef<TabMovePosition | null>;
+  /** 独立插入指示线在滚动内容中的横向偏移，无有效位置时为 null */
+  dropIndicatorOffset: ShallowRef<number | null>;
 }
 
 /**
@@ -67,9 +142,12 @@ export function useTabDragger(
   const draggingTabId = shallowRef<string | null>(null);
   const dropTargetTabId = shallowRef<string | null>(null);
   const dragInsertPosition = shallowRef<TabMovePosition | null>(null);
+  const dropIndicatorOffset = shallowRef<number | null>(null);
 
   /** 标签 ID → cleanup 函数映射 */
   const cleanups = new Map<string, () => void>();
+  /** 标签 ID → DOM 元素映射 */
+  const elements = new Map<string, HTMLElement>();
 
   /** auto-scroll 清理函数 */
   let autoScrollCleanup: (() => void) | null = null;
@@ -78,13 +156,91 @@ export function useTabDragger(
   let monitorCleanup: (() => void) | null = null;
 
   /**
+   * 清空当前插入指示线状态，但保留 draggingTabId。
+   */
+  function resetIndicatorState(): void {
+    dropTargetTabId.value = null;
+    dragInsertPosition.value = null;
+    dropIndicatorOffset.value = null;
+  }
+
+  /**
    * 重置所有拖拽相关状态并通知拖拽结束。
    */
   function resetDragState(): void {
     draggingTabId.value = null;
-    dropTargetTabId.value = null;
-    dragInsertPosition.value = null;
+    resetIndicatorState();
     onDragEnded();
+  }
+
+  /**
+   * 读取当前已注册标签的几何信息，并按横向顺序排序。
+   * @returns 标签几何信息列表
+   */
+  function getRegisteredTabRects(): HeaderTabRect[] {
+    return Array.from(elements.entries())
+      .map(([id, element]) => ({
+        id,
+        left: element.offsetLeft,
+        width: element.offsetWidth
+      }))
+      .sort((leftTab, rightTab) => leftTab.left - rightTab.left);
+  }
+
+  /**
+   * 根据目标标签与插入位置同步当前指示线状态。
+   * @param tabId - 目标标签 ID
+   * @param position - 插入位置
+   */
+  function applyIndicatorPlacement(tabId: string, position: TabMovePosition): void {
+    const tabRect = getRegisteredTabRects().find((tab) => tab.id === tabId);
+    if (!tabRect) {
+      resetIndicatorState();
+      return;
+    }
+
+    dropTargetTabId.value = tabId;
+    dragInsertPosition.value = position;
+    dropIndicatorOffset.value = getDropIndicatorOffset(tabRect, position);
+  }
+
+  /**
+   * 将视口坐标中的指针位置转换为滚动内容坐标。
+   * @param clientX - 指针在视口中的横向位置
+   * @returns 指针在滚动内容中的横向偏移，无容器时返回 null
+   */
+  function getPointerContentX(clientX: number): number | null {
+    const container = scrollContainerRef.value;
+    if (!container) {
+      return null;
+    }
+
+    return clientX - container.getBoundingClientRect().left + container.scrollLeft;
+  }
+
+  /**
+   * 当指针离开具体标签时，尝试按首尾边界回退为可见的插入指示线。
+   * @param clientX - 指针在视口中的横向位置
+   * @returns 是否成功生成回退指示线
+   */
+  function applyDetachedIndicatorPlacement(clientX: number): boolean {
+    const pointerX = getPointerContentX(clientX);
+    if (pointerX === null) {
+      return false;
+    }
+
+    const placement = getDetachedIndicatorPlacement({
+      pointerX,
+      tabs: getRegisteredTabRects()
+    });
+    if (!placement) {
+      return false;
+    }
+
+    dropTargetTabId.value = placement.tabId;
+    dragInsertPosition.value = placement.position;
+    dropIndicatorOffset.value = placement.offset;
+    return true;
   }
 
   /**
@@ -92,6 +248,7 @@ export function useTabDragger(
    * @param tabId - 标签 ID
    */
   function unregisterTabElement(tabId: string): void {
+    elements.delete(tabId);
     const fn = cleanups.get(tabId);
     if (fn) {
       fn();
@@ -109,6 +266,7 @@ export function useTabDragger(
   function registerTabElement(tabId: string, element: HTMLElement): () => void {
     // 如果已注册则先清理旧注册
     unregisterTabElement(tabId);
+    elements.set(tabId, element);
 
     const localCleanups: (() => void)[] = [];
 
@@ -122,8 +280,7 @@ export function useTabDragger(
       },
       onDragStart() {
         draggingTabId.value = tabId;
-        dropTargetTabId.value = null;
-        dragInsertPosition.value = null;
+        resetIndicatorState();
       },
       onDrop() {
         resetDragState();
@@ -155,8 +312,7 @@ export function useTabDragger(
       },
       onDragLeave() {
         if (dropTargetTabId.value === tabId) {
-          dropTargetTabId.value = null;
-          dragInsertPosition.value = null;
+          resetIndicatorState();
         }
       }
     });
@@ -178,41 +334,49 @@ export function useTabDragger(
     onDrag({ location, source }) {
       const target = location.current.dropTargets[0];
       if (!target) {
-        dropTargetTabId.value = null;
-        dragInsertPosition.value = null;
+        if (!applyDetachedIndicatorPlacement(location.current.input.clientX)) {
+          resetIndicatorState();
+        }
         return;
       }
 
       const targetTabId = target.data.tabId as string;
       if (targetTabId === source.data.tabId) {
-        dropTargetTabId.value = null;
-        dragInsertPosition.value = null;
+        if (!applyDetachedIndicatorPlacement(location.current.input.clientX)) {
+          resetIndicatorState();
+        }
         return;
       }
 
-      dropTargetTabId.value = targetTabId;
-
       // 从目标元素的 userData 中提取最近边
       const edge = extractClosestEdge(target.data);
-      dragInsertPosition.value = closestEdgeToMovePosition(edge);
+      applyIndicatorPlacement(targetTabId, closestEdgeToMovePosition(edge));
     },
     onDrop({ source, location }) {
       const target = location.current.dropTargets[0];
       const fromId = source.data.tabId as string;
+      let toId: string | null = null;
+      let position: TabMovePosition | null = null;
 
-      if (!target || target.data.tabId === fromId) {
+      if (target && target.data.tabId !== fromId) {
+        toId = target.data.tabId as string;
+        position = closestEdgeToMovePosition(extractClosestEdge(target.data));
+      } else {
+        const placement = applyDetachedIndicatorPlacement(location.current.input.clientX)
+          ? {
+              tabId: dropTargetTabId.value,
+              position: dragInsertPosition.value
+            }
+          : null;
+        toId = placement?.tabId ?? null;
+        position = placement?.position ?? null;
+      }
+
+      if (!toId || !position || fromId === toId) {
         resetDragState();
         return;
       }
 
-      const toId = target.data.tabId as string;
-      if (!toId || fromId === toId) {
-        resetDragState();
-        return;
-      }
-
-      const edge = extractClosestEdge(target.data);
-      const position = closestEdgeToMovePosition(edge);
       onMoveTab(fromId, toId, position);
       resetDragState();
     }
@@ -249,6 +413,7 @@ export function useTabDragger(
   function cleanup(): void {
     cleanups.forEach((fn) => fn());
     cleanups.clear();
+    elements.clear();
 
     if (monitorCleanup) {
       monitorCleanup();
@@ -270,7 +435,8 @@ export function useTabDragger(
     state: {
       draggingTabId,
       dropTargetTabId,
-      dragInsertPosition
+      dragInsertPosition,
+      dropIndicatorOffset
     }
   };
 }

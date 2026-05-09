@@ -4,6 +4,7 @@
 -->
 <template>
   <div ref="scrollContainer" class="header-tabs" @wheel.prevent="handleWheel">
+    <div v-if="dropIndicatorStyle" class="header-tabs__drop-indicator" :style="dropIndicatorStyle"></div>
     <div
       v-for="tab in tabsStore.tabs"
       :key="tab.id"
@@ -31,7 +32,7 @@
  * @description 渲染顶部标签栏的交互逻辑，拖拽排序委托给 useTabDragger 模块。
  */
 
-import { shallowRef, onUnmounted } from 'vue';
+import { computed, shallowRef, onUnmounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Icon } from '@iconify/vue';
 import { useTabsStore } from '@/stores/tabs';
@@ -70,7 +71,7 @@ function handleDragEnded(): void {
  */
 const dragModule = useTabDragger(scrollContainer, handleMoveTab, handleDragEnded);
 
-const { draggingTabId, dropTargetTabId, dragInsertPosition } = dragModule.state;
+const { draggingTabId, dropIndicatorOffset } = dragModule.state;
 
 /**
  * Vue 模板 ref 函数：将 v-for 中的 DOM 元素传给拖拽模块注册。
@@ -108,16 +109,29 @@ function isActiveTab(tab: Pick<Tab, 'path'>): boolean {
  * @returns 标签页样式映射
  */
 function getTabClassName(tab: Tab): Record<string, boolean> {
-  const isDragTarget = dropTargetTabId.value === tab.id && draggingTabId.value !== tab.id;
-
   return {
     'is-active': isActiveTab(tab),
     'is-missing': tabsStore.isMissing(tab.id),
-    'is-dragging': draggingTabId.value === tab.id,
-    'is-drop-before': isDragTarget && dragInsertPosition.value === 'before',
-    'is-drop-after': isDragTarget && dragInsertPosition.value === 'after'
+    'is-dragging': draggingTabId.value === tab.id
   };
 }
+
+/**
+ * 生成独立插入指示线的样式。
+ * @returns 指示线样式，无有效拖拽目标时返回 null
+ */
+function getDropIndicatorStyle(): Record<string, string> | null {
+  if (dropIndicatorOffset.value === null) {
+    return null;
+  }
+
+  return {
+    left: `${Math.max(dropIndicatorOffset.value - 1, 0)}px`
+  };
+}
+
+/** 当前独立插入指示线的样式。 */
+const dropIndicatorStyle = computed(() => getDropIndicatorStyle());
 
 /**
  * 点击标签页时切换路由。
@@ -168,6 +182,7 @@ function handleWheel(event: WheelEvent): void {
 
 <style lang="less" scoped>
 .header-tabs {
+  position: relative;
   display: flex;
   align-items: center;
   width: 100%;
@@ -186,6 +201,17 @@ function handleWheel(event: WheelEvent): void {
 
   /* Make the empty space draggable */
   -webkit-app-region: drag;
+}
+
+.header-tabs__drop-indicator {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  z-index: 1;
+  width: 2px;
+  pointer-events: none;
+  background-color: var(--color-primary);
+  border-radius: 999px;
 }
 
 .header-tab {
@@ -215,25 +241,6 @@ function handleWheel(event: WheelEvent): void {
 
   &.is-dragging {
     opacity: 0.55;
-  }
-
-  &.is-drop-before::before,
-  &.is-drop-after::after {
-    position: absolute;
-    top: 4px;
-    bottom: 4px;
-    width: 2px;
-    content: '';
-    background-color: var(--color-primary);
-    border-radius: 999px;
-  }
-
-  &.is-drop-before::before {
-    left: -2px;
-  }
-
-  &.is-drop-after::after {
-    right: -2px;
   }
 
   &.is-missing .header-tab__title {
