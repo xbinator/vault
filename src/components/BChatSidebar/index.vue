@@ -565,6 +565,7 @@ onUnmounted(() => {
   height: 100%;
   margin-right: 6px;
   overflow: hidden;
+  user-select: text;
   background: var(--bg-primary);
   border-radius: 8px;
 }

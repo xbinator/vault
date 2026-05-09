@@ -112,6 +112,7 @@ defineExpose({ scrollToBottom });
   align-items: center;
   justify-content: center;
   text-align: center;
+  user-select: none;
   transform: translate(-50%, -50%);
 }
 

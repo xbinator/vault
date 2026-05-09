@@ -55,6 +55,18 @@ body {
   color: var(--text-primary);
   touch-action: none;
   touch-action: pan-y;
+  user-select: none;
+}
+
+/**
+ * 可编辑元素恢复文本选择能力，确保输入框和编辑器正常工作
+ */
+input,
+textarea,
+select,
+[contenteditable='true'],
+[contenteditable=''] {
+  user-select: text;
 }
 
 /**
