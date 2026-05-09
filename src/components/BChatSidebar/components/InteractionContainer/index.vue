@@ -4,7 +4,7 @@
 -->
 <template>
   <div class="interaction-container">
-    <TransitionGroup name="toast" tag="div" class="toast-stack">
+    <div v-if="toastQueue.length > 0" class="toast-stack">
       <ToastItem
         v-for="toast in toastQueue"
         :id="toast.id"
@@ -14,7 +14,7 @@
         :duration="toast.duration"
         @close="removeToast"
       />
-    </TransitionGroup>
+    </div>
 
     <ConfirmModal
       :visible="confirmState?.visible ?? false"
@@ -79,47 +79,18 @@ function handleCancel(): void {
 .interaction-container {
   position: relative;
   width: 100%;
-  padding: 0 12px 12px;
 }
 
 .toast-stack {
+  position: fixed;
+  right: 24px;
+  bottom: 120px;
+  z-index: 1000;
   display: flex;
   flex-direction: column-reverse;
   gap: 8px;
-  width: 100%;
-}
-
-/* Toast 进入动画 */
-.toast-enter-active {
-  animation: toast-in 0.3s ease;
-}
-
-/* Toast 离开动画 */
-.toast-leave-active {
-  animation: toast-out 0.3s ease;
-}
-
-@keyframes toast-in {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes toast-out {
-  from {
-    opacity: 1;
-    transform: translateY(0);
-  }
-
-  to {
-    opacity: 0;
-    transform: translateY(-10px);
-  }
+  width: 320px;
+  max-height: calc(100vh - 200px);
+  overflow-y: auto;
 }
 </style>

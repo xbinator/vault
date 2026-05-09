@@ -128,7 +128,7 @@ async function ensureSpeechRuntimeReady(): Promise<boolean> {
   // 1. 请求系统级麦克风权限（macOS 必须，否则 getUserMedia 会抛 NotAllowedError）
   const micGranted = await electronAPI.requestMicrophonePermission();
   if (!micGranted) {
-    showToast({ type: 'error', content: '麦克风权限未开启，请在系统设置中开启' });
+    showToast({ type: 'error', content: '麦克风权限未开启，请在系统设置中开启', duration: 0 });
     return false;
   }
 

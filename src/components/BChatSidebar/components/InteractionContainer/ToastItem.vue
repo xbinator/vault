@@ -3,7 +3,7 @@
   @description 单个 Toast 提示组件，支持多种类型和自动关闭
 -->
 <template>
-  <div :class="['toast-item', `toast-item--${type}`]" @click="handleClose">
+  <div :class="['toast-item', `toast-item--${type}`]">
     <div class="toast-item__icon">
       <Icon :icon="iconName" width="16" height="16" />
     </div>
@@ -106,12 +106,7 @@ onUnmounted(() => {
   cursor: pointer;
   background-color: var(--bg-secondary);
   border-radius: 6px;
-  box-shadow: 0 2px 8px rgb(0 0 0 / 15%);
   transition: all 0.3s ease;
-
-  &:hover {
-    box-shadow: 0 4px 12px rgb(0 0 0 / 20%);
-  }
 
   &--error {
     border-left: 3px solid #ef4444;
