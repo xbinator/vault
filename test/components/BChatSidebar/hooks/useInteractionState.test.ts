@@ -46,32 +46,23 @@ describe('useInteractionState', () => {
       expect(toastQueue.value[1].content).toBe('错误3');
     });
 
-    it('应该支持业务唯一标识 key', () => {
+    it('相同 content 的 Toast 不应该重复添加', () => {
       const { toastQueue, api } = useInteractionState();
 
-      api.showToast({ type: 'error', content: '错误1', key: 'error-1' });
-
-      expect(toastQueue.value).toHaveLength(1);
-      expect(toastQueue.value[0].key).toBe('error-1');
-    });
-
-    it('相同 key 的 Toast 不应该重复添加', () => {
-      const { toastQueue, api } = useInteractionState();
-
-      api.showToast({ type: 'error', content: '错误1', key: 'error-1' });
-      api.showToast({ type: 'error', content: '错误2', key: 'error-1' });
+      api.showToast({ type: 'error', content: '错误1' });
+      api.showToast({ type: 'error', content: '错误1' });
 
       expect(toastQueue.value).toHaveLength(1);
       expect(toastQueue.value[0].content).toBe('错误1');
     });
 
-    it('相同 key 的 Toast 应该触发抖动动画', async () => {
+    it('相同 content 的 Toast 应该触发抖动动画', async () => {
       const { toastQueue, api } = useInteractionState();
 
-      api.showToast({ type: 'error', content: '错误1', key: 'error-1' });
+      api.showToast({ type: 'error', content: '错误1' });
       expect(toastQueue.value[0].shake).toBeUndefined();
 
-      api.showToast({ type: 'error', content: '错误2', key: 'error-1' });
+      api.showToast({ type: 'error', content: '错误1' });
       expect(toastQueue.value[0].shake).toBe(true);
 
       // 等待 300ms 后抖动标记应该被移除
@@ -81,6 +72,17 @@ describe('useInteractionState', () => {
         }, 350);
       });
       expect(toastQueue.value[0].shake).toBe(false);
+    });
+
+    it('不同 content 的 Toast 应该正常添加', () => {
+      const { toastQueue, api } = useInteractionState();
+
+      api.showToast({ type: 'error', content: '错误1' });
+      api.showToast({ type: 'error', content: '错误2' });
+
+      expect(toastQueue.value).toHaveLength(2);
+      expect(toastQueue.value[0].content).toBe('错误1');
+      expect(toastQueue.value[1].content).toBe('错误2');
     });
   });
 

@@ -24,33 +24,37 @@
       </BButton>
     </div>
     <div class="b-chat-sidebar__container">
-      <ConversationView
-        ref="conversationRef"
-        v-model:messages="messages"
-        :loading="loading"
-        :on-load-history="handleLoadHistory"
-        @edit="handleChatEdit"
-        @regenerate="handleChatRegenerate"
-        @confirmation-action="handleConfirmationAction"
-        @confirmation-custom-input="handleConfirmationCustomInput"
-        @user-choice-submit="handleChatUserChoiceSubmit"
-      />
+      <div class="b-chat-sidebar__conversation-container">
+        <ConversationView
+          ref="conversationRef"
+          v-model:messages="messages"
+          :loading="loading"
+          :on-load-history="handleLoadHistory"
+          @edit="handleChatEdit"
+          @regenerate="handleChatRegenerate"
+          @confirmation-action="handleConfirmationAction"
+          @confirmation-custom-input="handleConfirmationCustomInput"
+          @user-choice-submit="handleChatUserChoiceSubmit"
+        />
 
-      <UsagePanel
-        v-if="usagePanel.open.value"
-        :loading="usagePanel.loading.value"
-        :usage="usagePanel.usage.value"
-        :error="usagePanel.error.value"
-        :on-close="usagePanel.close"
-      />
+        <div class="b-chat-sidebar__floating-container">
+          <UsagePanel
+            v-if="usagePanel.open.value"
+            :loading="usagePanel.loading.value"
+            :usage="usagePanel.usage.value"
+            :error="usagePanel.error.value"
+            :on-close="usagePanel.close"
+          />
 
-      <InteractionContainer
-        :toast-queue="toastQueue"
-        :confirm-state="confirmState"
-        @remove-toast="removeToast"
-        @confirm="handleInteractionConfirm"
-        @cancel="handleInteractionCancel"
-      />
+          <InteractionContainer
+            :toast-queue="toastQueue"
+            :confirm-state="confirmState"
+            @remove-toast="removeToast"
+            @confirm="handleInteractionConfirm"
+            @cancel="handleInteractionCancel"
+          />
+        </div>
+      </div>
 
       <div class="b-chat-sidebar__input">
         <div class="b-chat-sidebar__input-container">
@@ -620,6 +624,23 @@ onUnmounted(() => {
   flex: 1;
   flex-direction: column;
   height: 0;
+}
+
+.b-chat-sidebar__conversation-container {
+  position: relative;
+  flex: 1;
+  height: 0;
+}
+
+.b-chat-sidebar__floating-container {
+  position: absolute;
+  inset: auto 0 0;
+  z-index: 100;
+  pointer-events: none;
+}
+
+.b-chat-sidebar__floating-container > * {
+  pointer-events: auto;
 }
 
 .b-chat-sidebar__input {

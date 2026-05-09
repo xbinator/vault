@@ -76,8 +76,7 @@ defineExpose({ scrollToBottom });
 
 .conversation-view {
   position: relative;
-  flex: 1;
-  height: 0;
+  height: 100%;
 }
 
 .conversation-view__container {

@@ -18,8 +18,6 @@ export interface ToastOptions {
   content: string;
   /** 持续时间（毫秒），默认 3000ms */
   duration?: number;
-  /** 业务唯一标识（可选），相同 key 的 toast 不会重复显示，而是抖动提示 */
-  key?: string;
 }
 
 /**
@@ -36,8 +34,6 @@ export interface ToastItem {
   duration: number;
   /** 创建时间戳 */
   createdAt: number;
-  /** 业务唯一标识（可选） */
-  key?: string;
   /** 是否需要抖动动画 */
   shake?: boolean;
 }

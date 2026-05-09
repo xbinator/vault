@@ -34,20 +34,18 @@ export function useInteractionState(options?: { maxToastCount?: number; defaultD
    * @param toastOptions - Toast 选项
    */
   function showToast(toastOptions: ToastOptions): void {
-    // 如果有 key，检查是否已存在相同 key 的 toast
-    if (toastOptions.key) {
-      const existingToast = toastQueue.value.find((t) => t.key === toastOptions.key);
-      if (existingToast) {
-        // 已存在，触发抖动动画
-        existingToast.shake = true;
-        // 重置定时器（重新计时）
-        resetToastTimer(existingToast);
-        // 300ms 后移除抖动标记
-        setTimeout(() => {
-          existingToast.shake = false;
-        }, 300);
-        return;
-      }
+    // 检查是否已存在相同 content 的 toast
+    const existingToast = toastQueue.value.find((t) => t.content === toastOptions.content);
+    if (existingToast) {
+      // 已存在，触发抖动动画
+      existingToast.shake = true;
+      // 重置定时器（重新计时）
+      resetToastTimer(existingToast);
+      // 300ms 后移除抖动标记
+      setTimeout(() => {
+        existingToast.shake = false;
+      }, 300);
+      return;
     }
 
     const toast: ToastItem = {
@@ -55,8 +53,7 @@ export function useInteractionState(options?: { maxToastCount?: number; defaultD
       type: toastOptions.type,
       content: toastOptions.content,
       duration: toastOptions.duration ?? defaultDuration,
-      createdAt: Date.now(),
-      key: toastOptions.key
+      createdAt: Date.now()
     };
 
     toastQueue.value.push(toast);

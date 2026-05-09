@@ -89,7 +89,6 @@ function handleCancel(): void {
   display: flex;
   flex-direction: column-reverse;
   gap: 8px;
-  max-height: calc(100vh - 200px);
   overflow-y: auto;
 }
 </style>
