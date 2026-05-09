@@ -3,6 +3,15 @@
     <div v-if="visible" ref="toolbarRef" class="rich-selection-toolbar" :style="style">
       <SelectionToolbar :format-buttons="resolvedFormatButtons" @ai="$emit('ai')" @reference="$emit('reference')" @format="handleFormat" />
     </div>
+    <LinkPopover
+      :visible="linkPopoverVisible"
+      :overlay-root="overlayRoot"
+      :anchor-element="toolbarRef"
+      :initial-href="editLinkHref"
+      @confirm="handleLinkConfirm"
+      @cancel="closeLinkPopover"
+      @remove="handleLinkRemove"
+    />
   </Teleport>
 </template>
 
@@ -16,6 +25,7 @@ import type { Editor } from '@tiptap/vue-3';
 import type { CSSProperties } from 'vue';
 import { computed, nextTick, onBeforeUnmount, ref, shallowRef, watch } from 'vue';
 import { useEventListener, useResizeObserver } from '@vueuse/core';
+import LinkPopover from './LinkPopover.vue';
 import SelectionToolbar from './SelectionToolbar.vue';
 
 /**
@@ -85,6 +95,10 @@ const style = shallowRef<CSSProperties>(HIDDEN_STYLE);
 const hasMeasuredPosition = ref(false);
 const pointerPressActive = ref(false);
 const suppressed = ref(false);
+/** LinkPopover 显隐状态 */
+const linkPopoverVisible = ref(false);
+/** 编辑态时当前链接地址 */
+const editLinkHref = ref<string | null>(null);
 let cleanupOverlayPointerListeners: (() => void) | null = null;
 
 /**
@@ -198,6 +212,9 @@ function bindOverlayPointerListeners(): void {
   }
 
   const onPointerDown = (event: PointerEvent): void => {
+    if (linkPopoverVisible.value) {
+      return;
+    }
     if (toolbarRef.value?.contains(event.target as Node)) {
       return;
     }
@@ -231,6 +248,40 @@ const resolvedFormatButtons = computed(() =>
 );
 
 /**
+ * 打开链接弹窗。
+ * @param initialHref - 已有链接地址（编辑态传入）
+ */
+function openLinkPopover(initialHref?: string): void {
+  editLinkHref.value = initialHref ?? null;
+  linkPopoverVisible.value = true;
+}
+
+/**
+ * 关闭链接弹窗。
+ */
+function closeLinkPopover(): void {
+  linkPopoverVisible.value = false;
+  editLinkHref.value = null;
+}
+
+/**
+ * 处理链接确认，设置链接并关闭弹窗。
+ * @param href - 用户输入的链接地址
+ */
+function handleLinkConfirm(href: string): void {
+  props.editor.chain().focus().setLink({ href }).run();
+  closeLinkPopover();
+}
+
+/**
+ * 处理移除链接。
+ */
+function handleLinkRemove(): void {
+  props.editor.chain().focus().unsetLink().run();
+  closeLinkPopover();
+}
+
+/**
  * 处理格式按钮点击，直接操作编辑器。
  * 格式命令与 Tiptap 内核紧密耦合，仅存在于 rich host 层。
  */
@@ -251,6 +302,14 @@ function handleFormat(command: SelectionToolbarAction): void {
       break;
     case 'code':
       editor.chain().focus().toggleCode().run();
+      break;
+    case 'link':
+      if (props.editor.isActive('link')) {
+        const currentHref = props.editor.getAttributes('link').href as string | undefined;
+        openLinkPopover(currentHref ?? '');
+      } else {
+        openLinkPopover();
+      }
       break;
     default:
       break;

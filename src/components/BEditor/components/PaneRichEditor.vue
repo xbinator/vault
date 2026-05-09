@@ -166,6 +166,7 @@ const formatButtons = computed(() => [
   { command: 'italic' as SelectionToolbarAction, icon: 'lucide:italic' },
   { command: 'underline' as SelectionToolbarAction, icon: 'lucide:underline' },
   { command: 'strike' as SelectionToolbarAction, icon: 'lucide:strikethrough' },
+  { command: 'link' as SelectionToolbarAction, icon: 'lucide:link' },
   { command: 'code' as SelectionToolbarAction, icon: 'lucide:code' }
 ]);
 
