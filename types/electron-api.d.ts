@@ -211,6 +211,78 @@ export interface ElectronSpeechRuntimeStatus {
 }
 
 /**
+ * 当前模型选择。
+ */
+export interface ElectronSpeechModelSelection {
+  /** 模型来源。 */
+  sourceType: 'managed' | 'external';
+  /** 模型唯一标识。 */
+  modelId: string;
+}
+
+/**
+ * 外部模型记录。
+ */
+export interface ElectronSpeechExternalModelRecord {
+  /** 模型唯一标识。 */
+  id: string;
+  /** 展示名称。 */
+  displayName: string;
+  /** 模型绝对路径。 */
+  filePath: string;
+  /** 最近一次校验时间。 */
+  lastValidatedAt?: number;
+  /** 最近一次校验状态。 */
+  lastValidationState: 'ready' | 'missing' | 'invalid';
+  /** 最近一次校验错误。 */
+  lastErrorMessage?: string;
+}
+
+/**
+ * 官方模型记录。
+ */
+export interface ElectronSpeechManagedModelRecord {
+  /** 模型唯一标识。 */
+  id: string;
+  /** 展示名称。 */
+  displayName: string;
+  /** 模型版本。 */
+  version: string;
+  /** 模型相对路径。 */
+  relativePath: string;
+  /** 模型摘要。 */
+  sha256: string;
+  /** 模型大小。 */
+  sizeBytes: number;
+}
+
+/**
+ * 语音运行时聚合快照。
+ */
+export interface ElectronSpeechRuntimeSnapshot {
+  /** 平台标识。 */
+  platform: 'darwin' | 'win32';
+  /** 架构标识。 */
+  arch: 'arm64' | 'x64';
+  /** binary 可用状态。 */
+  binaryState: 'ready' | 'missing' | 'failed';
+  /** 当前 binary 版本。 */
+  binaryVersion?: string;
+  /** 当前选择。 */
+  selectedModel?: ElectronSpeechModelSelection;
+  /** 已安装官方模型。 */
+  managedModels: ElectronSpeechManagedModelRecord[];
+  /** 已注册外部模型。 */
+  externalModels: ElectronSpeechExternalModelRecord[];
+  /** 是否存在可用模型。 */
+  hasUsableModel: boolean;
+  /** 当前生效状态。 */
+  activeState: 'ready' | 'missing-model' | 'invalid-selection' | 'failed';
+  /** 错误信息。 */
+  errorMessage?: string;
+}
+
+/**
  * 语音运行时安装进度。
  */
 export interface ElectronSpeechInstallProgress {
@@ -268,8 +340,15 @@ export interface ElectronAPI {
   // 语音转写
   transcribeAudio: (request: ElectronAudioTranscribeRequest) => Promise<ElectronAudioTranscribeResult>;
   getSpeechRuntimeStatus: () => Promise<ElectronSpeechRuntimeStatus>;
+  getSpeechRuntimeSnapshot: () => Promise<ElectronSpeechRuntimeSnapshot>;
   installSpeechRuntime: () => Promise<ElectronSpeechRuntimeStatus>;
   removeSpeechRuntime: () => Promise<ElectronSpeechRuntimeStatus>;
+  listExternalSpeechModels: () => Promise<ElectronSpeechExternalModelRecord[]>;
+  registerExternalSpeechModel: (input: { filePath: string; displayName: string }) => Promise<ElectronSpeechExternalModelRecord>;
+  renameExternalSpeechModel: (modelId: string, displayName: string) => Promise<ElectronSpeechExternalModelRecord>;
+  revalidateExternalSpeechModel: (modelId: string) => Promise<ElectronSpeechExternalModelRecord>;
+  removeExternalSpeechModel: (modelId: string) => Promise<ElectronSpeechRuntimeSnapshot>;
+  setActiveSpeechModel: (selection: ElectronSpeechModelSelection) => Promise<ElectronSpeechRuntimeSnapshot>;
   onSpeechInstallProgress: (listener: (progress: ElectronSpeechInstallProgress) => void) => () => void;
 
   // AI 服务操作

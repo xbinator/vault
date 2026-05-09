@@ -1,6 +1,6 @@
 /**
  * @file speech-installer.test.ts
- * @description 验证语音运行时安装器会生成 current 目录和 manifest。
+ * @description 验证语音运行时安装器会写入 V2 binary/model 仓库并改写状态指针。
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -9,8 +9,10 @@ const mkdirMock = vi.fn();
 const renameMock = vi.fn();
 const rmMock = vi.fn();
 const writeFileMock = vi.fn();
+const readFileMock = vi.fn();
 
 vi.mock('node:fs/promises', () => ({
+  readFile: readFileMock,
   chmod: chmodMock,
   mkdir: mkdirMock,
   rename: renameMock,
@@ -21,6 +23,7 @@ vi.mock('node:fs/promises', () => ({
 describe('installSpeechRuntime', () => {
   beforeEach(() => {
     vi.spyOn(Date, 'now').mockReturnValue(1700000000000);
+    readFileMock.mockReset();
     chmodMock.mockReset();
     mkdirMock.mockReset();
     renameMock.mockReset();
@@ -146,5 +149,172 @@ describe('installSpeechRuntime', () => {
     });
 
     vi.unstubAllEnvs();
+  });
+
+  it('installs a binary into the versioned binary repository and updates state.json', async () => {
+    readFileMock.mockRejectedValue(new Error('ENOENT'));
+    mkdirMock.mockResolvedValue(undefined);
+    writeFileMock.mockResolvedValue(undefined);
+    chmodMock.mockResolvedValue(undefined);
+
+    const { installSpeechBinary } = await import('../../electron/main/modules/speech/installer.mjs');
+    await installSpeechBinary({
+      userDataPath: '/tmp/runtime-test',
+      platform: 'darwin',
+      arch: 'arm64',
+      version: '2026.05.04',
+      relativePath: 'binaries/darwin-arm64/2026.05.04/whisper',
+      sha256: '',
+      url: 'memory://whisper',
+      archiveType: 'file',
+      downloadUrl: async () => Buffer.from('whisper-binary')
+    });
+
+    expect(writeFileMock).toHaveBeenCalledWith(
+      '/tmp/runtime-test/speech-runtime/binaries/darwin-arm64/2026.05.04/whisper',
+      Buffer.from('whisper-binary')
+    );
+    expect(writeFileMock).toHaveBeenCalledWith(
+      '/tmp/runtime-test/speech-runtime/state.json',
+      expect.stringContaining('"currentVersion": "2026.05.04"')
+    );
+    expect(writeFileMock).toHaveBeenCalledWith(
+      '/tmp/runtime-test/speech-runtime/state.json',
+      expect.stringContaining('"relativePath": "binaries/darwin-arm64/2026.05.04/whisper"')
+    );
+  });
+
+  it('installs a managed model into the versioned model repository with meta.json', async () => {
+    readFileMock.mockRejectedValue(new Error('ENOENT'));
+    mkdirMock.mockResolvedValue(undefined);
+    writeFileMock.mockResolvedValue(undefined);
+
+    const { installManagedSpeechModel } = await import('../../electron/main/modules/speech/installer.mjs');
+    await installManagedSpeechModel({
+      userDataPath: '/tmp/runtime-test',
+      platform: 'darwin',
+      arch: 'arm64',
+      modelId: 'ggml-base',
+      displayName: 'Base',
+      version: '1',
+      relativePath: 'managed-models/ggml-base/1/model.bin',
+      sha256: '',
+      sizeBytes: 147000000,
+      url: 'memory://ggml-base.bin',
+      downloadUrl: async () => Buffer.from('managed-model')
+    });
+
+    expect(writeFileMock).toHaveBeenCalledWith(
+      '/tmp/runtime-test/speech-runtime/managed-models/ggml-base/1/model.bin',
+      Buffer.from('managed-model')
+    );
+    expect(writeFileMock).toHaveBeenCalledWith(
+      '/tmp/runtime-test/speech-runtime/managed-models/ggml-base/1/meta.json',
+      expect.stringContaining('"displayName": "Base"')
+    );
+    expect(writeFileMock).toHaveBeenCalledWith(
+      '/tmp/runtime-test/speech-runtime/state.json',
+      expect.stringContaining('"id": "ggml-base"')
+    );
+  });
+
+  it('rejects removing a managed model that is currently selected', async () => {
+    readFileMock.mockResolvedValue(JSON.stringify({
+      schemaVersion: 2,
+      platform: 'darwin',
+      arch: 'arm64',
+      selectedModel: {
+        sourceType: 'managed',
+        modelId: 'ggml-base'
+      },
+      binaries: {
+        currentVersion: '2026.05.04',
+        installed: []
+      },
+      managedModels: [
+        {
+          id: 'ggml-base',
+          displayName: 'Base',
+          version: '1',
+          relativePath: 'managed-models/ggml-base/1/model.bin',
+          sha256: 'sha-model',
+          sizeBytes: 147000000
+        }
+      ],
+      externalModels: [],
+      updates: {
+        autoCheck: true,
+        autoDownload: false,
+        binaryUpdate: null,
+        modelUpdates: []
+      }
+    }));
+
+    const { removeManagedSpeechModel } = await import('../../electron/main/modules/speech/installer.mjs');
+
+    await expect(
+      removeManagedSpeechModel({
+        userDataPath: '/tmp/runtime-test',
+        modelId: 'ggml-base'
+      })
+    ).rejects.toThrow('currently selected');
+  });
+
+  it('applies a binary update by only rewriting the current version pointer', async () => {
+    readFileMock.mockResolvedValue(JSON.stringify({
+      schemaVersion: 2,
+      platform: 'darwin',
+      arch: 'arm64',
+      selectedModel: {
+        sourceType: 'managed',
+        modelId: 'ggml-base'
+      },
+      binaries: {
+        currentVersion: '2026.05.04',
+        installed: [
+          {
+            version: '2026.05.04',
+            relativePath: 'binaries/darwin-arm64/2026.05.04/whisper',
+            sha256: 'sha-old'
+          },
+          {
+            version: '2026.06.01',
+            relativePath: 'binaries/darwin-arm64/2026.06.01/whisper',
+            sha256: 'sha-new'
+          }
+        ]
+      },
+      managedModels: [
+        {
+          id: 'ggml-base',
+          displayName: 'Base',
+          version: '1',
+          relativePath: 'managed-models/ggml-base/1/model.bin',
+          sha256: 'sha-model',
+          sizeBytes: 147000000
+        }
+      ],
+      externalModels: [],
+      updates: {
+        autoCheck: true,
+        autoDownload: false,
+        binaryUpdate: null,
+        modelUpdates: []
+      }
+    }));
+    writeFileMock.mockResolvedValue(undefined);
+
+    const { applySpeechBinaryUpdate } = await import('../../electron/main/modules/speech/installer.mjs');
+    await applySpeechBinaryUpdate({
+      userDataPath: '/tmp/runtime-test',
+      version: '2026.06.01'
+    });
+
+    expect(writeFileMock).toHaveBeenCalledTimes(1);
+    expect(writeFileMock).toHaveBeenCalledWith(
+      '/tmp/runtime-test/speech-runtime/state.json',
+      expect.stringContaining('"currentVersion": "2026.06.01"')
+    );
+    expect(renameMock).not.toHaveBeenCalled();
   });
 });

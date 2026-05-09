@@ -30,11 +30,12 @@ describe('Speech settings wiring', () => {
   it('renders speech settings actions and runtime controls in the page source', () => {
     const pageSource = readSource('src/views/settings/speech/index.vue');
 
-    expect(pageSource).toContain('getSpeechRuntimeStatus');
+    expect(pageSource).toContain('getSpeechRuntimeSnapshot');
     expect(pageSource).toContain('installSpeechRuntime');
     expect(pageSource).toContain('removeSpeechRuntime');
-    expect(pageSource).toContain('Modal.delete');
-    expect(pageSource).toContain("message.success('语音组件已安装');");
-    expect(pageSource).toContain("message.success('语音组件已删除');");
+    expect(pageSource).toContain('speech-settings__section-title">官方模型');
+    expect(pageSource).toContain('speech-settings__section-title">外部模型');
+    expect(pageSource).toContain('speech-settings__section-title">当前生效配置');
+    expect(pageSource).toContain('listExternalSpeechModels');
   });
 });

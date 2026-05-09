@@ -47,7 +47,7 @@ vi.mock('node:child_process', () => ({
 }));
 
 vi.mock('../../electron/main/modules/speech/runtime.mjs', () => ({
-  resolveInstalledSpeechRuntimePaths: vi.fn(async () => {
+  resolveSpeechRuntimeConfig: vi.fn(async () => {
     throw new Error('not installed');
   })
 }));
@@ -129,6 +129,45 @@ describe('speechService', () => {
     });
 
     vi.unstubAllEnvs();
+  });
+
+  it('reads runtime config from speech runtime selection when available', async () => {
+    vi.resetModules();
+    vi.doMock('../../electron/main/modules/speech/runtime.mjs', () => ({
+      resolveSpeechRuntimeConfig: vi.fn(async () => ({
+        whisperBinaryPath: '/managed/whisper',
+        whisperModelPath: '/managed/model.bin',
+        tempDirectory: '/managed/tmp'
+      }))
+    }));
+
+    const { resolveSpeechRuntimeConfig } = await import('../../electron/main/modules/speech/service.mjs');
+    const config = await resolveSpeechRuntimeConfig();
+
+    expect(config).toEqual({
+      whisperBinaryPath: '/managed/whisper',
+      whisperModelPath: '/managed/model.bin',
+      tempDirectory: '/managed/tmp'
+    });
+  });
+
+  it('throws a readable error when selected speech runtime config is invalid', async () => {
+    vi.resetModules();
+    vi.doMock('../../electron/main/modules/speech/runtime.mjs', () => ({
+      resolveSpeechRuntimeConfig: vi.fn(async () => {
+        throw new Error('Selected speech model is not available');
+      })
+    }));
+
+    const { transcribeAudioSegment } = await import('../../electron/main/modules/speech/service.mjs');
+
+    await expect(
+      transcribeAudioSegment({
+        buffer: new ArrayBuffer(8),
+        mimeType: 'audio/wav',
+        segmentId: 'seg-invalid'
+      })
+    ).rejects.toThrow('Selected speech model is not available');
   });
 
   it('rejects unsupported non-wav audio input', async () => {

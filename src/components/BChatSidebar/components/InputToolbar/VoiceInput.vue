@@ -123,9 +123,24 @@ async function ensureSpeechRuntimeReady(): Promise<boolean> {
   }
 
   const electronAPI = getElectronAPI();
-  const status = await electronAPI.getSpeechRuntimeStatus();
-  if (status.state === 'ready') {
+  const snapshot = await electronAPI.getSpeechRuntimeSnapshot();
+  if (snapshot.binaryState === 'ready' && snapshot.activeState === 'ready') {
     return true;
+  }
+
+  if (snapshot.binaryState === 'ready') {
+    if (snapshot.activeState === 'invalid-selection') {
+      message.error(snapshot.errorMessage ?? '当前语音模型文件不可用，请前往设置页重新选择');
+      return false;
+    }
+
+    if (snapshot.activeState === 'missing-model' || !snapshot.hasUsableModel) {
+      message.error('请先前往语音设置页下载或添加语音模型');
+      return false;
+    }
+
+    message.error(snapshot.errorMessage ?? '当前语音模型文件不可用，请前往设置页重新选择');
+    return false;
   }
 
   const [cancelled] = await Modal.confirm('语音组件未安装', '首次使用语音输入需要下载语音组件，是否立即下载？', {

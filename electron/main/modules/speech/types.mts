@@ -51,6 +51,174 @@ export interface SpeechRuntimeConfig {
 export type SpeechRuntimeState = 'ready' | 'missing' | 'installing' | 'failed';
 
 /**
+ * 运行时 binary 可用状态。
+ */
+export type SpeechRuntimeBinaryState = 'ready' | 'missing' | 'failed';
+
+/**
+ * 当前选择的模型来源。
+ */
+export interface SpeechModelSelection {
+  /** 模型来源。 */
+  sourceType: 'managed' | 'external';
+  /** 模型唯一标识。 */
+  modelId: string;
+}
+
+/**
+ * 已安装 binary 记录。
+ */
+export interface SpeechBinaryRecord {
+  /** binary 版本。 */
+  version: string;
+  /** binary 相对运行时根目录的路径。 */
+  relativePath: string;
+  /** binary 摘要。 */
+  sha256: string;
+}
+
+/**
+ * 应用托管模型记录。
+ */
+export interface SpeechManagedModelRecord {
+  /** 模型唯一标识。 */
+  id: string;
+  /** 展示名称。 */
+  displayName: string;
+  /** 模型版本。 */
+  version: string;
+  /** 模型相对运行时根目录的路径。 */
+  relativePath: string;
+  /** 模型摘要。 */
+  sha256: string;
+  /** 模型大小。 */
+  sizeBytes: number;
+}
+
+/**
+ * 外部模型可用性状态。
+ */
+export type SpeechExternalModelValidationState = 'ready' | 'missing' | 'invalid';
+
+/**
+ * 外部模型记录。
+ */
+export interface SpeechExternalModelRecord {
+  /** 模型唯一标识。 */
+  id: string;
+  /** 展示名称。 */
+  displayName: string;
+  /** 模型绝对路径。 */
+  filePath: string;
+  /** 最近一次校验时间。 */
+  lastValidatedAt?: number;
+  /** 最近一次校验状态。 */
+  lastValidationState: SpeechExternalModelValidationState;
+  /** 最近一次校验错误。 */
+  lastErrorMessage?: string;
+}
+
+/**
+ * binary 更新记录。
+ */
+export interface SpeechBinaryUpdateRecord {
+  /** 目标版本。 */
+  version: string;
+}
+
+/**
+ * 模型更新记录。
+ */
+export interface SpeechManagedModelUpdateRecord {
+  /** 模型唯一标识。 */
+  modelId: string;
+  /** 目标版本。 */
+  version: string;
+}
+
+/**
+ * 更新状态。
+ */
+export interface SpeechRuntimeUpdatesState {
+  /** 是否自动检查。 */
+  autoCheck: boolean;
+  /** 是否自动下载。 */
+  autoDownload: boolean;
+  /** 待应用的 binary 更新。 */
+  binaryUpdate: SpeechBinaryUpdateRecord | null;
+  /** 待应用的模型更新。 */
+  modelUpdates: SpeechManagedModelUpdateRecord[];
+}
+
+/**
+ * 语音运行时状态文件。
+ */
+export interface SpeechRuntimeStateFile {
+  /** 状态文件版本。 */
+  schemaVersion: 2;
+  /** 平台标识。 */
+  platform: 'darwin' | 'win32';
+  /** 架构标识。 */
+  arch: 'arm64' | 'x64';
+  /** 当前选择。 */
+  selectedModel?: SpeechModelSelection;
+  /** binary 状态。 */
+  binaries: {
+    /** 当前 binary 版本。 */
+    currentVersion: string | null;
+    /** 已安装 binary 列表。 */
+    installed: SpeechBinaryRecord[];
+  };
+  /** 已安装官方模型。 */
+  managedModels: SpeechManagedModelRecord[];
+  /** 已注册外部模型。 */
+  externalModels: SpeechExternalModelRecord[];
+  /** 更新状态。 */
+  updates: SpeechRuntimeUpdatesState;
+}
+
+/**
+ * 当前生效状态。
+ */
+export type SpeechRuntimeActiveState = 'ready' | 'missing-model' | 'invalid-selection' | 'failed';
+
+/**
+ * 当前解析出的模型记录。
+ */
+export interface SpeechRuntimeResolvedSelection {
+  /** 当前选择。 */
+  selection: SpeechModelSelection;
+  /** 解析后的模型路径。 */
+  modelPath: string;
+}
+
+/**
+ * 语音运行时聚合快照。
+ */
+export interface SpeechRuntimeSnapshot {
+  /** 平台标识。 */
+  platform: 'darwin' | 'win32';
+  /** 架构标识。 */
+  arch: 'arm64' | 'x64';
+  /** binary 可用状态。 */
+  binaryState: SpeechRuntimeBinaryState;
+  /** 当前 binary 版本。 */
+  binaryVersion?: string;
+  /** 当前选择。 */
+  selectedModel?: SpeechModelSelection;
+  /** 已安装官方模型。 */
+  managedModels: SpeechManagedModelRecord[];
+  /** 已注册外部模型。 */
+  externalModels: SpeechExternalModelRecord[];
+  /** 是否存在可用模型。 */
+  hasUsableModel: boolean;
+  /** 当前生效状态。 */
+  activeState: SpeechRuntimeActiveState;
+  /** 可读错误信息。 */
+  errorMessage?: string;
+}
+
+/**
  * 语音运行时状态快照。
  */
 export interface SpeechRuntimeStatus {

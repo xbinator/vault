@@ -46,11 +46,22 @@ const completeSessionMock = vi.fn(async () => ({ text: finalText.value, failedSe
  * 语音运行时状态查询桩。
  */
 const getSpeechRuntimeStatusMock = vi.fn(async () => ({ state: 'ready' as const }));
+const getSpeechRuntimeSnapshotMock = vi.fn(async () => ({
+  binaryState: 'ready' as const,
+  activeState: 'ready' as const,
+  hasUsableModel: true,
+  platform: 'darwin' as const,
+  arch: 'arm64' as const,
+  managedModels: [],
+  externalModels: []
+}));
+const messageErrorMock = vi.fn();
 
 vi.mock('@/shared/platform/electron-api', () => ({
   hasElectronAPI: () => true,
   getElectronAPI: () => ({
-    getSpeechRuntimeStatus: getSpeechRuntimeStatusMock
+    getSpeechRuntimeStatus: getSpeechRuntimeStatusMock,
+    getSpeechRuntimeSnapshot: getSpeechRuntimeSnapshotMock
   })
 }));
 
@@ -58,7 +69,7 @@ vi.mock('ant-design-vue', () => ({
   message: {
     loading: vi.fn(),
     success: vi.fn(),
-    error: vi.fn()
+    error: messageErrorMock
   }
 }));
 
@@ -101,6 +112,17 @@ describe('VoiceInput', () => {
     completeSessionMock.mockReset();
     completeSessionMock.mockImplementation(async () => ({ text: finalText.value, failedSegmentIds: [] }));
     getSpeechRuntimeStatusMock.mockClear();
+    getSpeechRuntimeSnapshotMock.mockClear();
+    getSpeechRuntimeSnapshotMock.mockResolvedValue({
+      binaryState: 'ready',
+      activeState: 'ready',
+      hasUsableModel: true,
+      platform: 'darwin',
+      arch: 'arm64',
+      managedModels: [],
+      externalModels: []
+    });
+    messageErrorMock.mockReset();
   });
 
   it('emits complete with the final transcript after stopping a recording session', async () => {
@@ -170,5 +192,72 @@ describe('VoiceInput', () => {
     expect(wrapper.find('[data-testid="voice-transcribing"]').exists()).toBe(false);
     expect(wrapper.find('[data-testid="voice-start"]').exists()).toBe(true);
     expect(wrapper.emitted('complete')?.[0]?.[0].text).toBe('第一段');
+  });
+
+  it('blocks recording when no usable speech model is available', async () => {
+    getSpeechRuntimeSnapshotMock.mockResolvedValue({
+      binaryState: 'ready',
+      activeState: 'missing-model',
+      hasUsableModel: false,
+      platform: 'darwin',
+      arch: 'arm64',
+      managedModels: [],
+      externalModels: []
+    });
+
+    const { default: VoiceInput } = await import('@/components/BChatSidebar/components/InputToolbar/VoiceInput.vue');
+    const wrapper = mount(VoiceInput, {
+      props: {
+        disabled: false
+      },
+      global: {
+        stubs: {
+          BButton: {
+            props: ['disabled', 'loading'],
+            emits: ['click'],
+            template: buttonStubTemplate
+          }
+        }
+      }
+    });
+
+    await wrapper.get('[data-testid="voice-start"]').trigger('click');
+
+    expect(startMock).not.toHaveBeenCalled();
+    expect(messageErrorMock).toHaveBeenCalledWith('请先前往语音设置页下载或添加语音模型');
+  });
+
+  it('blocks recording when the selected external speech model is invalid', async () => {
+    getSpeechRuntimeSnapshotMock.mockResolvedValue({
+      binaryState: 'ready',
+      activeState: 'invalid-selection',
+      hasUsableModel: false,
+      errorMessage: '当前语音模型文件不可用，请前往设置页重新选择',
+      platform: 'darwin',
+      arch: 'arm64',
+      managedModels: [],
+      externalModels: []
+    });
+
+    const { default: VoiceInput } = await import('@/components/BChatSidebar/components/InputToolbar/VoiceInput.vue');
+    const wrapper = mount(VoiceInput, {
+      props: {
+        disabled: false
+      },
+      global: {
+        stubs: {
+          BButton: {
+            props: ['disabled', 'loading'],
+            emits: ['click'],
+            template: buttonStubTemplate
+          }
+        }
+      }
+    });
+
+    await wrapper.get('[data-testid="voice-start"]').trigger('click');
+
+    expect(startMock).not.toHaveBeenCalled();
+    expect(messageErrorMock).toHaveBeenCalledWith('当前语音模型文件不可用，请前往设置页重新选择');
   });
 });

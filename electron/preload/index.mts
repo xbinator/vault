@@ -218,6 +218,12 @@ const electronAPI: ElectronAPI = {
   getSpeechRuntimeStatus: () => ipcRenderer.invoke('speech:getRuntimeStatus'),
 
   /**
+   * 获取语音运行时聚合快照。
+   * @returns 语音运行时聚合快照
+   */
+  getSpeechRuntimeSnapshot: () => ipcRenderer.invoke('speech:getRuntimeSnapshot'),
+
+  /**
    * 下载并安装语音运行时。
    * @returns 安装完成后的运行时状态
    */
@@ -228,6 +234,48 @@ const electronAPI: ElectronAPI = {
    * @returns 删除后的运行时状态
    */
   removeSpeechRuntime: () => ipcRenderer.invoke('speech:removeRuntime'),
+
+  /**
+   * 获取已注册外部模型列表。
+   * @returns 外部模型列表
+   */
+  listExternalSpeechModels: () => ipcRenderer.invoke('speech:listExternalModels'),
+
+  /**
+   * 注册外部模型。
+   * @param input - 外部模型输入
+   * @returns 新增模型记录
+   */
+  registerExternalSpeechModel: (input) => ipcRenderer.invoke('speech:registerExternalModel', input),
+
+  /**
+   * 重命名外部模型。
+   * @param modelId - 模型唯一标识
+   * @param displayName - 新展示名
+   * @returns 更新后的模型记录
+   */
+  renameExternalSpeechModel: (modelId, displayName) => ipcRenderer.invoke('speech:renameExternalModel', modelId, displayName),
+
+  /**
+   * 重新校验外部模型。
+   * @param modelId - 模型唯一标识
+   * @returns 更新后的模型记录
+   */
+  revalidateExternalSpeechModel: (modelId) => ipcRenderer.invoke('speech:revalidateExternalModel', modelId),
+
+  /**
+   * 删除外部模型。
+   * @param modelId - 模型唯一标识
+   * @returns 最新运行时快照
+   */
+  removeExternalSpeechModel: (modelId) => ipcRenderer.invoke('speech:removeExternalModel', modelId),
+
+  /**
+   * 设置当前生效模型。
+   * @param selection - 模型选择
+   * @returns 最新运行时快照
+   */
+  setActiveSpeechModel: (selection) => ipcRenderer.invoke('speech:setActiveModel', selection),
 
   /**
    * 监听语音运行时安装进度。

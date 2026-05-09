@@ -6,7 +6,7 @@ import { execFile } from 'node:child_process';
 import { access, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { SpeechRuntimeConfig, SpeechTranscribeRequest, SpeechTranscribeResult } from './types.mjs';
-import { resolveInstalledSpeechRuntimePaths } from './runtime.mjs';
+import { resolveSpeechRuntimeConfig as resolveRuntimeSelectionConfig } from './runtime.mjs';
 
 /**
  * 解析语音转写运行时配置。
@@ -14,13 +14,12 @@ import { resolveInstalledSpeechRuntimePaths } from './runtime.mjs';
  */
 export async function resolveSpeechRuntimeConfig(): Promise<SpeechRuntimeConfig> {
   try {
-    const installedRuntime = await resolveInstalledSpeechRuntimePaths();
-    return {
-      whisperBinaryPath: installedRuntime.whisperBinaryPath,
-      whisperModelPath: installedRuntime.whisperModelPath,
-      tempDirectory: process.env.TIBIS_WHISPER_TEMP_DIR ?? '/tmp'
-    };
-  } catch {
+    return await resolveRuntimeSelectionConfig();
+  } catch (error) {
+    if (error instanceof Error && !/not installed|binary is not installed/i.test(error.message)) {
+      throw error;
+    }
+
     return {
       whisperBinaryPath: process.env.TIBIS_WHISPER_CPP_PATH ?? '',
       whisperModelPath: process.env.TIBIS_WHISPER_MODEL_PATH ?? '',

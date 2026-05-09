@@ -1,6 +1,6 @@
 <!--
   @file index.vue
-  @description 语音组件设置页，负责展示当前运行时状态并提供安装、重装和删除入口。
+  @description 语音组件设置页，负责展示语音运行时快照、官方模型、外部模型和当前生效配置。
 -->
 <template>
   <div class="speech-settings">
@@ -19,8 +19,8 @@
           <div class="speech-settings__overview-desc">用于本地语音转写、模型运行和音频处理</div>
         </div>
 
-        <div class="speech-settings__status-badge" :class="`speech-settings__status-badge--${status?.state ?? 'unknown'}`">
-          <span class="speech-settings__status-dot" :class="`speech-settings__status-dot--${status?.state ?? 'unknown'}`"></span>
+        <div class="speech-settings__status-badge" :class="`speech-settings__status-badge--${statusBadgeState}`">
+          <span class="speech-settings__status-dot" :class="`speech-settings__status-dot--${statusBadgeState}`"></span>
           {{ statusConfig.label }}
         </div>
       </div>
@@ -30,32 +30,56 @@
           <div class="speech-settings__section-title">运行环境</div>
 
           <SpeechSettingsItem icon="lucide:activity" label="状态" hint="当前语音运行时检测结果">
-            <span class="speech-settings__status-dot" :class="`speech-settings__status-dot--${status?.state ?? 'unknown'}`"></span>
+            <span class="speech-settings__status-dot" :class="`speech-settings__status-dot--${statusBadgeState}`"></span>
             {{ statusConfig.label }}
           </SpeechSettingsItem>
 
           <SpeechSettingsItem icon="lucide:monitor" label="平台" hint="当前系统平台">
-            {{ status?.platform ?? '-' }}
+            {{ snapshot?.platform ?? '-' }}
           </SpeechSettingsItem>
 
           <SpeechSettingsItem icon="lucide:binary" label="架构" hint="运行时 CPU 架构">
-            {{ status?.arch ?? '-' }}
+            {{ snapshot?.arch ?? '-' }}
           </SpeechSettingsItem>
         </div>
 
         <div class="speech-settings__section">
-          <div class="speech-settings__section-title">模型信息</div>
+          <div class="speech-settings__section-title">官方模型</div>
 
           <SpeechSettingsItem icon="lucide:brain" label="模型" hint="当前使用的语音识别模型">
-            {{ status?.modelName ?? '-' }}
+            {{ managedModelSummary }}
           </SpeechSettingsItem>
 
           <SpeechSettingsItem icon="lucide:tag" label="版本" hint="本地运行时版本">
-            {{ status?.version ?? '-' }}
+            {{ snapshot?.binaryVersion ?? '-' }}
           </SpeechSettingsItem>
 
           <SpeechSettingsItem icon="lucide:folder" label="安装目录" hint="语音组件本地存储路径" :path="true">
-            {{ status?.installDir ?? '-' }}
+            {{ runtimeInstallDir }}
+          </SpeechSettingsItem>
+        </div>
+
+        <div class="speech-settings__section">
+          <div class="speech-settings__section-title">外部模型</div>
+
+          <SpeechSettingsItem icon="lucide:folder-search" label="已注册模型" hint="已添加到语音系统中的本地模型">
+            {{ externalModelSummary }}
+          </SpeechSettingsItem>
+
+          <SpeechSettingsItem icon="lucide:file-check" label="列表状态" hint="外部模型最近一次校验结果">
+            {{ externalModelStateSummary }}
+          </SpeechSettingsItem>
+        </div>
+
+        <div class="speech-settings__section">
+          <div class="speech-settings__section-title">当前生效配置</div>
+
+          <SpeechSettingsItem icon="lucide:circle-play" label="当前选择" hint="当前实际参与语音转写的模型">
+            {{ activeModelSummary }}
+          </SpeechSettingsItem>
+
+          <SpeechSettingsItem icon="lucide:shield-alert" label="生效状态" hint="当前 binary 与模型组合的最终状态">
+            {{ snapshot?.activeState ?? '-' }}
           </SpeechSettingsItem>
         </div>
       </div>
@@ -64,7 +88,7 @@
         <BButton :disabled="installing" @click="handleInstall">
           {{ installButtonLabel }}
         </BButton>
-        <BButton v-if="status?.state === 'ready'" type="secondary" :disabled="installing" @click="handleRemove"> 删除 </BButton>
+        <BButton v-if="snapshot?.binaryState === 'ready'" type="secondary" :disabled="installing" @click="handleRemove"> 删除 </BButton>
         <BButton type="secondary" :disabled="installing" @click="refreshStatus"> 刷新 </BButton>
       </div>
     </div>
@@ -72,7 +96,7 @@
 </template>
 
 <script setup lang="ts">
-import type { ElectronSpeechRuntimeStatus } from 'types/electron-api';
+import type { ElectronSpeechExternalModelRecord, ElectronSpeechRuntimeSnapshot } from 'types/electron-api';
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { Icon } from '@iconify/vue';
 import { message } from 'ant-design-vue';
@@ -83,7 +107,7 @@ import SpeechSettingsItem from './components/SpeechSettingsItem.vue';
 
 // ─── 状态映射配置 ──────────────────────────────────────────────────────────────
 
-const STATUS_CONFIG: Record<NonNullable<ElectronSpeechRuntimeStatus['state']> | 'unknown', { label: string }> = {
+const STATUS_CONFIG: Record<'ready' | 'installing' | 'failed' | 'missing' | 'unknown', { label: string }> = {
   ready: { label: '已安装' },
   installing: { label: '安装中' },
   failed: { label: '安装失败' },
@@ -93,18 +117,82 @@ const STATUS_CONFIG: Record<NonNullable<ElectronSpeechRuntimeStatus['state']> | 
 
 // ─── 响应式状态 ────────────────────────────────────────────────────────────────
 
-const status = ref<ElectronSpeechRuntimeStatus | null>(null);
+const snapshot = ref<ElectronSpeechRuntimeSnapshot | null>(null);
+const externalModels = ref<ElectronSpeechExternalModelRecord[]>([]);
 const installing = ref(false);
 const disposeProgressListener = ref<(() => void) | null>(null);
 
 // ─── 计算属性 ──────────────────────────────────────────────────────────────────
 
-const statusConfig = computed(() => STATUS_CONFIG[status.value?.state ?? 'unknown']);
+const statusBadgeState = computed<'ready' | 'installing' | 'failed' | 'missing' | 'unknown'>(() => {
+  if (installing.value) {
+    return 'installing';
+  }
+
+  if (!snapshot.value) {
+    return 'unknown';
+  }
+
+  if (snapshot.value.binaryState === 'ready' && snapshot.value.activeState === 'ready') {
+    return 'ready';
+  }
+
+  if (snapshot.value.binaryState === 'missing') {
+    return 'missing';
+  }
+
+  return 'failed';
+});
+
+const statusConfig = computed(() => STATUS_CONFIG[statusBadgeState.value]);
 
 const installButtonLabel = computed(() => {
   if (installing.value) return '安装中...';
-  if (status.value?.state === 'ready') return '重装';
+  if (snapshot.value?.binaryState === 'ready') return '重装';
   return '下载';
+});
+
+const runtimeInstallDir = computed(() => {
+  return snapshot.value ? '[用户数据目录]/speech-runtime' : '-';
+});
+
+const managedModelSummary = computed(() => {
+  if (!snapshot.value?.managedModels.length) {
+    return '暂无已安装官方模型';
+  }
+
+  return snapshot.value.managedModels.map((item) => `${item.displayName} (${item.version})`).join('、');
+});
+
+const externalModelSummary = computed(() => {
+  if (!externalModels.value.length) {
+    return '暂无已注册外部模型';
+  }
+
+  return externalModels.value.map((item) => item.displayName).join('、');
+});
+
+const externalModelStateSummary = computed(() => {
+  if (!externalModels.value.length) {
+    return '-';
+  }
+
+  return externalModels.value.map((item) => `${item.displayName}: ${item.lastValidationState}`).join('；');
+});
+
+const activeModelSummary = computed(() => {
+  if (!snapshot.value?.selectedModel) {
+    return '未选择';
+  }
+
+  const activeModelId = snapshot.value.selectedModel.modelId;
+  if (snapshot.value.selectedModel.sourceType === 'managed') {
+    const managedModel = snapshot.value.managedModels.find((item) => item.id === activeModelId);
+    return managedModel ? `官方模型 / ${managedModel.displayName} / v${managedModel.version}` : `官方模型 / ${activeModelId}`;
+  }
+
+  const externalModel = externalModels.value.find((item) => item.id === activeModelId);
+  return externalModel ? `外部模型 / ${externalModel.displayName}` : `外部模型 / ${activeModelId}`;
 });
 
 // ─── 工具函数 ──────────────────────────────────────────────────────────────────
@@ -114,21 +202,16 @@ function teardownProgressListener(): void {
   disposeProgressListener.value = null;
 }
 
-function patchStatus(patch: Partial<ElectronSpeechRuntimeStatus>): void {
-  status.value = {
-    ...(status.value ?? { platform: 'darwin', arch: 'arm64' }),
-    ...patch
-  } as ElectronSpeechRuntimeStatus;
-}
-
 // ─── 操作处理 ──────────────────────────────────────────────────────────────────
 
 async function refreshStatus(): Promise<void> {
   if (!hasElectronAPI()) {
-    patchStatus({ state: 'failed', errorMessage: 'Electron API is not available' });
+    snapshot.value = null;
+    externalModels.value = [];
     return;
   }
-  status.value = await getElectronAPI().getSpeechRuntimeStatus();
+  snapshot.value = await getElectronAPI().getSpeechRuntimeSnapshot();
+  externalModels.value = await getElectronAPI().listExternalSpeechModels();
 }
 
 async function handleInstall(): Promise<void> {
@@ -137,26 +220,24 @@ async function handleInstall(): Promise<void> {
     return;
   }
 
-  if (status.value?.state === 'ready') {
+  if (snapshot.value?.binaryState === 'ready') {
     const [cancelled] = await Modal.confirm('确认', '确定要重新安装语音组件吗？');
     if (cancelled) return;
   }
 
   installing.value = true;
   teardownProgressListener();
-  patchStatus({ state: 'installing', errorMessage: undefined });
 
   disposeProgressListener.value = getElectronAPI().onSpeechInstallProgress(() => {
     // 进度监听，暂不处理
   });
 
   try {
-    status.value = await getElectronAPI().installSpeechRuntime();
+    await getElectronAPI().installSpeechRuntime();
+    await refreshStatus();
     message.success('语音组件已安装');
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : '语音组件安装失败';
-    patchStatus({ state: 'failed', errorMessage });
-    message.error(errorMessage);
+    message.error(error instanceof Error ? error.message : '语音组件安装失败');
   } finally {
     installing.value = false;
     teardownProgressListener();
@@ -172,7 +253,8 @@ async function handleRemove(): Promise<void> {
   const [cancelled] = await Modal.delete('确定要删除当前语音组件吗？');
   if (cancelled) return;
 
-  status.value = await getElectronAPI().removeSpeechRuntime();
+  await getElectronAPI().removeSpeechRuntime();
+  await refreshStatus();
   message.success('语音组件已删除');
 }
 
