@@ -21,16 +21,42 @@ export function useInteractionState(options?: { maxToastCount?: number; defaultD
   const confirmState = ref<ConfirmState | null>(null);
 
   /**
+   * 重置 Toast 的自动关闭定时器
+   * @param toast - Toast 项
+   */
+  function resetToastTimer(toast: ToastItem): void {
+    // 更新创建时间，相当于重置定时器
+    toast.createdAt = Date.now();
+  }
+
+  /**
    * 显示 Toast 提示
    * @param toastOptions - Toast 选项
    */
   function showToast(toastOptions: ToastOptions): void {
+    // 如果有 key，检查是否已存在相同 key 的 toast
+    if (toastOptions.key) {
+      const existingToast = toastQueue.value.find((t) => t.key === toastOptions.key);
+      if (existingToast) {
+        // 已存在，触发抖动动画
+        existingToast.shake = true;
+        // 重置定时器（重新计时）
+        resetToastTimer(existingToast);
+        // 300ms 后移除抖动标记
+        setTimeout(() => {
+          existingToast.shake = false;
+        }, 300);
+        return;
+      }
+    }
+
     const toast: ToastItem = {
       id: `toast-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
       type: toastOptions.type,
       content: toastOptions.content,
       duration: toastOptions.duration ?? defaultDuration,
-      createdAt: Date.now()
+      createdAt: Date.now(),
+      key: toastOptions.key
     };
 
     toastQueue.value.push(toast);

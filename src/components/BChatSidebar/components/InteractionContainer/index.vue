@@ -12,6 +12,7 @@
         :type="toast.type"
         :content="toast.content"
         :duration="toast.duration"
+        :shake="toast.shake"
         @close="removeToast"
       />
     </div>
@@ -82,14 +83,12 @@ function handleCancel(): void {
 }
 
 .toast-stack {
-  position: fixed;
-  right: 24px;
-  bottom: 120px;
+  position: absolute;
+  inset: auto 16px 16px;
   z-index: 1000;
   display: flex;
   flex-direction: column-reverse;
   gap: 8px;
-  width: 320px;
   max-height: calc(100vh - 200px);
   overflow-y: auto;
 }

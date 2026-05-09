@@ -3,7 +3,7 @@
   @description 单个 Toast 提示组件，支持多种类型和自动关闭
 -->
 <template>
-  <div class="toast-item">
+  <div :class="['toast-item', { 'toast-item--shake': shake }]">
     <div :class="['toast-item__icon', `toast-item__icon--${type}`]">
       <Icon :icon="iconName" width="16" height="16" />
     </div>
@@ -31,10 +31,13 @@ interface Props {
   content: string;
   /** 持续时间（毫秒） */
   duration: number;
+  /** 是否需要抖动动画 */
+  shake?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  duration: 3000
+  duration: 3000,
+  shake: false
 });
 
 const emit = defineEmits<{
@@ -103,14 +106,31 @@ onUnmounted(() => {
   padding: 10px 12px;
   font-size: 13px;
   color: var(--text-primary);
-  cursor: pointer;
-  background-color: var(--bg-secondary);
+  background-color: var(--bg-tertiary);
   border-radius: 6px;
-  box-shadow: 0 2px 8px rgb(0 0 0 / 15%);
   transition: all 0.3s ease;
 
-  &:hover {
-    box-shadow: 0 4px 12px rgb(0 0 0 / 20%);
+  &--shake {
+    animation: shake 0.3s ease;
+  }
+}
+
+@keyframes shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+
+  25% {
+    transform: translateX(-4px);
+  }
+
+  50% {
+    transform: translateX(4px);
+  }
+
+  75% {
+    transform: translateX(-4px);
   }
 }
 
@@ -153,7 +173,6 @@ onUnmounted(() => {
   width: 20px;
   height: 20px;
   padding: 0;
-  color: var(--text-secondary);
   cursor: pointer;
   background: transparent;
   border: none;
