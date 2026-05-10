@@ -53,7 +53,7 @@ async function handleTestClick(): Promise<void> {
 
   loading.value = true;
 
-  const [error, result] = await agent.invoke({ modelId: testModel.value, prompt: 'Hello' });
+  const [error, result] = await agent.invoke({ modelId: testModel.value, prompt: 'Hello', maxOutputTokens: 400 });
 
   loading.value = false;
   if (error) {

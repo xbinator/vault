@@ -1,149 +1,149 @@
 /**
  * @file ai.d.ts
- * @description AI related global type declarations.
+ * @description AI 相关全局类型声明。
  */
 import type { ModelMessage } from 'ai';
 import type { JSONSchema7 } from 'json-schema';
 
 /**
- * Provider request format types.
+ * 服务商请求格式类型。
  */
 export type AIProviderType = 'openai' | 'anthropic' | 'google' | 'deepseek';
 
-/** AI tool source type. */
+/** AI 工具来源类型。 */
 export type AIToolSource = 'builtin' | 'custom' | 'mcp';
 
-/** AI tool risk level. */
+/** AI 工具风险等级。 */
 export type AIToolRiskLevel = 'read' | 'write' | 'dangerous';
 
-/** AI tool permission mode configured by the user. */
+/** AI 工具权限模式（用户配置）。 */
 export type AIToolPermissionMode = 'ask' | 'readonly' | 'autoSafe';
 
-/** AI tool grant scope selected by the user. */
+/** AI 工具授权范围（用户选择）。 */
 export type AIToolGrantScope = 'session' | 'always';
 
-/** AI tool execution status. */
+/** AI 工具执行状态。 */
 export type AIToolExecutionStatus = 'success' | 'failure' | 'cancelled' | 'awaiting_user_input';
 
 /**
- * AI choice option.
- * @description Single option entry used by waiting user input questions.
+ * AI 选项。
+ * @description 等待用户输入问题时使用的单个选项条目。
  */
 export interface AIChoiceOption {
-  /** Visible label. */
+  /** 可见标签。 */
   label: string;
-  /** Submitted value. */
+  /** 提交的值。 */
   value: string;
-  /** Optional description. */
+  /** 可选描述。 */
   description?: string;
 }
 
 /**
- * AI awaiting user choice question.
- * @description Payload used when a tool pauses for user input.
+ * AI 等待用户选择问题。
+ * @description 工具暂停等待用户输入时使用的载荷。
  */
 export interface AIAwaitingUserChoiceQuestion {
-  /** Generated question identifier. */
+  /** 生成的问题标识符。 */
   questionId: string;
-  /** Related tool call identifier. */
+  /** 相关的工具调用标识符。 */
   toolCallId: string;
-  /** Selection mode. */
+  /** 选择模式。 */
   mode: 'single' | 'multiple';
-  /** Prompt text. */
+  /** 提示文本。 */
   question: string;
-  /** Available options. */
+  /** 可用选项。 */
   options: AIChoiceOption[];
-  /** Whether other text input is allowed. */
+  /** 是否允许其他文本输入。 */
   allowOther: boolean;
-  /** Maximum selections for multiple choice. */
+  /** 多选时的最大选择数。 */
   maxSelections?: number;
 }
 
 /**
- * AI tool parameter schema.
- * @description JSON Schema wrapper used for tool parameter validation.
+ * AI 工具参数模式。
+ * @description 用于工具参数验证的 JSON Schema 包装器。
  */
 export interface AIToolParameterSchema {
-  /** Schema type, fixed to object. */
+  /** 模式类型，固定为 object。 */
   type: 'object';
-  /** Property definitions. */
+  /** 属性定义。 */
   properties: Record<string, unknown>;
-  /** Required property names. */
+  /** 必需的属性名称。 */
   required?: string[];
-  /** Whether extra properties are allowed. */
+  /** 是否允许额外属性。 */
   additionalProperties?: boolean;
 }
 
 /**
- * AI tool definition.
- * @description Metadata describing an AI tool.
+ * AI 工具定义。
+ * @description 描述 AI 工具的元数据。
  */
 export interface AIToolDefinition {
-  /** Tool name. */
+  /** 工具名称。 */
   name: string;
-  /** Tool description. */
+  /** 工具描述。 */
   description: string;
-  /** Tool source. */
+  /** 工具来源。 */
   source: AIToolSource;
-  /** Risk level. */
+  /** 风险等级。 */
   riskLevel: AIToolRiskLevel;
-  /** Parameter schema. */
+  /** 参数模式。 */
   parameters: AIToolParameterSchema;
-  /** Whether this tool needs the current editor document context. Defaults to true. */
+  /** 此工具是否需要当前编辑器文档上下文。默认为 true。 */
   requiresActiveDocument?: boolean;
-  /** Permission category used by UI and policy decisions. */
+  /** UI 和策略决策使用的权限类别。 */
   permissionCategory?: 'document' | 'settings' | 'system';
-  /** Whether this write tool can be auto-approved and remembered in the first permission model. */
+  /** 此写入工具是否可以在首次权限模型中自动批准并记住。 */
   safeAutoApprove?: boolean;
 }
 
 /**
- * Editor selection.
+ * 编辑器选区。
  */
 export interface EditorSelection {
-  /** Selection start. */
+  /** 选区起始位置。 */
   from: number;
-  /** Selection end. */
+  /** 选区结束位置。 */
   to: number;
-  /** Selected text. */
+  /** 选中的文本。 */
   text: string;
 }
 
 /**
- * AI tool execution context.
- * @description Document and editor information required by tools.
+ * AI 工具执行上下文。
+ * @description 工具所需的文档和编辑器信息。
  */
 export interface AIToolContext {
-  /** Current document information. */
+  /** 当前文档信息。 */
   document: {
-    /** Document identifier. */
+    /** 文档标识符。 */
     id: string;
-    /** Document title. */
+    /** 文档标题。 */
     title: string;
-    /** File path or null for unsaved documents. */
+    /** 文件路径，未保存文档为 null。 */
     path: string | null;
-    /** Read the document content. */
+    /** 读取文档内容。 */
     getContent: () => string;
   };
-  /** Editor operations. */
+  /** 编辑器操作。 */
   editor: {
-    /** Read the current selection. */
+    /** 读取当前选区。 */
     getSelection: () => EditorSelection | null;
-    /** Insert content at the cursor. */
+    /** 在光标处插入内容。 */
     insertAtCursor: (content: string) => Promise<void>;
-    /** Replace the current selection. */
+    /** 替换当前选区。 */
     replaceSelection: (content: string) => Promise<void>;
-    /** Replace the entire document content. */
+    /** 替换整个文档内容。 */
     replaceDocument: (content: string) => Promise<void>;
   };
 }
 
 /**
- * AI tool execution error.
- * @description Describes why a tool execution failed.
+ * AI 工具执行错误。
+ * @description 描述工具执行失败的原因。
  */
 export interface AIToolExecutionError {
-  /** Error code. */
+  /** 错误代码。 */
   code:
     | 'TOOL_NOT_FOUND'
     | 'INVALID_INPUT'
@@ -158,73 +158,73 @@ export interface AIToolExecutionError {
     | 'UNSUPPORTED_PROVIDER'
     | 'CONFIRMATION_DISMISSED'
     | 'EXECUTION_FAILED';
-  /** Error message. */
+  /** 错误消息。 */
   message: string;
 }
 
 /**
- * AI tool execution success result.
- * @description status = success.
+ * AI 工具执行成功结果。
+ * @description status = success。
  */
 export interface AIToolExecutionSuccessResult<TResult = unknown> {
-  /** Tool name. */
+  /** 工具名称。 */
   toolName: string;
-  /** Execution status. */
+  /** 执行状态。 */
   status: 'success';
-  /** Success payload. */
+  /** 成功载荷。 */
   data: TResult;
-  /** Success results do not carry errors. */
+  /** 成功结果不携带错误。 */
   error?: never;
 }
 
 /**
- * AI tool execution failure result.
- * @description status = failure.
+ * AI 工具执行失败结果。
+ * @description status = failure。
  */
 export interface AIToolExecutionFailureResult {
-  /** Tool name. */
+  /** 工具名称。 */
   toolName: string;
-  /** Execution status. */
+  /** 执行状态。 */
   status: 'failure';
-  /** Failure details. */
+  /** 失败详情。 */
   error: AIToolExecutionError;
-  /** Failure results do not carry data. */
+  /** 失败结果不携带数据。 */
   data?: never;
 }
 
 /**
- * AI tool execution cancelled result.
- * @description status = cancelled.
+ * AI 工具执行取消结果。
+ * @description status = cancelled。
  */
 export interface AIToolExecutionCancelledResult {
-  /** Tool name. */
+  /** 工具名称。 */
   toolName: string;
-  /** Execution status. */
+  /** 执行状态。 */
   status: 'cancelled';
-  /** Cancellation details. */
+  /** 取消详情。 */
   error: AIToolExecutionError;
-  /** Cancelled results do not carry data. */
+  /** 取消结果不携带数据。 */
   data?: never;
 }
 
 /**
- * AI tool execution awaiting user input result.
- * @description status = awaiting_user_input.
+ * AI 工具执行等待用户输入结果。
+ * @description status = awaiting_user_input。
  */
 export interface AIToolExecutionAwaitingUserInputResult {
-  /** Tool name. */
+  /** 工具名称。 */
   toolName: string;
-  /** Execution status. */
+  /** 执行状态。 */
   status: 'awaiting_user_input';
-  /** Question payload. */
+  /** 问题载荷。 */
   data: AIAwaitingUserChoiceQuestion;
-  /** Awaiting results do not carry errors. */
+  /** 等待结果不携带错误。 */
   error?: never;
 }
 
 /**
- * AI tool execution result.
- * @description Discriminated union over all terminal tool states.
+ * AI 工具执行结果。
+ * @description 所有终止工具状态的判别联合。
  */
 export type AIToolExecutionResult<TResult = unknown> =
   | AIToolExecutionSuccessResult<TResult>
@@ -233,53 +233,53 @@ export type AIToolExecutionResult<TResult = unknown> =
   | AIToolExecutionAwaitingUserInputResult;
 
 /**
- * AI tool executor interface.
- * @description Defines tool execution capability.
+ * AI 工具执行器接口。
+ * @description 定义工具执行能力。
  */
 export interface AIToolExecutor<TInput = unknown, TResult = unknown> {
-  /** Tool definition. */
+  /** 工具定义。 */
   definition: AIToolDefinition;
   /**
-   * Execute the tool.
-   * @param input - Tool input.
-   * @param context - Execution context, omitted for tools that do not require an active document.
-   * @returns Tool execution result.
+   * 执行工具。
+   * @param input - 工具输入。
+   * @param context - 执行上下文，不需要活动文档的工具可省略。
+   * @returns 工具执行结果。
    */
   execute(input: TInput, context?: AIToolContext): Promise<AIToolExecutionResult<TResult>>;
 }
 
 export interface AICreateOptions {
-  /** Provider type. */
+  /** 服务商类型。 */
   providerType: AIProviderType;
-  /** Provider identifier. */
+  /** 服务商标识符。 */
   providerId: string;
-  /** Provider name. */
+  /** 服务商名称。 */
   providerName: string;
-  /** API key. */
+  /** API 密钥。 */
   apiKey?: string;
-  /** Optional base URL. */
+  /** 可选的基础 URL。 */
   baseUrl?: string;
 }
 
 /**
- * AI transport tool result.
- * @description Used to send tool results back to the model.
+ * AI 传输工具结果。
+ * @description 用于将工具结果发送回模型。
  */
 export interface AITransportToolResult {
-  /** Tool call identifier. */
+  /** 工具调用标识符。 */
   toolCallId: string;
-  /** Tool name. */
+  /** 工具名称。 */
   toolName: string;
-  /** Tool result payload. */
+  /** 工具结果载荷。 */
   result: unknown;
 }
 
 export interface AITransportTool {
-  /** Tool name. */
+  /** 工具名称。 */
   name: string;
-  /** Tool description. */
+  /** 工具描述。 */
   description: string;
-  /** Tool parameter schema. */
+  /** 工具参数模式。 */
   parameters: JSONSchema7;
 }
 
@@ -297,23 +297,25 @@ export interface AIOutputOptions {
 }
 
 export interface AIRequestOptions {
-  /** Request identifier. */
+  /** 请求标识符。 */
   requestId?: string;
-  /** Provider identifier. */
+  /** 服务商标识符。 */
   providerId?: string;
-  /** Model identifier. */
+  /** 模型标识符。 */
   modelId: string;
-  /** Prompt text. */
+  /** 提示文本。 */
   prompt?: string;
-  /** System instruction. */
+  /** 系统指令。 */
   system?: string;
-  /** Temperature. */
+  /** 温度参数。 */
   temperature?: number;
-  /** Conversation messages. */
+  /** 最大输出 token 数量。 */
+  maxOutputTokens?: number;
+  /** 对话消息列表。 */
   messages?: ModelMessage[];
-  /** Available tools. */
+  /** 可用工具列表。 */
   tools?: AITransportTool[];
-  /** Previous tool results. */
+  /** 上一次工具调用结果。 */
   toolResults?: AITransportToolResult[];
   /** 输出配置。 */
   output?: AIOutputOptions;
@@ -326,101 +328,101 @@ export interface AIStreamToolCallChunk {
 }
 
 /**
- * Provider model metadata.
+ * 服务商模型元数据。
  */
 export interface AIProviderModel {
-  /** Unique identifier. */
+  /** 唯一标识符。 */
   id: string;
-  /** Display name. */
+  /** 显示名称。 */
   name: string;
-  /** Model type. */
+  /** 模型类型。 */
   type: string;
-  /** Whether this model is enabled. */
+  /** 此模型是否启用。 */
   isEnabled: boolean;
-  /** Context window size. */
+  /** 上下文窗口大小。 */
   contextWindow?: number;
-  /** Whether tool use is supported. */
+  /** 是否支持工具使用。 */
   supportsTools?: boolean;
-  /** Whether vision is supported. */
+  /** 是否支持视觉。 */
   supportsVision?: boolean;
-  /** Whether deep thinking is supported. */
+  /** 是否支持深度思考。 */
   supportsDeepThought?: boolean;
-  /** Whether web search is supported. */
+  /** 是否支持网络搜索。 */
   supportsWebSearch?: boolean;
-  /** Whether image generation is supported. */
+  /** 是否支持图像生成。 */
   supportsImageGeneration?: boolean;
-  /** Whether video recognition is supported. */
+  /** 是否支持视频识别。 */
   supportsVideoRecognition?: boolean;
 }
 
 /**
- * AI service error.
- * @description Extends the base error structure with a code field.
+ * AI 服务错误。
+ * @description 扩展基础错误结构，添加代码字段。
  */
 export interface AIServiceError {
-  /** Error code. */
+  /** 错误代码。 */
   code: AIErrorCode;
-  /** Error message. */
+  /** 错误消息。 */
   message: string;
 }
 
 /**
- * AI provider configuration.
+ * AI 服务商配置。
  */
 export interface AIProvider {
-  /** Unique provider identifier. */
+  /** 唯一服务商标识符。 */
   id: string;
-  /** Provider display name. */
+  /** 服务商显示名称。 */
   name: string;
-  /** Provider description. */
+  /** 服务商描述。 */
   description: string;
-  /** Provider request format type. */
+  /** 服务商请求格式类型。 */
   type: AIProviderType;
-  /** Whether the provider is enabled. */
+  /** 服务商是否启用。 */
   isEnabled: boolean;
-  /** API key. */
+  /** API 密钥。 */
   apiKey?: string;
-  /** Optional base URL. */
+  /** 可选的基础 URL。 */
   baseUrl?: string;
-  /** Provider logo. */
+  /** 服务商图标。 */
   logo?: string;
-  /** Whether this is a user-defined provider. */
+  /** 是否为用户定义的服务商。 */
   isCustom?: boolean;
-  /** Whether the provider is read-only. */
+  /** 服务商是否只读。 */
   readonly?: boolean;
-  /** Supported models. */
+  /** 支持的模型。 */
   models?: AIProviderModel[];
 }
 
 /**
- * AI custom provider payload.
- * @description Data used when creating or updating a provider.
+ * AI 自定义服务商载荷。
+ * @description 创建或更新服务商时使用的数据。
  */
 export interface AICustomProvider {
-  /** Unique identifier. */
+  /** 唯一标识符。 */
   id: string;
-  /** Provider display name. */
+  /** 服务商显示名称。 */
   name: string;
-  /** Provider description. */
+  /** 服务商描述。 */
   description?: string;
-  /** Provider request format type. */
+  /** 服务商请求格式类型。 */
   type: AIProviderType;
-  /** Provider logo. */
+  /** 服务商图标。 */
   logo?: string;
-  /** Whether the provider is enabled. */
+  /** 服务商是否启用。 */
   isEnabled?: boolean;
-  /** API key. */
+  /** API 密钥。 */
   apiKey?: string;
-  /** Optional base URL. */
+  /** 可选的基础 URL。 */
   baseUrl?: string;
 }
 
 export interface AIUsage {
-  /** Input token count. */
+  /** 输入 token 数量。 */
   inputTokens: number;
-  /** Output token count. */
+  /** 输出 token 数量。 */
   outputTokens: number;
-  /** Total token count. */
+  /** 总 token 数量。 */
   totalTokens: number;
 }
 

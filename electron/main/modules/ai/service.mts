@@ -116,11 +116,11 @@ class AIService {
   async generateText(createOptions: AICreateOptions, request: AIRequestOptions): Promise<[AIServiceError] | [undefined, AIInvokeResult]> {
     try {
       const model = this.createModel(createOptions, request.modelId);
-      const { prompt = '', system, temperature, messages, output } = request;
+      const { prompt = '', system, temperature, maxOutputTokens, messages, output } = request;
 
       log.info(`[AIService] generateText request:`, request);
 
-      const baseOptions = { model, system, temperature, tools: toSdkTools(request.tools), output: toOutput(output) };
+      const baseOptions = { model, system, temperature, maxOutputTokens, tools: toSdkTools(request.tools), output: toOutput(output) };
 
       // 根据是否有 messages 选择不同的调用方式
       const result = messages ? await generateText({ ...baseOptions, messages }) : await generateText({ ...baseOptions, prompt });
@@ -147,7 +147,7 @@ class AIService {
   async streamText(createOptions: AICreateOptions, request: AIRequestOptions): Promise<[AIServiceError] | [undefined, AIStreamResult]> {
     try {
       const model = this.createModel(createOptions, request.modelId);
-      const { prompt = '', system, temperature, requestId, messages } = request;
+      const { prompt = '', system, temperature, maxOutputTokens, requestId, messages } = request;
 
       // 创建 AbortController 用于中止请求
       let abortSignal: AbortSignal | undefined;
@@ -159,7 +159,7 @@ class AIService {
 
       log.info(`[AIService] streamText request:`, request);
 
-      const baseOptions = { model, system, temperature, abortSignal, tools: toSdkTools(request.tools) };
+      const baseOptions = { model, system, temperature, maxOutputTokens, abortSignal, tools: toSdkTools(request.tools) };
 
       // 根据是否有 messages 选择不同的调用方式
       const result = messages ? streamText({ ...baseOptions, messages }) : streamText({ ...baseOptions, prompt });
