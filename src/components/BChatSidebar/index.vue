@@ -634,6 +634,7 @@ onUnmounted(() => {
 .b-chat-sidebar__floating-container {
   position: absolute;
   inset: auto 16px 16px;
+  z-index: 2;
   display: flex;
   flex-direction: column;
   gap: 8px;
