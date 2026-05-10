@@ -24,7 +24,8 @@ export interface ProviderFormatOption {
 export const providerFormatOptions: ProviderFormatOption[] = [
   { value: 'openai', label: 'OpenAI' },
   { value: 'anthropic', label: 'Anthropic' },
-  { value: 'google', label: 'Google' }
+  { value: 'google', label: 'Google' },
+  { value: 'deepseek', label: 'Deepseek' }
 ];
 
 export const providerFormatLabels = Object.fromEntries(providerFormatOptions.map((option) => [option.value, option.label]));
