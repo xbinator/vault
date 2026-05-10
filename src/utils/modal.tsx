@@ -169,7 +169,7 @@ function RenderConfirmModal({ content, title, confirmText, cancelText, danger }:
       h(RenderModal, {
         ...controlProps,
         title,
-        content: () => <div style={{ marginBottom: '16px' }}>{content}</div>,
+        content: () => <div style={{ marginBottom: '16px', userSelect: 'text' }}>{content}</div>,
         footer: () => <FooterButtons onCancel={onCancel} onConfirm={onConfirm} confirmText={confirmText} cancelText={cancelText} danger={danger} />
       })
     );

@@ -23,6 +23,28 @@
           <span class="speech-settings__status-dot" :class="`speech-settings__status-dot--${status?.state ?? 'unknown'}`"></span>
           {{ statusConfig.label }}
         </div>
+
+        <button
+          class="speech-settings__action-btn"
+          :class="{ 'speech-settings__action-btn--loading': installing }"
+          :disabled="installing"
+          :title="installButtonLabel"
+          @click="handleInstall"
+        >
+          <Icon v-if="installing" icon="lucide:loader-2" class="speech-settings__action-icon--spin" />
+          <Icon v-else-if="status?.state === 'ready'" icon="lucide:refresh-cw" />
+          <Icon v-else icon="lucide:download" />
+        </button>
+
+        <BDropdown placement="bottomRight">
+          <button class="speech-settings__more-btn">
+            <Icon icon="lucide:more-vertical" />
+          </button>
+
+          <template #overlay>
+            <BDropdownMenu :options="dropdownOptions" :width="120" />
+          </template>
+        </BDropdown>
       </div>
 
       <div class="speech-settings__list">
@@ -59,14 +81,6 @@
           </SpeechSettingsItem>
         </div>
       </div>
-
-      <div class="speech-settings__actions">
-        <BButton :disabled="installing" @click="handleInstall">
-          {{ installButtonLabel }}
-        </BButton>
-        <BButton v-if="status?.state === 'ready'" type="secondary" :disabled="installing" @click="handleRemove"> 删除 </BButton>
-        <BButton type="secondary" :disabled="installing" @click="refreshStatus"> 刷新 </BButton>
-      </div>
     </div>
   </div>
 </template>
@@ -76,7 +90,9 @@ import type { ElectronSpeechRuntimeStatus } from 'types/electron-api';
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { Icon } from '@iconify/vue';
 import { message } from 'ant-design-vue';
-import BButton from '@/components/BButton/index.vue';
+import BDropdown from '@/components/BDropdown/index.vue';
+import BDropdownMenu from '@/components/BDropdown/Menu.vue';
+import type { DropdownOptionItem } from '@/components/BDropdown/type';
 import { getElectronAPI, hasElectronAPI } from '@/shared/platform/electron-api';
 import { Modal } from '@/utils/modal';
 import SpeechSettingsItem from './components/SpeechSettingsItem.vue';
@@ -175,6 +191,33 @@ async function handleRemove(): Promise<void> {
   status.value = await getElectronAPI().removeSpeechRuntime();
   message.success('语音组件已删除');
 }
+
+/**
+ * 下拉菜单选项
+ */
+const dropdownOptions = computed<DropdownOptionItem[]>(() => [
+  {
+    type: 'item',
+    value: 'refresh',
+    label: '刷新状态',
+    icon: 'lucide:refresh-cw',
+    disabled: installing.value,
+    onClick: refreshStatus
+  },
+  ...(status.value?.state === 'ready'
+    ? [
+        {
+          type: 'item' as const,
+          value: 'remove',
+          label: '删除',
+          icon: 'lucide:trash-2',
+          danger: true,
+          disabled: installing.value,
+          onClick: handleRemove
+        }
+      ]
+    : [])
+]);
 
 // ─── 生命周期 ──────────────────────────────────────────────────────────────────
 
@@ -310,6 +353,88 @@ onUnmounted(teardownProgressListener);
   }
 }
 
+// ─── Action button (icon) ─────────────────────────────────────────────────────
+
+.speech-settings__action-btn {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  font-size: 14px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-primary);
+  border-radius: 999px;
+  transition: all 0.2s ease;
+
+  &:hover:not(:disabled) {
+    color: var(--color-primary);
+    background: var(--color-primary-bg);
+    border-color: var(--color-primary-border);
+  }
+
+  &:active:not(:disabled) {
+    transform: scale(0.95);
+  }
+
+  &:disabled {
+    color: var(--text-tertiary);
+    cursor: not-allowed;
+    opacity: 0.6;
+  }
+
+  &--loading {
+    color: var(--color-primary);
+  }
+}
+
+.speech-settings__action-icon--spin {
+  animation: speech-settings-spin 1s linear infinite;
+}
+
+@keyframes speech-settings-spin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+// ─── More button (dropdown trigger) ───────────────────────────────────────────
+
+.speech-settings__more-btn {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  font-size: 14px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-primary);
+  border-radius: 999px;
+  transition: all 0.2s ease;
+
+  &:hover {
+    color: var(--text-primary);
+    background: var(--bg-active);
+    border-color: var(--border-secondary);
+  }
+
+  &:active {
+    transform: scale(0.95);
+  }
+}
+
 // ─── Status dot ───────────────────────────────────────────────────────────────
 
 .speech-settings__status-dot {
@@ -375,16 +500,5 @@ onUnmounted(teardownProgressListener);
   color: var(--text-primary);
   background: var(--bg-tertiary);
   border-bottom: 1px solid var(--border-primary);
-}
-
-// ─── Actions ──────────────────────────────────────────────────────────────────
-
-.speech-settings__actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  justify-content: flex-end;
-  width: 100%;
-  padding-top: 4px;
 }
 </style>
