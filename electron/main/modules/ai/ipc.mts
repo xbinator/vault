@@ -83,6 +83,14 @@ export function registerAIHandlers(): void {
         } else if (chunk.type === 'tool-call') {
           // 工具调用
           win.webContents.send('ai:stream:tool-call', { toolCallId: chunk.toolCallId, toolName: chunk.toolName, input: chunk.input });
+        } else if (chunk.type === 'tool-input-start') {
+          // 工具输入开始
+        } else if (chunk.type === 'tool-input-delta') {
+          // 工具输入增量
+        } else if (chunk.type === 'tool-input-end') {
+          // 工具输入结束
+        } else if (chunk.type === 'tool-result') {
+          // 工具结果
         } else if (chunk.type === 'error') {
           // 流式错误
           win.webContents.send('ai:stream:error', chunk.error);
