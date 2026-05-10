@@ -27,6 +27,7 @@
 import { computed, onUnmounted, ref } from 'vue';
 import { Icon } from '@iconify/vue';
 import { getElectronAPI, hasElectronAPI } from '@/shared/platform/electron-api';
+import { Modal } from '@/utils/modal';
 import { useInteraction } from '../../hooks/useInteraction';
 import { useVoiceRecorder } from '../../hooks/useVoiceRecorder';
 import { useVoiceSession } from '../../hooks/useVoiceSession';
@@ -48,7 +49,7 @@ const emit = defineEmits<{
   (e: 'complete', payload: { text: string }): void;
 }>();
 
-const { showToast, showConfirm } = useInteraction();
+const { showToast } = useInteraction();
 
 /**
  * 录音状态与控制器。
@@ -138,12 +139,8 @@ async function ensureSpeechRuntimeReady(): Promise<boolean> {
     return true;
   }
 
-  const confirmed = await showConfirm({
-    title: '语音组件未安装',
-    content: '首次使用语音输入需要下载语音组件，是否立即下载？',
-    confirmText: '下载'
-  });
-  if (!confirmed) {
+  const [cancelled] = await Modal.confirm('语音组件未安装', '首次使用语音输入需要下载语音组件，是否立即下载？', { confirmText: '下载' });
+  if (cancelled) {
     return false;
   }
 

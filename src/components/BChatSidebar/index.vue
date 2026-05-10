@@ -46,13 +46,7 @@
             :on-close="usagePanel.close"
           />
 
-          <InteractionContainer
-            :toast-queue="toastQueue"
-            :confirm-state="confirmState"
-            @remove-toast="removeToast"
-            @confirm="handleInteractionConfirm"
-            @cancel="handleInteractionCancel"
-          />
+          <InteractionContainer :toast-queue="toastQueue" @remove-toast="removeToast" />
         </div>
       </div>
 
@@ -143,14 +137,7 @@ const chatStore = useChatStore();
 const settingStore = useSettingStore();
 
 /** 交互容器状态 */
-const {
-  api: interactionAPI,
-  toastQueue,
-  confirmState,
-  removeToast,
-  handleConfirm: handleInteractionConfirm,
-  handleCancel: handleInteractionCancel
-} = useInteractionState();
+const { api: interactionAPI, toastQueue, removeToast } = useInteractionState();
 
 /** 提供交互 API */
 provide('interaction', interactionAPI);

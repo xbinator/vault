@@ -1,8 +1,8 @@
 /**
  * @file useInteractionState.ts
- * @description 交互容器状态管理 hook，提供 Toast 和 Confirm 的显示逻辑
+ * @description 交互容器状态管理 hook，提供 Toast 的显示逻辑
  */
-import type { ToastOptions, ToastItem, ConfirmOptions, ConfirmState, InteractionAPI } from '../components/InteractionContainer/types';
+import type { ToastOptions, ToastItem, InteractionAPI } from '../components/InteractionContainer/types';
 import { ref } from 'vue';
 
 /**
@@ -16,9 +16,6 @@ export function useInteractionState(options?: { maxToastCount?: number; defaultD
 
   /** Toast 队列 */
   const toastQueue = ref<ToastItem[]>([]);
-
-  /** Confirm 对话框状态 */
-  const confirmState = ref<ConfirmState | null>(null);
 
   /**
    * 重置 Toast 的自动关闭定时器
@@ -65,21 +62,6 @@ export function useInteractionState(options?: { maxToastCount?: number; defaultD
   }
 
   /**
-   * 显示确认对话框
-   * @param confirmOptions - 确认对话框选项
-   * @returns Promise<boolean> - 用户确认返回 true，取消返回 false
-   */
-  function showConfirm(confirmOptions: ConfirmOptions): Promise<boolean> {
-    return new Promise((resolve) => {
-      confirmState.value = {
-        visible: true,
-        options: confirmOptions,
-        resolve
-      };
-    });
-  }
-
-  /**
    * 移除 Toast
    * @param id - Toast ID
    */
@@ -90,48 +72,14 @@ export function useInteractionState(options?: { maxToastCount?: number; defaultD
     }
   }
 
-  /**
-   * 处理确认按钮点击
-   */
-  function handleConfirm(): void {
-    if (confirmState.value) {
-      confirmState.value.resolve(true);
-      confirmState.value.visible = false;
-
-      // 延迟清除状态，等待动画完成
-      setTimeout(() => {
-        confirmState.value = null;
-      }, 300);
-    }
-  }
-
-  /**
-   * 处理取消按钮点击
-   */
-  function handleCancel(): void {
-    if (confirmState.value) {
-      confirmState.value.resolve(false);
-      confirmState.value.visible = false;
-
-      // 延迟清除状态，等待动画完成
-      setTimeout(() => {
-        confirmState.value = null;
-      }, 300);
-    }
-  }
-
   /** 交互 API */
   const api: InteractionAPI = {
-    showToast,
-    showConfirm
+    showToast
   };
 
   return {
     api,
     toastQueue,
-    confirmState,
-    removeToast,
-    handleConfirm,
-    handleCancel
+    removeToast
   };
 }

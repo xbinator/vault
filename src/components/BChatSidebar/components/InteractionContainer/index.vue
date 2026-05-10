@@ -1,6 +1,6 @@
 <!--
   @file index.vue
-  @description 交互容器主组件，管理 Toast 和 Confirm 的显示
+  @description 交互容器主组件，管理 Toast 的显示
 -->
 <template>
   <template v-if="toastQueue.length">
@@ -15,22 +15,10 @@
       @close="removeToast"
     />
   </template>
-
-  <ConfirmModal
-    :visible="confirmState?.visible ?? false"
-    :title="confirmState?.options.title"
-    :content="confirmState?.options.content ?? ''"
-    :confirm-text="confirmState?.options.confirmText"
-    :cancel-text="confirmState?.options.cancelText"
-    :danger="confirmState?.options.danger"
-    @confirm="handleConfirm"
-    @cancel="handleCancel"
-  />
 </template>
 
 <script setup lang="ts">
-import type { ToastItem as ToastItemType, ConfirmState } from './types';
-import ConfirmModal from './ConfirmModal.vue';
+import type { ToastItem as ToastItemType } from './types';
 import ToastItem from './ToastItem.vue';
 
 /**
@@ -39,16 +27,12 @@ import ToastItem from './ToastItem.vue';
 interface Props {
   /** Toast 队列 */
   toastQueue: ToastItemType[];
-  /** Confirm 对话框状态 */
-  confirmState: ConfirmState | null;
 }
 
 defineProps<Props>();
 
 const emit = defineEmits<{
   (e: 'removeToast', id: string): void;
-  (e: 'confirm'): void;
-  (e: 'cancel'): void;
 }>();
 
 /**
@@ -57,20 +41,6 @@ const emit = defineEmits<{
  */
 function removeToast(id: string): void {
   emit('removeToast', id);
-}
-
-/**
- * 处理确认按钮点击
- */
-function handleConfirm(): void {
-  emit('confirm');
-}
-
-/**
- * 处理取消按钮点击
- */
-function handleCancel(): void {
-  emit('cancel');
 }
 </script>
 
