@@ -24,27 +24,7 @@
           {{ statusConfig.label }}
         </div>
 
-        <button
-          class="speech-settings__action-btn"
-          :class="{ 'speech-settings__action-btn--loading': installing }"
-          :disabled="installing"
-          :title="installButtonLabel"
-          @click="handleInstall"
-        >
-          <Icon v-if="installing" icon="lucide:loader-2" class="speech-settings__action-icon--spin" />
-          <Icon v-else-if="status?.state === 'ready'" icon="lucide:refresh-cw" />
-          <Icon v-else icon="lucide:download" />
-        </button>
-
-        <BDropdown placement="bottomRight">
-          <button class="speech-settings__more-btn">
-            <Icon icon="lucide:more-vertical" />
-          </button>
-
-          <template #overlay>
-            <BDropdownMenu :options="dropdownOptions" :width="120" />
-          </template>
-        </BDropdown>
+        <SpeechActionMenu :status="status?.state" :installing="installing" @install="handleInstall" @refresh="refreshStatus" @remove="handleRemove" />
       </div>
 
       <div class="speech-settings__list">
@@ -90,11 +70,9 @@ import type { ElectronSpeechRuntimeStatus } from 'types/electron-api';
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { Icon } from '@iconify/vue';
 import { message } from 'ant-design-vue';
-import BDropdown from '@/components/BDropdown/index.vue';
-import BDropdownMenu from '@/components/BDropdown/Menu.vue';
-import type { DropdownOptionItem } from '@/components/BDropdown/type';
 import { getElectronAPI, hasElectronAPI } from '@/shared/platform/electron-api';
 import { Modal } from '@/utils/modal';
+import SpeechActionMenu from './components/SpeechActionMenu.vue';
 import SpeechSettingsItem from './components/SpeechSettingsItem.vue';
 
 // ─── 状态映射配置 ──────────────────────────────────────────────────────────────
@@ -115,13 +93,13 @@ const disposeProgressListener = ref<(() => void) | null>(null);
 
 // ─── 计算属性 ──────────────────────────────────────────────────────────────────
 
-const statusConfig = computed(() => STATUS_CONFIG[status.value?.state ?? 'unknown']);
+/**
+ * Electron API 实例
+ * 统一获取 API,避免重复调用
+ */
+const electronAPI = computed(() => (hasElectronAPI() ? getElectronAPI() : null));
 
-const installButtonLabel = computed(() => {
-  if (installing.value) return '安装中...';
-  if (status.value?.state === 'ready') return '重装';
-  return '下载';
-});
+const statusConfig = computed(() => STATUS_CONFIG[status.value?.state ?? 'unknown']);
 
 // ─── 工具函数 ──────────────────────────────────────────────────────────────────
 
@@ -147,27 +125,27 @@ async function refreshStatus(): Promise<void> {
   status.value = await getElectronAPI().getSpeechRuntimeStatus();
 }
 
+/**
+ * 处理安装/重装语音组件
+ */
 async function handleInstall(): Promise<void> {
-  if (!hasElectronAPI()) {
+  const api = electronAPI.value;
+
+  if (!api) {
     message.error('当前环境不支持安装语音组件');
     return;
-  }
-
-  if (status.value?.state === 'ready') {
-    const [cancelled] = await Modal.confirm('确认', '确定要重新安装语音组件吗？');
-    if (cancelled) return;
   }
 
   installing.value = true;
   teardownProgressListener();
   patchStatus({ state: 'installing', errorMessage: undefined });
 
-  disposeProgressListener.value = getElectronAPI().onSpeechInstallProgress(() => {
-    // 进度监听，暂不处理
+  disposeProgressListener.value = api.onSpeechInstallProgress(() => {
+    // 进度监听回调,暂不处理
   });
 
   try {
-    status.value = await getElectronAPI().installSpeechRuntime();
+    status.value = await api.installSpeechRuntime();
     message.success('语音组件已安装');
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : '语音组件安装失败';
@@ -188,36 +166,14 @@ async function handleRemove(): Promise<void> {
   const [cancelled] = await Modal.delete('确定要删除当前语音组件吗？');
   if (cancelled) return;
 
-  status.value = await getElectronAPI().removeSpeechRuntime();
-  message.success('语音组件已删除');
+  try {
+    status.value = await getElectronAPI().removeSpeechRuntime();
+    message.success('语音组件已删除');
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : '语音组件删除失败';
+    message.error(errorMessage);
+  }
 }
-
-/**
- * 下拉菜单选项
- */
-const dropdownOptions = computed<DropdownOptionItem[]>(() => [
-  {
-    type: 'item',
-    value: 'refresh',
-    label: '刷新状态',
-    icon: 'lucide:refresh-cw',
-    disabled: installing.value,
-    onClick: refreshStatus
-  },
-  ...(status.value?.state === 'ready'
-    ? [
-        {
-          type: 'item' as const,
-          value: 'remove',
-          label: '删除',
-          icon: 'lucide:trash-2',
-          danger: true,
-          disabled: installing.value,
-          onClick: handleRemove
-        }
-      ]
-    : [])
-]);
 
 // ─── 生命周期 ──────────────────────────────────────────────────────────────────
 
