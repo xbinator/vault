@@ -86,6 +86,7 @@ defineProps<{
   font-size: 13px;
   color: var(--text-primary);
   text-align: right;
+  user-select: text;
 
   &--path {
     flex-shrink: 1;
