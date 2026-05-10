@@ -33,11 +33,14 @@ texti/
 │   ├── App.vue                   # 根组件（Antd ConfigProvider 包裹 RouterView）
 │   ├── views/
 │   │   ├── editor/               # 编辑器页面（核心功能：自动保存、文件监听、会话管理）
+│   │   │   ├── hooks/            # useAutoSave / useBindings / useFileSelection / useFileState / useFileWatcher / useSession
+│   │   │   └── utils/            # filePath / reconcileFileContent
 │   │   ├── settings/
 │   │   │   ├── provider/         # AI 服务商管理（列表 + 详情 + 模型配置）
 │   │   │   ├── service-model/    # 服务模型配置（Chat / Edit / Summary 等能力分配）
-│   │   │   └── logger/           # 运行日志查看
-│   │   ├── webview/              # 内嵌浏览器页面
+│   │   │   ├── speech/           # 语音设置（运行时管理、语音识别配置）
+│   │   │   └── logger/           # 运行日志查看（LogFilterBar + LogTimeline）
+│   │   ├── webview/              # 内嵌浏览器页面（AddressBar + useWebView hook）
 │   │   ├── welcome/              # 欢迎页
 │   │   └── error/                # 404 页面
 │   ├── components/               # B 系列通用组件（通过 unplugin-vue-components 全局自动注册）
@@ -47,36 +50,80 @@ texti/
 │   │   ├── BPanelSplitter/       # 可拖拽面板分割器
 │   │   ├── BSearchRecent/        # 最近文件搜索弹窗
 │   │   ├── BModelIcon/           # 30+ AI 模型提供商图标（亮/暗色）
+│   │   ├── BModelSelect/         # AI 模型选择器
 │   │   ├── BToolbar/             # 工具栏菜单
 │   │   ├── BBubble/              # 气泡消息（头像 + 折叠）
 │   │   ├── BDropdown/            # 下拉菜单
 │   │   ├── BScrollbar/           # 自定义滚动条
 │   │   ├── BTruncateText/        # 文本截断
+│   │   ├── BImageViewer/         # 图片查看器（含 Carousel 走马灯）
+│   │   ├── BUpload/              # 文件上传组件
 │   │   └── BButton/BModal/BMessage/BSelect  # 通用 UI 组件
+│   ├── constants/
+│   │   └── shortcuts.ts          # 快捷键常量定义
+│   ├── directives/
+│   │   └── focus.ts              # 自动聚焦指令
+│   ├── plugins/
+│   │   ├── index.ts              # Vue 插件安装入口
+│   │   ├── error-handler.ts      # 全局 Vue 错误处理插件
+│   │   └── message.ts            # 消息提示插件
+│   ├── utils/
+│   │   ├── asyncTo.ts            # 异步错误包装
+│   │   ├── css.ts                # CSS 工具函数
+│   │   ├── emitter.ts            # 事件总线（mitt）
+│   │   ├── env.ts                # 环境判断工具
+│   │   ├── is.ts                 # 类型判断工具
+│   │   ├── json.ts               # JSON 解析/序列化
+│   │   ├── logger.ts             # 前端日志工具
+│   │   ├── modal.tsx             # 模态框 JSX 工具
+│   │   ├── namespace.ts          # CSS BEM 命名空间工具
+│   │   ├── recentFile.ts         # 最近文件列表操作
+│   │   ├── scroll.ts             # 滚动工具
+│   │   ├── shortcut.ts           # 快捷键格式化
+│   │   └── fileReference/        # 文件引用解析（parseToken, types）
 │   ├── ai/tools/                 # AI 工具系统
 │   │   └── builtin/              # 内置工具（读写文件、环境查询、设置、ask-user-choice 等）
 │   ├── layouts/default/          # 默认布局（Header Tabs + 工具栏 + 聊天侧边栏）
+│   │   ├── index.vue             # 布局主组件（标题栏、Tab 栏、RouterView/KeepAlive、侧边栏）
+│   │   ├── components/
+│   │   │   ├── HeaderTabs.vue    # 顶部标签页栏
+│   │   │   └── ShortcutsHelp.vue # 快捷键帮助弹窗
+│   │   └── hooks/               # useKeepAlive / useFileActive / useEditActive / useViewActive / useHelpActive / useTabDragger
 │   ├── router/                   # 路由配置（聚合 modules/*.ts 子路由）
 │   ├── stores/                   # Pinia 状态管理
 │   │   ├── chat.ts               # 聊天会话管理
+│   │   ├── editorFileWatch.ts    # 编辑器文件监听（路径→文件ID 映射）
 │   │   ├── files.ts              # 文件状态
+│   │   ├── fileSelectionIntent.ts # 文件选区意图（行范围导航跳转）
+│   │   ├── provider.ts           # AI 提供商配置
+│   │   ├── serviceModel.ts       # 服务模型配置（Chat/Edit 等能力绑定）
 │   │   ├── setting.ts            # 应用设置
-│   │   ├── tabs.ts               # 标签页管理
-│   │   └── provider.ts           # AI 提供商配置
+│   │   └── tabs.ts               # 标签页管理
 │   ├── shared/
 │   │   ├── platform/             # Electron/Web 平台能力抽象层（electronAPI 读取）
 │   │   ├── storage/              # 本地存储适配（chats / files / providers / service-models）
 │   │   ├── chat/                 # 聊天共享工具（文件引用事件桥接）
 │   │   └── logger/               # 日志共享类型与工具
-│   ├── hooks/                    # 组合式函数（useChat/useClipboard/useShortcuts 等）
+│   ├── hooks/                    # 全局组合式函数
+│   │   ├── useAntdTheme.ts       # Ant Design 明暗主题计算（暗色/亮色算法 + 自定义 token）
+│   │   ├── useAutoCollapse.ts    # 容器宽度不足时自动折叠（ResizeObserver）
+│   │   ├── useChat.ts            # AI 流式聊天（invoke/stream/abort，含 provider 解析）
+│   │   ├── useClipboard.ts       # 剪贴板操作封装（含成功 Toast 提示）
+│   │   ├── useMenuAction.ts      # 系统菜单动作注册（文件/编辑/视图/主题等）
+│   │   ├── useNavigate.ts        # 统一导航（链接点击 / 文件打开 / 行范围跳转）
+│   │   ├── useOpenFile.ts        # 统一文件打开（按 ID / 路径 / 原生对话框 / 新建）
+│   │   ├── useScroller.ts        # DOM 元素滚动包装
+│   │   └── useShortcuts.ts       # 键盘快捷键注册（@vueuse/core useMagicKeys）
 │   └── assets/styles/            # 全局样式 + 主题变量（明/暗）
 │
 ├── electron/                     # Electron 主进程 + preload
 │   ├── main/
 │   │   ├── index.mts             # 主进程入口（初始化流程：日志→存储→数据库→IPC→菜单→窗口）
 │   │   ├── window.mts            # 窗口管理（无边框、macOS 红绿灯、preload 注入）
+│   │   ├── env.mts               # 环境变量读取
+│   │   ├── types.ts              # 主进程通用类型定义
 │   │   └── modules/
-│   │       ├── ai/               # AI 服务（多 Provider、流式/非流式调用、工具调用适配）
+│   │       ├── ai/               # AI 服务（多 Provider、流式/非流式调用、工具调用适配、错误处理）
 │   │       ├── database/         # SQLite 数据库操作（execute / select）
 │   │       ├── store/            # 安全加密存储（electron-store）
 │   │       ├── file/             # 文件读写 + 工作区监听
@@ -86,9 +133,13 @@ texti/
 │   │       ├── shell/            # 系统 Shell 操作（回收站、外部链接、相对路径）
 │   │       ├── dialog/           # 原生对话框（打开/保存文件）
 │   │       ├── window/           # 窗口控制（最小化/最大化/全屏/标题）
+│   │       ├── image/            # 图片处理（压缩、格式转换）
+│   │       ├── speech/           # 语音服务（运行时安装、录音、识别）
 │   │       └── platform-shortcuts/  # 平台快捷入口（Dock/Taskbar 最近文件）
 │   └── preload/
-│       └── index.mts             # contextBridge 安全暴露 electronAPI 到渲染进程
+│       ├── index.mts             # contextBridge 安全暴露 electronAPI 到渲染进程
+│       ├── error-collector.mts   # 全局错误收集 preload
+│       └── webview.mts           # WebView 页面 preload
 │
 ├── docs/                         # 项目文档
 │   ├── code-wiki/                # 代码百科（架构/前端/编辑器/Electron/存储/AI/开发指南）
@@ -163,7 +214,7 @@ texti/
 
 主进程按"领域模块"拆分，每个模块提供 `ipc.mts` 注册各自的 handler，在总入口统一注册：[modules/index.mts](./electron/main/modules/index.mts#L13-L26)
 
-已注册的 IPC 模块：
+已注册的 IPC 模块（13 个）：
 - `dialog`：文件对话框（打开/保存）
 - `file`：文件读写、工作区目录读取、文件变更监听（Chokidar）
 - `window`：窗口控制（最小化/最大化/全屏/标题设置）
@@ -175,6 +226,8 @@ texti/
 - `menu`：系统菜单动作派发与菜单项更新
 - `platform-shortcuts`：平台快捷入口（Dock/Taskbar 最近文件同步）
 - `webview`：内嵌 WebView 管理
+- `image`：图片压缩与格式转换
+- `speech`：语音运行时管理（安装、录音、语音识别）
 
 ## 路由与 Tab/KeepAlive 机制
 
@@ -187,6 +240,7 @@ texti/
 | `/settings/provider` | AI 服务商列表 | 管理 AI Provider（API Key、Base URL 等） |
 | `/settings/provider/:provider` | 服务商详情 | 配置单个 Provider 的模型列表 |
 | `/settings/service-model` | 服务模型 | 管理 AI 能力（Chat / Edit / Summary 等） |
+| `/settings/speech` | 语音设置 | 管理语音运行时和识别配置 |
 | `/settings/logger` | 运行日志 | 查看系统运行日志 |
 | `/webview` | 网页浏览 | 内嵌浏览器 |
 
@@ -204,10 +258,12 @@ texti/
 
 存储子模块：
 - `chats/`：聊天会话与消息的 SQLite 持久化
+- `chat-compression-records/`：聊天上下文压缩记录的存储与查询
 - `files/`：最近打开文件列表（recent.ts）
 - `providers/`：AI 提供商与模型配置（含默认值 defaults.ts）
 - `service-models/`：服务模型配置（Chat / Edit / Summary 等能力绑定）
-- `utils/`：数据库连接管理、JSON 序列化工具
+- `base/`：通用 KV 存储抽象层（BaseStorage 类，支持 TTL、合并策略、自毁标记）
+- `utils/`：数据库连接管理（含初始化竞态重试）、JSON 序列化工具
 
 底层通过 `electronAPI.dbExecute/dbSelect` 走主进程 better-sqlite3，确保 schema 统一与迁移可控。
 
@@ -217,14 +273,23 @@ Chat 侧边栏读取当前聊天使用的服务模型也走这里：[BChatSideba
 
 ### 工具定义
 
-渲染侧工具定义集中在 `src/ai/tools`，其中 `builtin` 是内置工具集合：
-- `read.ts` — 读取文件
-- `write.ts` — 写入文件
-- `read-file.ts` — 文件信息读取
+渲染侧工具定义集中在 `src/ai/tools`，其中 `builtin` 是内置工具集合，`tools/` 目录下是核心基础设施：
+- `confirmation.ts` — 用户确认适配器接口（confirm、执行生命周期回调）
+- `editor-context.ts` — 编辑器上下文注册表（register/getCurrentContext/getContext）
+- `permission.ts` — 权限执行引擎（支持 readonly/ask/autoSafe 模式，检查权限授予）
+- `policy.ts` — 模型工具支持策略、默认工具集选择
+- `results.ts` — 工具结果工厂函数（success/failure/cancelled/awaitingUserInput）
+- `stream.ts` — 工具流式执行适配（toTransportTools、executeToolCall、createToolResultMessages）
+
+**builtin 内置工具（9 个）**：
+- `read.ts` — 读取当前编辑器文档内容
+- `write.ts` — 编辑操作（插入光标、替换选区、替换全文）
+- `read-file.ts` — 读取本地文件 + 列出目录
 - `ask-user-choice.ts` — 向用户提问（多选/单选）
-- `catalog.ts` — 目录浏览
+- `catalog.ts` — 工具清单与权限分类（只读/可写/危险）
 - `environment.ts` — 环境信息查询
 - `settings.ts` — 设置读写
+- `logs.ts` — 查询应用运行日志
 - `index.ts` — 统一工厂函数 `createBuiltinTools`
 
 ### 工具初始化流程
@@ -301,10 +366,69 @@ Chat 输入支持插入 `{{file-ref:id|fileName|startLine|endLine}}` 格式的 t
 | `BButton / BModal / BMessage / BSelect` | 通用 UI 组件 |
 | `BDropdown` | 下拉菜单（Button + Menu 子组件） |
 | `BModelIcon` | AI 模型图标展示（30+ 提供商，亮/暗色） |
+| `BModelSelect` | AI 模型选择器下拉框 |
 | `BToolbar` | 工具栏菜单（文件/编辑/视图/帮助） |
 | `BBubble` | 气泡消息（Avatar + Loading + 折叠） |
 | `BTruncateText` | 文本截断 |
 | `BScrollbar` | 自定义滚动条 |
+| `BImageViewer` | 图片查看器（含 Carousel 走马灯子组件） |
+| `BUpload` | 文件上传组件 |
+
+## 项目配置文件
+
+| 文件 | 用途 |
+|------|------|
+| `vite.config.ts` | Vite 构建配置（组件自动注册、依赖拆包、别名） |
+| `vitest.config.ts` | Vitest 测试配置 |
+| `uno.config.ts` | UnoCSS 原子化 CSS 配置 |
+| `electron-builder.yml` | Electron 打包与分发配置 |
+| `tsconfig.json` | TypeScript 根配置 |
+| `tsconfig.node.json` | Node/Electron 端 TypeScript 配置 |
+| `electron/tsconfig.json` | Electron 主进程专用 TS 配置 |
+| `package.json` | 依赖与脚本（pnpm 10） |
+| `pnpm-lock.yaml` | 依赖锁定文件 |
+| `index.html` | Vite HTML 入口 |
+| `.editorconfig` | 编辑器统一配置 |
+| `.env` | 环境变量 |
+| `.eslintrc.cjs` / `.eslintignore` | ESLint 配置与忽略规则 |
+| `.stylelintrc.cjs` | Stylelint 样式检查配置 |
+| `prettier.config.cjs` | Prettier 格式化配置 |
+| `.npmrc` | npm/pnpm 配置 |
+| `.gitignore` | Git 忽略规则 |
+
+## 测试体系
+
+项目使用 Vitest 作为测试框架，test/ 目录包含约 115 个测试文件，覆盖以下层级：
+
+- **组件测试**：BEditor、BChatSidebar、BPromptEditor、BBubble 等 B 系列组件
+- **Store 测试**：Pinia 状态管理单元测试
+- **Hook 测试**：组合式函数测试
+- **Electron 测试**：主进程模块与服务测试
+- **AI 工具测试**：内置工具正确性与权限策略验证
+
+运行 `pnpm test` 执行完整测试套件。
+
+## 文档体系
+
+| 目录 | 内容 |
+|------|------|
+| `docs/code-wiki/` | 项目代码百科（概述、架构、前端、编辑器、Electron、存储、AI、开发指南、依赖地图） |
+| `docs/superpowers/plans/` | 技术实现计划（36 个，按日期 `YYYY-MM-DD-<主题>.md` 组织） |
+| `docs/superpowers/specs/` | 设计规范文档（42 个，与 plans 对称组织） |
+| `docs/ai-tools/` | AI 工具系统分析与开发指南（含 tasks 任务分解） |
+| `docs/web-view/` | WebView 功能设计文档 |
+| `docs/development/` | 开发问题与注意事项（如原生模块版本问题） |
+| `docs/markdown-symbol-highlight/` | Markdown 符号高亮方案 |
+| `docs/speech/` | 语音功能说明 |
+| `changelog/` | 变更日志（按日期 `.md` 每日记录，覆盖 2026-03-26 至今） |
+
+## 全局类型与脚本
+
+- **`types/`**（根目录）：全局 `.d.ts` 类型声明文件，定义 `AI`、`Chat`、`Model`、`ElectronAPI` 等跨模块共享类型接口
+- **`scripts/speech/`**：语音运行时脚本（`dev-runtime.mjs` 开发环境、`manifest-tool.mjs` 清单工具）
+- **`.dev-resources/`**：语音运行时二进制文件
+- **`resources/`**：应用图标（`app.icns`、`app.png`）和语音清单（`speech/manifest.json`）
+- **`.vscode/`**：VS Code 推荐扩展与工作区设置
 
 ## 常用命令
 
