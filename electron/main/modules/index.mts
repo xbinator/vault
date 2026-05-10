@@ -2,15 +2,15 @@ import { registerAIHandlers } from './ai/ipc.mjs';
 import { registerDatabaseHandlers } from './database/ipc.mjs';
 import { registerDialogHandlers } from './dialog/ipc.mjs';
 import { registerFileHandlers } from './file/ipc.mjs';
+import { registerImageHandlers } from './image/ipc.mjs';
 import { registerLoggerHandlers, registerLogFileHandlers } from './logger/ipc.mjs';
 import { registerMenuHandlers } from './menu/ipc.mjs';
 import { registerPlatformShortcutHandlers } from './platform-shortcuts/ipc.mjs';
 import { registerShellHandlers } from './shell/ipc.mjs';
+import { registerSpeechHandlers } from './speech/ipc.mjs';
 import { registerStoreHandlers } from './store/ipc.mjs';
 import { registerWebviewHandlers } from './webview/ipc.mjs';
 import { registerWindowHandlers } from './window/ipc.mjs';
-import { registerImageHandlers } from './image/ipc.mjs';
-import { registerSpeechHandlers } from './speech/ipc.mjs';
 
 export function registerAllIpcHandlers() {
   registerDialogHandlers();
