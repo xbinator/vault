@@ -3,20 +3,21 @@
  * @description 内置工具清单测试。
  */
 import { describe, expect, it } from 'vitest';
-import { ASK_USER_CHOICE_TOOL_NAME } from '@/ai/tools/builtin/ask-user-choice';
+import { ASK_USER_CHOICE_TOOL_NAME } from '@/ai/tools/builtin/askUserChoice';
 import {
   DEFAULT_BUILTIN_READONLY_TOOL_NAMES,
   DEFAULT_BUILTIN_WRITABLE_TOOL_NAMES,
   getDefaultBuiltinChatToolNames,
   isDefaultBuiltinReadonlyToolName,
   isDefaultBuiltinWritableToolName
-} from '@/ai/tools/builtin/catalog';
+} from '@/ai/tools/builtinCatalog';
 import { GET_CURRENT_TIME_TOOL_NAME } from '@/ai/tools/builtin/environment';
+import { EDIT_FILE_TOOL_NAME } from '@/ai/tools/builtin/fileEdit';
 import { READ_CURRENT_DOCUMENT_TOOL_NAME } from '@/ai/tools/builtin/read';
-import { READ_DIRECTORY_TOOL_NAME, READ_FILE_TOOL_NAME } from '@/ai/tools/builtin/read-file';
+import { READ_DIRECTORY_TOOL_NAME, READ_FILE_TOOL_NAME } from '@/ai/tools/builtin/fileRead';
 import { GET_SETTINGS_TOOL_NAME, UPDATE_SETTINGS_TOOL_NAME } from '@/ai/tools/builtin/settings';
 import { QUERY_LOGS_TOOL_NAME } from '@/ai/tools/builtin/logs';
-import { INSERT_AT_CURSOR_TOOL_NAME } from '@/ai/tools/builtin/write';
+import { WRITE_FILE_TOOL_NAME } from '@/ai/tools/builtin/fileWrite';
 
 describe('built-in tool catalog', () => {
   it('exposes the default readonly tool names', () => {
@@ -32,7 +33,7 @@ describe('built-in tool catalog', () => {
   });
 
   it('exposes the default low-risk writable tool names', () => {
-    expect([...DEFAULT_BUILTIN_WRITABLE_TOOL_NAMES]).toEqual([INSERT_AT_CURSOR_TOOL_NAME, UPDATE_SETTINGS_TOOL_NAME]);
+    expect([...DEFAULT_BUILTIN_WRITABLE_TOOL_NAMES]).toEqual([EDIT_FILE_TOOL_NAME, WRITE_FILE_TOOL_NAME, UPDATE_SETTINGS_TOOL_NAME]);
   });
 
   it('combines readonly and writable tools for chat defaults', () => {
@@ -44,7 +45,8 @@ describe('built-in tool catalog', () => {
       READ_DIRECTORY_TOOL_NAME,
       GET_SETTINGS_TOOL_NAME,
       QUERY_LOGS_TOOL_NAME,
-      INSERT_AT_CURSOR_TOOL_NAME,
+      EDIT_FILE_TOOL_NAME,
+      WRITE_FILE_TOOL_NAME,
       UPDATE_SETTINGS_TOOL_NAME
     ]);
   });
@@ -55,11 +57,12 @@ describe('built-in tool catalog', () => {
     expect(isDefaultBuiltinReadonlyToolName(READ_FILE_TOOL_NAME)).toBe(true);
     expect(isDefaultBuiltinReadonlyToolName(READ_DIRECTORY_TOOL_NAME)).toBe(true);
     expect(isDefaultBuiltinReadonlyToolName(GET_SETTINGS_TOOL_NAME)).toBe(true);
-    expect(isDefaultBuiltinReadonlyToolName(INSERT_AT_CURSOR_TOOL_NAME)).toBe(false);
+    expect(isDefaultBuiltinReadonlyToolName(EDIT_FILE_TOOL_NAME)).toBe(false);
   });
 
   it('checks writable tool membership from the shared catalog', () => {
-    expect(isDefaultBuiltinWritableToolName(INSERT_AT_CURSOR_TOOL_NAME)).toBe(true);
-    expect(isDefaultBuiltinWritableToolName('replace_selection')).toBe(false);
+    expect(isDefaultBuiltinWritableToolName(EDIT_FILE_TOOL_NAME)).toBe(true);
+    expect(isDefaultBuiltinWritableToolName(WRITE_FILE_TOOL_NAME)).toBe(true);
+    expect(isDefaultBuiltinWritableToolName('replace_document')).toBe(false);
   });
 });

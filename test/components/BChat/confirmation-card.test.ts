@@ -59,8 +59,8 @@ describe('confirmation card helpers', () => {
     expect(isConfirmationCollapsed(createConfirmationPart(), true, false)).toBe(true);
   });
 
-  it('truncates replace-document previews', () => {
-    const preview = formatConfirmationPreviewText('a'.repeat(900), 'replace_document');
+  it('truncates write-file previews', () => {
+    const preview = formatConfirmationPreviewText('a'.repeat(900), 'write_file');
 
     expect(preview.length).toBeLessThan(905);
     expect(preview.endsWith('\n...')).toBe(true);

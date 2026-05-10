@@ -1,10 +1,10 @@
 /**
- * @file environment.ts
+ * @file environment/index.ts
  * @description 内置环境只读工具实现。
  */
 import type { AIToolExecutor } from 'types/ai';
 import dayjs from 'dayjs';
-import { createToolSuccessResult } from '../results';
+import { createToolSuccessResult } from '../../results';
 
 /**
  * 当前时间结果。

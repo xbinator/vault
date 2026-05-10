@@ -1,9 +1,9 @@
 /**
- * @file read.ts
+ * @file read/index.ts
  * @description 内置文档只读工具实现
  */
 import type { AIToolContext, AIToolExecutor } from 'types/ai';
-import { createToolSuccessResult } from '../results';
+import { createToolSuccessResult } from '../../results';
 
 /**
  * 读取当前文档的结果

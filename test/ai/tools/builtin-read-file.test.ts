@@ -1,10 +1,10 @@
 /**
- * @file builtin-read-file.test.ts
+ * @file builtin-file-read.test.ts
  * @description 内置 read_file 工具测试。
  */
 import type { AIToolContext } from 'types/ai';
 import { describe, expect, it } from 'vitest';
-import { createBuiltinReadFileTool } from '@/ai/tools/builtin/read-file';
+import { createBuiltinReadFileTool } from '@/ai/tools/builtin/fileRead';
 import type { ReadWorkspaceFileOptions, ReadWorkspaceFileResult as NativeReadWorkspaceFileResult } from '@/shared/platform/native/types';
 
 /**

@@ -30,7 +30,7 @@ export function isConfirmationCollapsed(part: ChatMessageConfirmationPart, isMan
  * @returns 可展示文本
  */
 export function formatConfirmationPreviewText(text: string, toolName: string): string {
-  if (toolName !== 'replace_document') {
+  if (toolName !== 'write_file') {
     return text;
   }
 

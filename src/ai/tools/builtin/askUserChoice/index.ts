@@ -1,9 +1,9 @@
 /**
- * @file ask-user-choice.ts
+ * @file askUserChoice/index.ts
  * @description Built-in executor for pausing tool flow until the user makes a choice.
  */
 import type { AIChoiceOption, AIAwaitingUserChoiceQuestion, AIToolExecutor } from 'types/ai';
-import { createAwaitingUserInputResult, createToolFailureResult } from '../results';
+import { createAwaitingUserInputResult, createToolFailureResult } from '../../results';
 
 /** Shared tool name constant. */
 export const ASK_USER_CHOICE_TOOL_NAME = 'ask_user_choice';

@@ -5,14 +5,15 @@
 import type { AIToolConfirmationAdapter } from '../confirmation';
 import type { AIToolExecutor } from 'types/ai';
 import { nanoid } from 'nanoid';
-import { createAskUserChoiceTool, type PendingQuestionSnapshot } from './ask-user-choice';
-import { isDefaultBuiltinReadonlyToolName, isDefaultBuiltinWritableToolName } from './catalog';
+import { isDefaultBuiltinReadonlyToolName, isDefaultBuiltinWritableToolName } from '../builtinCatalog';
+import { createAskUserChoiceTool, type PendingQuestionSnapshot } from './askUserChoice';
+import { createBuiltinEditFileTool } from './fileEdit';
 import { createBuiltinEnvironmentTools } from './environment';
 import { createBuiltinLogTools } from './logs';
 import { createBuiltinReadTools } from './read';
-import { createBuiltinReadDirectoryTool, createBuiltinReadFileTool } from './read-file';
+import { createBuiltinReadDirectoryTool, createBuiltinReadFileTool } from './fileRead';
 import { createBuiltinSettingsTools } from './settings';
-import { createBuiltinWriteTools } from './write';
+import { createBuiltinWriteFileTool } from './fileWrite';
 
 /**
  * 创建内置工具的选项
@@ -20,10 +21,6 @@ import { createBuiltinWriteTools } from './write';
 interface CreateBuiltinToolsOptions {
   /** 确认适配器，用于写操作的用户确认 */
   confirm?: AIToolConfirmationAdapter;
-  /** 是否包含选区替换工具 */
-  includeSelectionReplace?: boolean;
-  /** 是否包含危险操作工具（如替换整个文档） */
-  includeDangerous?: boolean;
   /** 获取当前待回答问题，用于避免重复发起用户选择 */
   getPendingQuestion?: () => PendingQuestionSnapshot | null;
   /** 创建用户选择问题 ID */
@@ -40,6 +37,8 @@ interface CreateBuiltinToolsOptions {
  * @returns 工具执行器列表
  */
 export function createBuiltinTools(options: CreateBuiltinToolsOptions = {}): AIToolExecutor[] {
+  /** 最近一次读取到的文件快照，用于约束文件级写入必须基于最新读结果。 */
+  const fileReadSnapshots = new Map<string, { content: string; isPartial: boolean }>();
   // 创建文档只读工具
   const readTools = createBuiltinReadTools();
   // 创建环境只读工具
@@ -57,7 +56,17 @@ export function createBuiltinTools(options: CreateBuiltinToolsOptions = {}): AIT
     createBuiltinReadFileTool({
       confirm: options.confirm,
       getWorkspaceRoot: options.getWorkspaceRoot,
-      isFileInRecent: options.isFileInRecent
+      isFileInRecent: options.isFileInRecent,
+      trackReadResult: (result, range) => {
+        if (result.path.startsWith('unsaved://')) {
+          return;
+        }
+
+        fileReadSnapshots.set(result.path, {
+          content: result.content,
+          isPartial: range.offset !== 1 || result.hasMore
+        });
+      }
     }),
 
     createBuiltinReadDirectoryTool({
@@ -75,23 +84,28 @@ export function createBuiltinTools(options: CreateBuiltinToolsOptions = {}): AIT
     return readonlyTools;
   }
 
-  // 创建写入工具
-  const writeTools = createBuiltinWriteTools(options.confirm);
+  // 创建文件级写入工具
+  const editFileTool = createBuiltinEditFileTool({
+    confirm: options.confirm,
+    getWorkspaceRoot: options.getWorkspaceRoot,
+    getReadSnapshot: (filePath: string) => fileReadSnapshots.get(filePath) ?? null,
+    setReadSnapshot: (filePath: string, snapshot: { content: string; isPartial: boolean }) => {
+      fileReadSnapshots.set(filePath, snapshot);
+    }
+  });
+  const writeFileTool = createBuiltinWriteFileTool({
+    confirm: options.confirm,
+    getWorkspaceRoot: options.getWorkspaceRoot,
+    getReadSnapshot: (filePath: string) => fileReadSnapshots.get(filePath) ?? null,
+    setReadSnapshot: (filePath: string, snapshot: { content: string; isPartial: boolean }) => {
+      fileReadSnapshots.set(filePath, snapshot);
+    }
+  });
   // 创建设置修改工具
   const settingsTools = createBuiltinSettingsTools(options.confirm);
-  // 先汇总默认低风险写工具，再通过共享清单筛选默认暴露项。
-  const allDefaultWritableTools: AIToolExecutor[] = [writeTools.insertAtCursor, settingsTools.updateSettings];
+  // 先汇总默认文件写工具，再通过共享清单筛选默认暴露项。
+  const allDefaultWritableTools: AIToolExecutor[] = [editFileTool, writeFileTool, settingsTools.updateSettings];
   const writableTools = allDefaultWritableTools.filter((tool) => isDefaultBuiltinWritableToolName(tool.definition.name));
-
-  // 聊天侧默认只放开低风险写工具，替换类操作需要显式开启
-  if (options.includeSelectionReplace) {
-    writableTools.push(writeTools.replaceSelection);
-  }
-
-  // 危险操作需要显式开启
-  if (options.includeDangerous) {
-    writableTools.push(writeTools.replaceDocument);
-  }
 
   return [...readonlyTools, ...writableTools];
 }

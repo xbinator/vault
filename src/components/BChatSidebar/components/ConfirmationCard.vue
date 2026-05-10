@@ -13,10 +13,10 @@
         <pre :class="bem('code')">{{ formatConfirmationPreviewText(part.beforeText, part.toolName) }}</pre>
       </div>
       <div v-if="part.afterText" :class="bem('section')">
-        <div :class="bem('label')">{{ part.toolName === 'insert_at_cursor' ? '将插入的内容' : '新内容' }}</div>
+        <div :class="bem('label')">{{ part.toolName === 'edit_file' ? '替换为' : '新内容' }}</div>
         <pre :class="bem('code')">{{ formatConfirmationPreviewText(part.afterText, part.toolName) }}</pre>
       </div>
-      <div v-if="part.toolName === 'replace_document'" :class="bem('tip')">完整内容较长，当前仅展示部分预览。</div>
+      <div v-if="part.toolName === 'write_file'" :class="bem('tip')">完整内容较长，当前仅展示部分预览。</div>
       <div v-if="part.confirmationStatus === 'pending'" :class="bem('actions')">
         <BButton size="small" @click="$emit('confirmation-action', { confirmationId: part.confirmationId, action: 'approve' })">应用</BButton>
         <BButton

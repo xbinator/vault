@@ -263,7 +263,7 @@ const tools = createBuiltinTools({
     };
   }
 }).filter((tool) => {
-  // MVP 阶段聊天侧边栏只开放低风险工具，避免默认暴露替换类操作
+  // 聊天侧仅开放默认工具清单，避免暴露实验性或未正式纳入策略的工具。
   return getDefaultChatToolNames().includes(tool.definition.name);
 });
 

@@ -1,13 +1,13 @@
 /**
- * @file settings.ts
+ * @file settings/index.ts
  * @description 内置应用设置修改工具实现。
  */
-import type { AIToolConfirmationAdapter, AIToolConfirmationRequest } from '../confirmation';
+import type { AIToolConfirmationAdapter, AIToolConfirmationRequest } from '../../confirmation';
 import type { AIToolExecutor } from 'types/ai';
 import type { EditorPageWidth, ThemeMode } from '@/stores/setting';
 import { useSettingStore } from '@/stores/setting';
-import { executeWithPermission } from '../permission';
-import { createToolFailureResult } from '../results';
+import { executeWithPermission } from '../../permission';
+import { createToolFailureResult } from '../../results';
 
 /** 设置修改工具名称。 */
 export const UPDATE_SETTINGS_TOOL_NAME = 'update_settings';

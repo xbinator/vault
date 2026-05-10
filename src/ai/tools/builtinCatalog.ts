@@ -1,14 +1,15 @@
 /**
- * @file catalog.ts
+ * @file builtinCatalog.ts
  * @description 内置工具名称清单与默认暴露策略。
  */
-import { ASK_USER_CHOICE_TOOL_NAME } from './ask-user-choice';
-import { GET_CURRENT_TIME_TOOL_NAME } from './environment';
-import { QUERY_LOGS_TOOL_NAME } from './logs';
-import { READ_CURRENT_DOCUMENT_TOOL_NAME } from './read';
-import { READ_DIRECTORY_TOOL_NAME, READ_FILE_TOOL_NAME } from './read-file';
-import { GET_SETTINGS_TOOL_NAME, UPDATE_SETTINGS_TOOL_NAME } from './settings';
-import { INSERT_AT_CURSOR_TOOL_NAME } from './write';
+import { ASK_USER_CHOICE_TOOL_NAME } from './builtin/askUserChoice';
+import { GET_CURRENT_TIME_TOOL_NAME } from './builtin/environment';
+import { EDIT_FILE_TOOL_NAME } from './builtin/fileEdit';
+import { READ_DIRECTORY_TOOL_NAME, READ_FILE_TOOL_NAME } from './builtin/fileRead';
+import { WRITE_FILE_TOOL_NAME } from './builtin/fileWrite';
+import { QUERY_LOGS_TOOL_NAME } from './builtin/logs';
+import { READ_CURRENT_DOCUMENT_TOOL_NAME } from './builtin/read';
+import { GET_SETTINGS_TOOL_NAME, UPDATE_SETTINGS_TOOL_NAME } from './builtin/settings';
 
 /**
  * 默认开放的只读内置工具名称列表。
@@ -24,9 +25,9 @@ export const DEFAULT_BUILTIN_READONLY_TOOL_NAMES = [
 ] as const;
 
 /**
- * 默认开放的低风险写入内置工具名称列表。
+ * 默认开放的内置写工具名称列表。
  */
-export const DEFAULT_BUILTIN_WRITABLE_TOOL_NAMES = [INSERT_AT_CURSOR_TOOL_NAME, UPDATE_SETTINGS_TOOL_NAME] as const;
+export const DEFAULT_BUILTIN_WRITABLE_TOOL_NAMES = [EDIT_FILE_TOOL_NAME, WRITE_FILE_TOOL_NAME, UPDATE_SETTINGS_TOOL_NAME] as const;
 
 /**
  * 获取默认聊天工具名称列表。

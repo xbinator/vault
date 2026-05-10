@@ -4,7 +4,7 @@
  */
 
 import { providerStorage } from '@/shared/storage/providers';
-import { getDefaultBuiltinChatToolNames } from './builtin/catalog';
+import { getDefaultBuiltinChatToolNames } from './builtinCatalog';
 
 /**
  * AI 工具服务商支持信息

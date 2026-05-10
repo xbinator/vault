@@ -2,7 +2,7 @@ import type { AIToolContext } from 'types/ai';
 import { describe, expect, it } from 'vitest';
 import { createBuiltinTools } from '@/ai/tools/builtin';
 import { QUERY_LOGS_TOOL_NAME } from '@/ai/tools/builtin/logs';
-import { READ_DIRECTORY_TOOL_NAME } from '@/ai/tools/builtin/read-file';
+import { READ_DIRECTORY_TOOL_NAME } from '@/ai/tools/builtin/fileRead';
 import { GET_SETTINGS_TOOL_NAME, UPDATE_SETTINGS_TOOL_NAME } from '@/ai/tools/builtin/settings';
 
 /**
@@ -65,18 +65,17 @@ describe('createBuiltinTools', () => {
       READ_DIRECTORY_TOOL_NAME,
       GET_SETTINGS_TOOL_NAME,
       QUERY_LOGS_TOOL_NAME,
-      'insert_at_cursor',
+      'edit_file',
+      'write_file',
       UPDATE_SETTINGS_TOOL_NAME
     ]);
   });
 
-  it('can opt into selection replacement and dangerous document replacement explicitly', () => {
+  it('always exposes file-level write tools when confirmation is available', () => {
     const tools = createBuiltinTools({
       confirm: {
         confirm: async () => true
-      },
-      includeSelectionReplace: true,
-      includeDangerous: true
+      }
     });
 
     expect(tools.map((tool) => tool.definition.name)).toEqual([
@@ -87,10 +86,9 @@ describe('createBuiltinTools', () => {
       READ_DIRECTORY_TOOL_NAME,
       GET_SETTINGS_TOOL_NAME,
       QUERY_LOGS_TOOL_NAME,
-      'insert_at_cursor',
-      UPDATE_SETTINGS_TOOL_NAME,
-      'replace_selection',
-      'replace_document'
+      'edit_file',
+      'write_file',
+      UPDATE_SETTINGS_TOOL_NAME
     ]);
   });
 

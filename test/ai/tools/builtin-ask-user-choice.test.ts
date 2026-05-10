@@ -4,7 +4,7 @@
  */
 import type { AIToolContext } from 'types/ai';
 import { describe, expect, it } from 'vitest';
-import { createAskUserChoiceTool } from '@/ai/tools/builtin/ask-user-choice';
+import { createAskUserChoiceTool } from '@/ai/tools/builtin/askUserChoice';
 
 /**
  * Creates a stable tool execution context for ask_user_choice tests.
