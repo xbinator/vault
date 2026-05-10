@@ -45,11 +45,13 @@ describe('confirmation card helpers', () => {
   });
 
   it('returns a failure status message after approval when execution fails', () => {
-    const text = getConfirmationStatusText(createConfirmationPart({
-      confirmationStatus: 'approved',
-      executionStatus: 'failure',
-      executionError: '写入失败'
-    }));
+    const text = getConfirmationStatusText(
+      createConfirmationPart({
+        confirmationStatus: 'approved',
+        executionStatus: 'failure',
+        executionError: '写入失败'
+      })
+    );
 
     expect(text).toContain('已确认');
     expect(text).toContain('写入失败');
@@ -64,5 +66,35 @@ describe('confirmation card helpers', () => {
 
     expect(preview.length).toBeLessThan(905);
     expect(preview.endsWith('\n...')).toBe(true);
+  });
+
+  it('truncates edit-file previews', () => {
+    const preview = formatConfirmationPreviewText('a'.repeat(900), 'edit_file');
+
+    expect(preview.length).toBeLessThan(905);
+    expect(preview.endsWith('\n...')).toBe(true);
+  });
+
+  it('uses file-specific status copy for pending dangerous confirmations', () => {
+    const text = getConfirmationStatusText(
+      createConfirmationPart({
+        toolName: 'write_file',
+        riskLevel: 'dangerous'
+      })
+    );
+
+    expect(text).toContain('覆盖文件内容');
+  });
+
+  it('uses file-specific success copy after approval', () => {
+    const text = getConfirmationStatusText(
+      createConfirmationPart({
+        toolName: 'edit_file',
+        confirmationStatus: 'approved',
+        executionStatus: 'success'
+      })
+    );
+
+    expect(text).toContain('已应用到文件');
   });
 });

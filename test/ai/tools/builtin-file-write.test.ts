@@ -4,23 +4,24 @@
  */
 import { describe, expect, it, vi } from 'vitest';
 import { createBuiltinWriteFileTool } from '@/ai/tools/builtin/fileWrite';
+import type { FileReadSnapshot } from '@/ai/tools/shared/fileTypes';
 
 /**
  * 创建测试用文件快照。
  * @returns 共享快照存取函数
  */
 function createSnapshotState(): {
-  getReadSnapshot: (filePath: string) => { content: string; isPartial: boolean } | null;
-  setReadSnapshot: (filePath: string, snapshot: { content: string; isPartial: boolean }) => void;
+  getReadSnapshot: (filePath: string) => FileReadSnapshot | null;
+  setReadSnapshot: (snapshot: FileReadSnapshot) => void;
 } {
-  const snapshots = new Map<string, { content: string; isPartial: boolean }>();
+  const snapshots = new Map<string, FileReadSnapshot>();
 
   return {
     getReadSnapshot(filePath: string) {
       return snapshots.get(filePath) ?? null;
     },
-    setReadSnapshot(filePath: string, snapshot: { content: string; isPartial: boolean }) {
-      snapshots.set(filePath, snapshot);
+    setReadSnapshot(snapshot: FileReadSnapshot) {
+      snapshots.set(snapshot.path, snapshot);
     }
   };
 }
@@ -85,9 +86,11 @@ describe('createBuiltinWriteFileTool', () => {
 
   it('rejects overwriting an existing file after a partial read', async () => {
     const snapshotState = createSnapshotState();
-    snapshotState.setReadSnapshot('/workspace/src/example.ts', {
+    snapshotState.setReadSnapshot({
+      path: '/workspace/src/example.ts',
       content: 'const value = 1;\n',
-      isPartial: true
+      isPartial: true,
+      readAt: 1
     });
     const tool = createBuiltinWriteFileTool({
       confirm: { confirm: async () => true },
@@ -116,9 +119,11 @@ describe('createBuiltinWriteFileTool', () => {
 
   it('rejects overwriting when the file changed since the last read', async () => {
     const snapshotState = createSnapshotState();
-    snapshotState.setReadSnapshot('/workspace/src/example.ts', {
+    snapshotState.setReadSnapshot({
+      path: '/workspace/src/example.ts',
       content: 'const value = 1;\n',
-      isPartial: false
+      isPartial: false,
+      readAt: 1
     });
     const tool = createBuiltinWriteFileTool({
       confirm: { confirm: async () => true },
@@ -147,9 +152,11 @@ describe('createBuiltinWriteFileTool', () => {
 
   it('writes an existing file after confirmation and refreshes the read snapshot', async () => {
     const snapshotState = createSnapshotState();
-    snapshotState.setReadSnapshot('/workspace/src/example.ts', {
+    snapshotState.setReadSnapshot({
+      path: '/workspace/src/example.ts',
       content: 'const value = 1;\n',
-      isPartial: false
+      isPartial: false,
+      readAt: 1
     });
     const writeFile = vi.fn(async () => undefined);
     const tool = createBuiltinWriteFileTool({
@@ -181,8 +188,10 @@ describe('createBuiltinWriteFileTool', () => {
     });
     expect(writeFile).toHaveBeenCalledWith('/workspace/src/example.ts', 'const value = 2;\n');
     expect(snapshotState.getReadSnapshot('/workspace/src/example.ts')).toEqual({
+      path: '/workspace/src/example.ts',
       content: 'const value = 2;\n',
-      isPartial: false
+      isPartial: false,
+      readAt: expect.any(Number)
     });
   });
 });

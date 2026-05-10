@@ -3,11 +3,12 @@
  * @description 确认卡片组件挂载测试。
  */
 /* @vitest-environment jsdom */
+/* eslint-disable vue/one-component-per-file */
 
 import type { ChatMessageConfirmationPart } from 'types/chat';
 import { defineComponent } from 'vue';
-import { beforeEach, describe, expect, it } from 'vitest';
 import { mount, type VueWrapper } from '@vue/test-utils';
+import { beforeEach, describe, expect, it } from 'vitest';
 import ConfirmationCard from '@/components/BChatSidebar/components/ConfirmationCard.vue';
 
 /**
@@ -85,10 +86,12 @@ describe('ConfirmationCard', () => {
   });
 
   it('collapses approved confirmations by default and expands after title click', async () => {
-    const wrapper = mountConfirmationCard(createConfirmationPart({
-      confirmationStatus: 'approved',
-      executionStatus: 'success'
-    }));
+    const wrapper = mountConfirmationCard(
+      createConfirmationPart({
+        confirmationStatus: 'approved',
+        executionStatus: 'success'
+      })
+    );
 
     expect(wrapper.text()).not.toContain('AI 请求在当前光标位置插入新内容。');
 
@@ -96,6 +99,21 @@ describe('ConfirmationCard', () => {
 
     expect(wrapper.text()).toContain('AI 请求在当前光标位置插入新内容。');
     expect(wrapper.text()).toContain('已应用到文档。');
+  });
+
+  it('shows file-specific status copy for write_file confirmations', () => {
+    const wrapper = mountConfirmationCard(
+      createConfirmationPart({
+        toolName: 'write_file',
+        title: 'AI 想要覆盖本地文件',
+        description: 'AI 请求使用新的完整内容覆盖本地文件：/workspace/src/example.ts',
+        riskLevel: 'dangerous',
+        confirmationStatus: 'approved',
+        executionStatus: 'success'
+      })
+    );
+
+    expect(wrapper.text()).toContain('已应用到文件。');
   });
 
   it('collapses a pending confirmation after title click', async () => {
@@ -121,13 +139,15 @@ describe('ConfirmationCard', () => {
   });
 
   it('submits custom user input through custom-input-submit when confirmation supports other input', async () => {
-    const wrapper = mountConfirmationCard(createConfirmationPart({
-      customInput: {
-        enabled: true,
-        placeholder: '输入新的设置值...',
-        triggerLabel: '改成别的'
-      }
-    }));
+    const wrapper = mountConfirmationCard(
+      createConfirmationPart({
+        customInput: {
+          enabled: true,
+          placeholder: '输入新的设置值...',
+          triggerLabel: '改成别的'
+        }
+      })
+    );
 
     expect(wrapper.text()).toContain('改成别的');
 
@@ -136,8 +156,6 @@ describe('ConfirmationCard', () => {
     await wrapper.get('.confirm-card__custom-input').setValue('我自己来写');
     await wrapper.get('.confirm-card__custom-submit button').trigger('click');
 
-    expect(wrapper.emitted('custom-input-submit')).toEqual([
-      [{ confirmationId: 'confirmation-1', text: '我自己来写' }]
-    ]);
+    expect(wrapper.emitted('custom-input-submit')).toEqual([[{ confirmationId: 'confirmation-1', text: '我自己来写' }]]);
   });
 });

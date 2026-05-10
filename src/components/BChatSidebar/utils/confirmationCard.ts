@@ -4,6 +4,11 @@
  */
 import type { ChatMessageConfirmationPart } from 'types/chat';
 
+/** 需要限制预览长度的文件工具名称集合。 */
+const FILE_PREVIEW_TOOL_NAMES = new Set(['edit_file', 'write_file']);
+/** 需要使用文件态状态文案的工具名称集合。 */
+const FILE_STATUS_TOOL_NAMES = new Set(['edit_file', 'write_file']);
+
 /**
  * 判断确认卡片是否已折叠。
  * @param part - 确认卡片片段
@@ -30,7 +35,7 @@ export function isConfirmationCollapsed(part: ChatMessageConfirmationPart, isMan
  * @returns 可展示文本
  */
 export function formatConfirmationPreviewText(text: string, toolName: string): string {
-  if (toolName !== 'write_file') {
+  if (!FILE_PREVIEW_TOOL_NAMES.has(toolName)) {
     return text;
   }
 
@@ -44,8 +49,14 @@ export function formatConfirmationPreviewText(text: string, toolName: string): s
  * @returns 状态说明
  */
 export function getConfirmationStatusText(part: ChatMessageConfirmationPart): string {
+  const isFileTool = FILE_STATUS_TOOL_NAMES.has(part.toolName);
+  const pendingTextByRisk = {
+    dangerous: isFileTool ? '此操作会覆盖文件内容，请确认是否继续。' : '此操作会影响当前全部内容，请确认是否继续。',
+    normal: isFileTool ? '等待你确认是否应用这次文件修改。' : '等待你确认是否应用这次修改。'
+  };
+
   if (part.confirmationStatus === 'pending') {
-    return part.riskLevel === 'dangerous' ? '此操作会影响当前全部内容，请确认是否继续。' : '等待你确认是否应用这次修改。';
+    return part.riskLevel === 'dangerous' ? pendingTextByRisk.dangerous : pendingTextByRisk.normal;
   }
 
   if (part.confirmationStatus === 'cancelled') {
@@ -57,11 +68,11 @@ export function getConfirmationStatusText(part: ChatMessageConfirmationPart): st
   }
 
   if (part.executionStatus === 'running') {
-    return '已确认，正在应用到文档。';
+    return isFileTool ? '已确认，正在应用到文件。' : '已确认，正在应用到文档。';
   }
 
   if (part.executionStatus === 'success') {
-    return '已应用到文档。';
+    return isFileTool ? '已应用到文件。' : '已应用到文档。';
   }
 
   if (part.executionStatus === 'failure') {

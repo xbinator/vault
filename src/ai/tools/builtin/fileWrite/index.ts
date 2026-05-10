@@ -2,55 +2,18 @@
  * @file fileWrite/index.ts
  * @description 内置本地文件整文件写入工具实现。
  */
+import type { CreateBuiltinWriteFileToolOptions, WriteFileInput, WriteFileResult } from './types';
 import type { AIToolConfirmationAdapter, AIToolConfirmationRequest } from '../../confirmation';
-import type { BuiltinFileReadSnapshot } from '../fileEdit';
+import type { FileReadSnapshot } from '../../shared/fileTypes';
 import type { AIToolExecutionError, AIToolExecutor } from 'types/ai';
 import { native } from '@/shared/platform';
-import type { ReadWorkspaceFileOptions, ReadWorkspaceFileResult } from '@/shared/platform/native/types';
+import type { ReadWorkspaceFileResult } from '@/shared/platform/native/types';
 import { createToolCancelledResult, createToolFailureResult, createToolSuccessResult } from '../../results';
+import { toFileToolExecutionError } from '../../shared/fileErrors';
+import { isAbsoluteFilePath, isPathInsideWorkspace, resolvePathAgainstWorkspace } from '../../shared/pathUtils';
 
 /** write_file 工具名称。 */
 export const WRITE_FILE_TOOL_NAME = 'write_file';
-
-/**
- * write_file 工具输入参数。
- */
-export interface WriteFileInput {
-  /** 文件路径，支持相对工作区路径或绝对路径。 */
-  path: string;
-  /** 新的完整文件内容。 */
-  content: string;
-}
-
-/**
- * write_file 工具返回结果。
- */
-export interface WriteFileResult {
-  /** 规范化后的真实文件路径。 */
-  path: string;
-  /** 最新写入的完整内容。 */
-  content: string;
-  /** 是否为新创建文件。 */
-  created: boolean;
-}
-
-/**
- * 创建 write_file 工具的选项。
- */
-export interface CreateBuiltinWriteFileToolOptions {
-  /** 写操作确认适配器。 */
-  confirm: AIToolConfirmationAdapter;
-  /** 获取工作区根目录，无工作区时返回 null。 */
-  getWorkspaceRoot?: () => string | null;
-  /** 读取本地文件，测试时可注入替身。 */
-  readWorkspaceFile?: (options: ReadWorkspaceFileOptions) => Promise<ReadWorkspaceFileResult>;
-  /** 写入本地文件，测试时可注入替身。 */
-  writeFile?: (path: string, content: string) => Promise<void>;
-  /** 获取指定文件的最近读取快照。 */
-  getReadSnapshot: (filePath: string) => BuiltinFileReadSnapshot | null;
-  /** 写入指定文件的最新读取快照。 */
-  setReadSnapshot: (filePath: string, snapshot: BuiltinFileReadSnapshot) => void;
-}
 
 /**
  * 从未知错误中提取业务错误码。
@@ -73,119 +36,6 @@ function readErrorCode(error: unknown): string | null {
  */
 function readErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : '读取文件失败';
-}
-
-/**
- * 判断路径是否为绝对路径。
- * @param filePath - 文件路径
- * @returns 是否为绝对路径
- */
-function isAbsoluteFilePath(filePath: string): boolean {
-  return /^[a-zA-Z]:[\\/]/.test(filePath) || filePath.startsWith('/') || filePath.startsWith('\\\\');
-}
-
-/**
- * 解析路径前缀与片段。
- * @param filePath - 原始路径
- * @returns 路径前缀与片段
- */
-function parsePathParts(filePath: string): { prefix: string; segments: string[] } {
-  const normalized = filePath.replace(/\\/g, '/');
-
-  if (/^[a-zA-Z]:\//.test(normalized)) {
-    const prefix = normalized.slice(0, 2);
-    const segments = normalized.slice(3).split('/').filter(Boolean);
-    return { prefix, segments };
-  }
-
-  if (normalized.startsWith('/')) {
-    return {
-      prefix: '/',
-      segments: normalized.slice(1).split('/').filter(Boolean)
-    };
-  }
-
-  return {
-    prefix: '',
-    segments: normalized.split('/').filter(Boolean)
-  };
-}
-
-/**
- * 将路径片段重新拼装为指定分隔符风格。
- * @param prefix - 路径前缀
- * @param segments - 路径片段
- * @param separator - 目标分隔符
- * @returns 重新拼装后的路径
- */
-function buildPath(prefix: string, segments: string[], separator: '/' | '\\'): string {
-  const joined = segments.join(separator);
-
-  if (!prefix) {
-    return joined;
-  }
-
-  if (prefix === '/') {
-    return joined ? `${separator}${joined}` : separator;
-  }
-
-  return joined ? `${prefix}${separator}${joined}` : `${prefix}${separator}`;
-}
-
-/**
- * 判断目标路径是否位于工作区内。
- * @param targetPath - 目标路径
- * @param workspaceRoot - 工作区根目录
- * @returns 是否位于工作区内
- */
-function isPathInsideWorkspace(targetPath: string, workspaceRoot: string): boolean {
-  const target = parsePathParts(targetPath);
-  const root = parsePathParts(workspaceRoot);
-
-  if (target.prefix.toLowerCase() !== root.prefix.toLowerCase()) {
-    return false;
-  }
-
-  if (target.segments.length < root.segments.length) {
-    return false;
-  }
-
-  return root.segments.every((segment, index) => target.segments[index] === segment);
-}
-
-/**
- * 将工作区相对路径解析为绝对路径。
- * @param filePath - 用户输入路径
- * @param workspaceRoot - 工作区根目录
- * @returns 解析结果
- */
-function resolvePathAgainstWorkspace(filePath: string, workspaceRoot: string): string | null {
-  const root = parsePathParts(workspaceRoot);
-  if (!root.prefix) {
-    return null;
-  }
-
-  const separator: '/' | '\\' = workspaceRoot.includes('\\') ? '\\' : '/';
-  const resolvedSegments = [...root.segments];
-  const relativeSegments = filePath.replace(/\\/g, '/').split('/').filter(Boolean);
-
-  for (const segment of relativeSegments) {
-    if (segment === '.') {
-      continue;
-    }
-
-    if (segment === '..') {
-      if (resolvedSegments.length <= root.segments.length) {
-        return null;
-      }
-      resolvedSegments.pop();
-      continue;
-    }
-
-    resolvedSegments.push(segment);
-  }
-
-  return buildPath(root.prefix, resolvedSegments, separator);
 }
 
 /**
@@ -325,15 +175,18 @@ export function createBuiltinWriteFileTool(options: CreateBuiltinWriteFileToolOp
       if (currentFile) {
         const snapshot = options.getReadSnapshot(currentFile.path);
         if (!snapshot) {
-          return createToolFailureResult(WRITE_FILE_TOOL_NAME, 'PERMISSION_DENIED', '请先使用 read_file 完整读取目标文件，再执行 write_file');
+          const error = toFileToolExecutionError('FILE_NOT_READ');
+          return createToolFailureResult(WRITE_FILE_TOOL_NAME, error.code, error.message);
         }
 
         if (snapshot.isPartial) {
-          return createToolFailureResult(WRITE_FILE_TOOL_NAME, 'PERMISSION_DENIED', '当前文件仅被部分读取，请先完整读取整个文件，再执行 write_file');
+          const error = toFileToolExecutionError('FILE_READ_PARTIAL');
+          return createToolFailureResult(WRITE_FILE_TOOL_NAME, error.code, error.message);
         }
 
         if (snapshot.content !== currentFile.content) {
-          return createToolFailureResult(WRITE_FILE_TOOL_NAME, 'STALE_CONTEXT', '文件自上次读取后已发生变化，请重新读取后再尝试覆盖写入');
+          const error = toFileToolExecutionError('FILE_CHANGED');
+          return createToolFailureResult(WRITE_FILE_TOOL_NAME, error.code, error.message);
         }
       }
 
@@ -353,10 +206,13 @@ export function createBuiltinWriteFileTool(options: CreateBuiltinWriteFileToolOp
 
       return executeConfirmedWrite(options.confirm, request, async () => {
         await writeFile(targetPath, content);
-        options.setReadSnapshot(targetPath, {
+        const nextSnapshot: FileReadSnapshot = {
+          path: targetPath,
           content,
-          isPartial: false
-        });
+          isPartial: false,
+          readAt: Date.now()
+        };
+        options.setReadSnapshot(nextSnapshot);
 
         return {
           path: targetPath,
@@ -367,3 +223,5 @@ export function createBuiltinWriteFileTool(options: CreateBuiltinWriteFileToolOp
     }
   };
 }
+
+export type { CreateBuiltinWriteFileToolOptions, WriteFileInput, WriteFileResult } from './types';

@@ -2,68 +2,18 @@
  * @file fileEdit/index.ts
  * @description 内置本地文件局部编辑工具实现。
  */
+import type { CreateBuiltinEditFileToolOptions, EditFileInput, EditFileResult } from './types';
 import type { AIToolConfirmationAdapter, AIToolConfirmationRequest } from '../../confirmation';
+import type { FileReadSnapshot } from '../../shared/fileTypes';
 import type { AIToolExecutionError, AIToolExecutor } from 'types/ai';
 import { native } from '@/shared/platform';
-import type { ReadWorkspaceFileOptions, ReadWorkspaceFileResult } from '@/shared/platform/native/types';
+import type { ReadWorkspaceFileResult } from '@/shared/platform/native/types';
 import { createToolCancelledResult, createToolFailureResult, createToolSuccessResult } from '../../results';
+import { toFileToolExecutionError } from '../../shared/fileErrors';
+import { isAbsoluteFilePath, isPathInsideWorkspace, resolvePathAgainstWorkspace } from '../../shared/pathUtils';
 
 /** edit_file 工具名称。 */
 export const EDIT_FILE_TOOL_NAME = 'edit_file';
-
-/**
- * 文件读取快照。
- */
-export interface BuiltinFileReadSnapshot {
-  /** 上一次完整或局部读取时拿到的内容。 */
-  content: string;
-  /** 是否为局部读取快照。 */
-  isPartial: boolean;
-}
-
-/**
- * edit_file 工具输入参数。
- */
-export interface EditFileInput {
-  /** 文件路径，支持相对工作区路径或绝对路径。 */
-  path: string;
-  /** 待替换的原始文本。 */
-  oldString: string;
-  /** 替换后的文本。 */
-  newString: string;
-  /** 是否替换全部匹配项。 */
-  replaceAll?: boolean;
-}
-
-/**
- * edit_file 工具返回结果。
- */
-export interface EditFileResult {
-  /** 规范化后的真实文件路径。 */
-  path: string;
-  /** 修改后的完整文件内容。 */
-  content: string;
-  /** 实际替换次数。 */
-  replacedCount: number;
-}
-
-/**
- * 创建 edit_file 工具的选项。
- */
-export interface CreateBuiltinEditFileToolOptions {
-  /** 写操作确认适配器。 */
-  confirm: AIToolConfirmationAdapter;
-  /** 获取工作区根目录，无工作区时返回 null。 */
-  getWorkspaceRoot?: () => string | null;
-  /** 读取本地文件，测试时可注入替身。 */
-  readWorkspaceFile?: (options: ReadWorkspaceFileOptions) => Promise<ReadWorkspaceFileResult>;
-  /** 写入本地文件，测试时可注入替身。 */
-  writeFile?: (path: string, content: string) => Promise<void>;
-  /** 获取指定文件的最近读取快照。 */
-  getReadSnapshot: (filePath: string) => BuiltinFileReadSnapshot | null;
-  /** 写入指定文件的最新读取快照。 */
-  setReadSnapshot: (filePath: string, snapshot: BuiltinFileReadSnapshot) => void;
-}
 
 /**
  * 从未知错误中提取业务错误码。
@@ -86,119 +36,6 @@ function readErrorCode(error: unknown): string | null {
  */
 function readErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : '读取文件失败';
-}
-
-/**
- * 判断路径是否为绝对路径。
- * @param filePath - 文件路径
- * @returns 是否为绝对路径
- */
-function isAbsoluteFilePath(filePath: string): boolean {
-  return /^[a-zA-Z]:[\\/]/.test(filePath) || filePath.startsWith('/') || filePath.startsWith('\\\\');
-}
-
-/**
- * 解析路径前缀与片段。
- * @param filePath - 原始路径
- * @returns 路径前缀与片段
- */
-function parsePathParts(filePath: string): { prefix: string; segments: string[] } {
-  const normalized = filePath.replace(/\\/g, '/');
-
-  if (/^[a-zA-Z]:\//.test(normalized)) {
-    const prefix = normalized.slice(0, 2);
-    const segments = normalized.slice(3).split('/').filter(Boolean);
-    return { prefix, segments };
-  }
-
-  if (normalized.startsWith('/')) {
-    return {
-      prefix: '/',
-      segments: normalized.slice(1).split('/').filter(Boolean)
-    };
-  }
-
-  return {
-    prefix: '',
-    segments: normalized.split('/').filter(Boolean)
-  };
-}
-
-/**
- * 将路径片段重新拼装为指定分隔符风格。
- * @param prefix - 路径前缀
- * @param segments - 路径片段
- * @param separator - 目标分隔符
- * @returns 重新拼装后的路径
- */
-function buildPath(prefix: string, segments: string[], separator: '/' | '\\'): string {
-  const joined = segments.join(separator);
-
-  if (!prefix) {
-    return joined;
-  }
-
-  if (prefix === '/') {
-    return joined ? `${separator}${joined}` : separator;
-  }
-
-  return joined ? `${prefix}${separator}${joined}` : `${prefix}${separator}`;
-}
-
-/**
- * 判断目标路径是否位于工作区内。
- * @param targetPath - 目标路径
- * @param workspaceRoot - 工作区根目录
- * @returns 是否位于工作区内
- */
-function isPathInsideWorkspace(targetPath: string, workspaceRoot: string): boolean {
-  const target = parsePathParts(targetPath);
-  const root = parsePathParts(workspaceRoot);
-
-  if (target.prefix.toLowerCase() !== root.prefix.toLowerCase()) {
-    return false;
-  }
-
-  if (target.segments.length < root.segments.length) {
-    return false;
-  }
-
-  return root.segments.every((segment, index) => target.segments[index] === segment);
-}
-
-/**
- * 将工作区相对路径解析为绝对路径。
- * @param filePath - 用户输入路径
- * @param workspaceRoot - 工作区根目录
- * @returns 解析结果
- */
-function resolvePathAgainstWorkspace(filePath: string, workspaceRoot: string): string | null {
-  const root = parsePathParts(workspaceRoot);
-  if (!root.prefix) {
-    return null;
-  }
-
-  const separator: '/' | '\\' = workspaceRoot.includes('\\') ? '\\' : '/';
-  const resolvedSegments = [...root.segments];
-  const relativeSegments = filePath.replace(/\\/g, '/').split('/').filter(Boolean);
-
-  for (const segment of relativeSegments) {
-    if (segment === '.') {
-      continue;
-    }
-
-    if (segment === '..') {
-      if (resolvedSegments.length <= root.segments.length) {
-        return null;
-      }
-      resolvedSegments.pop();
-      continue;
-    }
-
-    resolvedSegments.push(segment);
-  }
-
-  return buildPath(root.prefix, resolvedSegments, separator);
 }
 
 /**
@@ -403,28 +240,29 @@ export function createBuiltinEditFileTool(options: CreateBuiltinEditFileToolOpti
 
       const snapshot = options.getReadSnapshot(currentFile.path);
       if (!snapshot) {
-        return createToolFailureResult(EDIT_FILE_TOOL_NAME, 'PERMISSION_DENIED', '请先使用 read_file 完整读取目标文件，再执行 edit_file');
+        const error = toFileToolExecutionError('FILE_NOT_READ');
+        return createToolFailureResult(EDIT_FILE_TOOL_NAME, error.code, error.message);
       }
 
       if (snapshot.isPartial) {
-        return createToolFailureResult(EDIT_FILE_TOOL_NAME, 'PERMISSION_DENIED', '当前文件仅被部分读取，请先完整读取整个文件，再执行 edit_file');
+        const error = toFileToolExecutionError('FILE_READ_PARTIAL');
+        return createToolFailureResult(EDIT_FILE_TOOL_NAME, error.code, error.message);
       }
 
       if (snapshot.content !== currentFile.content) {
-        return createToolFailureResult(EDIT_FILE_TOOL_NAME, 'STALE_CONTEXT', '文件自上次读取后已发生变化，请重新读取后再尝试修改');
+        const error = toFileToolExecutionError('FILE_CHANGED');
+        return createToolFailureResult(EDIT_FILE_TOOL_NAME, error.code, error.message);
       }
 
       const matchCount = countOccurrences(currentFile.content, oldString);
       if (matchCount === 0) {
-        return createToolFailureResult(EDIT_FILE_TOOL_NAME, 'INVALID_INPUT', '未在目标文件中找到 oldString');
+        const error = toFileToolExecutionError('MATCH_NOT_FOUND');
+        return createToolFailureResult(EDIT_FILE_TOOL_NAME, error.code, error.message);
       }
 
       if (matchCount > 1 && !replaceAll) {
-        return createToolFailureResult(
-          EDIT_FILE_TOOL_NAME,
-          'INVALID_INPUT',
-          `oldString 在文件中匹配到 ${matchCount} 处，请提供更精确的上下文或开启 replaceAll`
-        );
+        const error = toFileToolExecutionError('MATCH_NOT_UNIQUE');
+        return createToolFailureResult(EDIT_FILE_TOOL_NAME, error.code, error.message);
       }
 
       const nextFile = applyStringReplacement(currentFile.content, oldString, newString, replaceAll);
@@ -443,10 +281,13 @@ export function createBuiltinEditFileTool(options: CreateBuiltinEditFileToolOpti
 
       return executeConfirmedEdit(options.confirm, request, async () => {
         await writeFile(currentFile.path, nextFile.content);
-        options.setReadSnapshot(currentFile.path, {
+        const nextSnapshot: FileReadSnapshot = {
+          path: currentFile.path,
           content: nextFile.content,
-          isPartial: false
-        });
+          isPartial: false,
+          readAt: Date.now()
+        };
+        options.setReadSnapshot(nextSnapshot);
 
         return {
           path: currentFile.path,
@@ -457,3 +298,5 @@ export function createBuiltinEditFileTool(options: CreateBuiltinEditFileToolOpti
     }
   };
 }
+
+export type { CreateBuiltinEditFileToolOptions, EditFileInput, EditFileResult } from './types';

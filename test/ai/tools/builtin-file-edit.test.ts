@@ -3,26 +3,26 @@
  * @description 内置 edit_file 工具测试。
  */
 import { describe, expect, it, vi } from 'vitest';
-import type { AIToolConfirmationRequest } from '@/ai/tools/confirmation';
 import { createBuiltinEditFileTool } from '@/ai/tools/builtin/fileEdit';
-import type { ReadWorkspaceFileOptions, ReadWorkspaceFileResult } from '@/shared/platform/native/types';
+import type { FileReadSnapshot } from '@/ai/tools/shared/fileTypes';
+import type { ReadWorkspaceFileResult } from '@/shared/platform/native/types';
 
 /**
  * 创建测试用文件快照。
  * @returns 共享快照存取函数
  */
 function createSnapshotState(): {
-  getReadSnapshot: (filePath: string) => { content: string; isPartial: boolean } | null;
-  setReadSnapshot: (filePath: string, snapshot: { content: string; isPartial: boolean }) => void;
+  getReadSnapshot: (filePath: string) => FileReadSnapshot | null;
+  setReadSnapshot: (snapshot: FileReadSnapshot) => void;
 } {
-  const snapshots = new Map<string, { content: string; isPartial: boolean }>();
+  const snapshots = new Map<string, FileReadSnapshot>();
 
   return {
     getReadSnapshot(filePath: string) {
       return snapshots.get(filePath) ?? null;
     },
-    setReadSnapshot(filePath: string, snapshot: { content: string; isPartial: boolean }) {
-      snapshots.set(filePath, snapshot);
+    setReadSnapshot(snapshot: FileReadSnapshot) {
+      snapshots.set(snapshot.path, snapshot);
     }
   };
 }
@@ -58,9 +58,11 @@ describe('createBuiltinEditFileTool', () => {
 
   it('rejects edits after a partial read snapshot', async () => {
     const snapshotState = createSnapshotState();
-    snapshotState.setReadSnapshot('/workspace/src/example.ts', {
+    snapshotState.setReadSnapshot({
+      path: '/workspace/src/example.ts',
       content: 'const value = 1;\n',
-      isPartial: true
+      isPartial: true,
+      readAt: 1
     });
     const tool = createBuiltinEditFileTool({
       confirm: { confirm: async () => true },
@@ -90,9 +92,11 @@ describe('createBuiltinEditFileTool', () => {
 
   it('rejects edits when the file content changed since the last read', async () => {
     const snapshotState = createSnapshotState();
-    snapshotState.setReadSnapshot('/workspace/src/example.ts', {
+    snapshotState.setReadSnapshot({
+      path: '/workspace/src/example.ts',
       content: 'const value = 1;\n',
-      isPartial: false
+      isPartial: false,
+      readAt: 1
     });
     const tool = createBuiltinEditFileTool({
       confirm: { confirm: async () => true },
@@ -122,9 +126,11 @@ describe('createBuiltinEditFileTool', () => {
 
   it('rejects edits when oldString is ambiguous without replaceAll', async () => {
     const snapshotState = createSnapshotState();
-    snapshotState.setReadSnapshot('/workspace/src/example.ts', {
+    snapshotState.setReadSnapshot({
+      path: '/workspace/src/example.ts',
       content: 'value\nvalue\n',
-      isPartial: false
+      isPartial: false,
+      readAt: 1
     });
     const tool = createBuiltinEditFileTool({
       confirm: { confirm: async () => true },
@@ -153,19 +159,21 @@ describe('createBuiltinEditFileTool', () => {
   });
 
   it('edits a file after confirmation and refreshes the read snapshot', async () => {
-    const confirm = vi.fn(async (_request: AIToolConfirmationRequest) => true);
+    const confirm = vi.fn(async () => true);
     const writeFile = vi.fn(async () => undefined);
     const snapshotState = createSnapshotState();
-    snapshotState.setReadSnapshot('/workspace/src/example.ts', {
+    snapshotState.setReadSnapshot({
+      path: '/workspace/src/example.ts',
       content: 'const value = 1;\n',
-      isPartial: false
+      isPartial: false,
+      readAt: 1
     });
     const tool = createBuiltinEditFileTool({
       confirm: { confirm },
       getWorkspaceRoot: () => '/workspace',
       getReadSnapshot: snapshotState.getReadSnapshot,
       setReadSnapshot: snapshotState.setReadSnapshot,
-      readWorkspaceFile: async (_options: ReadWorkspaceFileOptions): Promise<ReadWorkspaceFileResult> => ({
+      readWorkspaceFile: async (): Promise<ReadWorkspaceFileResult> => ({
         path: '/workspace/src/example.ts',
         content: 'const value = 1;\n',
         totalLines: 1,
@@ -191,16 +199,20 @@ describe('createBuiltinEditFileTool', () => {
     expect(writeFile).toHaveBeenCalledWith('/workspace/src/example.ts', 'const value = 2;\n');
     expect(confirm).toHaveBeenCalledTimes(1);
     expect(snapshotState.getReadSnapshot('/workspace/src/example.ts')).toEqual({
+      path: '/workspace/src/example.ts',
       content: 'const value = 2;\n',
-      isPartial: false
+      isPartial: false,
+      readAt: expect.any(Number)
     });
   });
 
   it('supports replaceAll for repeated matches', async () => {
     const snapshotState = createSnapshotState();
-    snapshotState.setReadSnapshot('/workspace/src/example.ts', {
+    snapshotState.setReadSnapshot({
+      path: '/workspace/src/example.ts',
       content: 'value\nvalue\n',
-      isPartial: false
+      isPartial: false,
+      readAt: 1
     });
     const writeFile = vi.fn(async () => undefined);
     const tool = createBuiltinEditFileTool({

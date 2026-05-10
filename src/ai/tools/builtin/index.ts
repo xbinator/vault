@@ -3,17 +3,19 @@
  * @description 内置工具工厂函数
  */
 import type { AIToolConfirmationAdapter } from '../confirmation';
+import type { FileReadSnapshot } from '../shared/fileTypes';
 import type { AIToolExecutor } from 'types/ai';
 import { nanoid } from 'nanoid';
 import { isDefaultBuiltinReadonlyToolName, isDefaultBuiltinWritableToolName } from '../builtinCatalog';
+import { createFileStateStore } from '../shared/fileState';
 import { createAskUserChoiceTool, type PendingQuestionSnapshot } from './askUserChoice';
-import { createBuiltinEditFileTool } from './fileEdit';
 import { createBuiltinEnvironmentTools } from './environment';
+import { createBuiltinEditFileTool } from './fileEdit';
+import { createBuiltinReadDirectoryTool, createBuiltinReadFileTool } from './fileRead';
+import { createBuiltinWriteFileTool } from './fileWrite';
 import { createBuiltinLogTools } from './logs';
 import { createBuiltinReadTools } from './read';
-import { createBuiltinReadDirectoryTool, createBuiltinReadFileTool } from './fileRead';
 import { createBuiltinSettingsTools } from './settings';
-import { createBuiltinWriteFileTool } from './fileWrite';
 
 /**
  * 创建内置工具的选项
@@ -37,8 +39,8 @@ interface CreateBuiltinToolsOptions {
  * @returns 工具执行器列表
  */
 export function createBuiltinTools(options: CreateBuiltinToolsOptions = {}): AIToolExecutor[] {
-  /** 最近一次读取到的文件快照，用于约束文件级写入必须基于最新读结果。 */
-  const fileReadSnapshots = new Map<string, { content: string; isPartial: boolean }>();
+  /** 共享文件快照状态，用于约束文件级写入必须基于最新读结果。 */
+  const fileState = createFileStateStore();
   // 创建文档只读工具
   const readTools = createBuiltinReadTools();
   // 创建环境只读工具
@@ -57,15 +59,12 @@ export function createBuiltinTools(options: CreateBuiltinToolsOptions = {}): AIT
       confirm: options.confirm,
       getWorkspaceRoot: options.getWorkspaceRoot,
       isFileInRecent: options.isFileInRecent,
-      trackReadResult: (result, range) => {
-        if (result.path.startsWith('unsaved://')) {
+      trackReadResult: (_result, _range, snapshot) => {
+        if (snapshot.path.startsWith('unsaved://')) {
           return;
         }
 
-        fileReadSnapshots.set(result.path, {
-          content: result.content,
-          isPartial: range.offset !== 1 || result.hasMore
-        });
+        fileState.setSnapshot(snapshot);
       }
     }),
 
@@ -88,18 +87,14 @@ export function createBuiltinTools(options: CreateBuiltinToolsOptions = {}): AIT
   const editFileTool = createBuiltinEditFileTool({
     confirm: options.confirm,
     getWorkspaceRoot: options.getWorkspaceRoot,
-    getReadSnapshot: (filePath: string) => fileReadSnapshots.get(filePath) ?? null,
-    setReadSnapshot: (filePath: string, snapshot: { content: string; isPartial: boolean }) => {
-      fileReadSnapshots.set(filePath, snapshot);
-    }
+    getReadSnapshot: (filePath: string) => fileState.getSnapshot(filePath),
+    setReadSnapshot: (snapshot: FileReadSnapshot) => fileState.setSnapshot(snapshot)
   });
   const writeFileTool = createBuiltinWriteFileTool({
     confirm: options.confirm,
     getWorkspaceRoot: options.getWorkspaceRoot,
-    getReadSnapshot: (filePath: string) => fileReadSnapshots.get(filePath) ?? null,
-    setReadSnapshot: (filePath: string, snapshot: { content: string; isPartial: boolean }) => {
-      fileReadSnapshots.set(filePath, snapshot);
-    }
+    getReadSnapshot: (filePath: string) => fileState.getSnapshot(filePath),
+    setReadSnapshot: (snapshot: FileReadSnapshot) => fileState.setSnapshot(snapshot)
   });
   // 创建设置修改工具
   const settingsTools = createBuiltinSettingsTools(options.confirm);
