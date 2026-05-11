@@ -22,7 +22,7 @@
     </template>
 
     <div class="action-buttons">
-      <VoiceInput ref="voiceInputRef" :disabled="loading" @start="emit('voice-start')" @partial-text="handleVoicePartial" @complete="handleVoiceComplete" />
+      <VoiceInput ref="voiceInputRef" @start="emit('voice-start')" @partial-text="handleVoicePartial" @complete="handleVoiceComplete" />
 
       <BButton v-if="loading" size="small" tooltip="停止" square @click="$emit('abort')">
         <svg class="loading-icon" color="currentColor" viewBox="0 0 1000 1000" xmlns="http://www.w3.org/2000/svg">

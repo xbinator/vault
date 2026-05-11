@@ -2,12 +2,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { ipcMain } from 'electron';
 import { fileWatchService } from './service.mjs';
-import {
-  readWorkspaceDirectory,
-  readWorkspaceFile,
-  type ReadWorkspaceDirectoryRequest,
-  type ReadWorkspaceFileRequest
-} from './workspace-read.mjs';
+import { readWorkspaceDirectory, readWorkspaceFile, type ReadWorkspaceDirectoryRequest, type ReadWorkspaceFileRequest } from './workspace-read.mjs';
 
 export function registerFileHandlers(): void {
   ipcMain.handle('fs:readFile', async (_event, filePath: string) => {

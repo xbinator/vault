@@ -6,6 +6,7 @@ import { computed, onUnmounted } from 'vue';
 import type { ComputedRef } from 'vue';
 import { useToolbarShortcuts } from '@/components/BToolbar/hooks/useToolbarShortcuts';
 import type { ToolbarOptions } from '@/components/BToolbar/types';
+import { useEditorPreferencesStore } from '@/stores/editorPreferences';
 import { useSettingStore } from '@/stores/setting';
 import { EditorShortcuts } from '../../../constants/shortcuts';
 
@@ -14,6 +15,7 @@ import { EditorShortcuts } from '../../../constants/shortcuts';
  * @returns 视图菜单配置
  */
 export function useViewActive(): { toolbarViewOptions: ComputedRef<ToolbarOptions> } {
+  const editorPreferencesStore = useEditorPreferencesStore();
   const settingStore = useSettingStore();
   const { register: registerShortcuts } = useToolbarShortcuts();
 
@@ -22,18 +24,18 @@ export function useViewActive(): { toolbarViewOptions: ComputedRef<ToolbarOption
       value: 'source',
       label: '源代码模式',
       shortcut: EditorShortcuts.VIEW_SOURCE,
-      selected: settingStore.sourceMode,
+      selected: editorPreferencesStore.viewMode === 'source',
       onClick: () => {
-        settingStore.toggleSourceMode();
+        editorPreferencesStore.setViewMode(editorPreferencesStore.viewMode === 'source' ? 'rich' : 'source');
       }
     },
     {
       value: 'outline',
       label: '大纲',
-      selected: settingStore.showOutline,
+      selected: editorPreferencesStore.showOutline,
       disabled: false,
       onClick: () => {
-        settingStore.toggleOutline();
+        editorPreferencesStore.setShowOutline(!editorPreferencesStore.showOutline);
       }
     },
     { type: 'divider' },
@@ -45,25 +47,25 @@ export function useViewActive(): { toolbarViewOptions: ComputedRef<ToolbarOption
         {
           value: 'default',
           label: '默认',
-          selected: settingStore.editorPageWidth === 'default',
+          selected: editorPreferencesStore.pageWidth === 'default',
           onClick: () => {
-            settingStore.setEditorPageWidth('default');
+            editorPreferencesStore.setPageWidth('default');
           }
         },
         {
           value: 'wide',
           label: '较宽',
-          selected: settingStore.editorPageWidth === 'wide',
+          selected: editorPreferencesStore.pageWidth === 'wide',
           onClick: () => {
-            settingStore.setEditorPageWidth('wide');
+            editorPreferencesStore.setPageWidth('wide');
           }
         },
         {
           value: 'full',
           label: '全宽',
-          selected: settingStore.editorPageWidth === 'full',
+          selected: editorPreferencesStore.pageWidth === 'full',
           onClick: () => {
-            settingStore.setEditorPageWidth('full');
+            editorPreferencesStore.setPageWidth('full');
           }
         }
       ]
