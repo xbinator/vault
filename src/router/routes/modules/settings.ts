@@ -41,6 +41,12 @@ const routes: AppRouteRecordRaw[] = [
         meta: { title: '服务模型' }
       },
       {
+        path: 'editor',
+        name: 'editor-settings',
+        component: () => import('@/views/settings/editor/index.vue'),
+        meta: { title: '编辑器' }
+      },
+      {
         path: 'speech',
         name: 'speech',
         component: () => import('@/views/settings/speech/index.vue'),
