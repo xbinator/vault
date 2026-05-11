@@ -30,6 +30,7 @@ const COMPONENT_DIRS = [
   'BEditor',
   'BScrollbar',
   'BSettingsSection',
+  'BSettingsPage',
   'BTruncateText',
   'BImageViewer',
   'BUpload'

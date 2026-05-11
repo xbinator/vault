@@ -3,60 +3,54 @@
   @description 语音组件设置页，负责展示当前运行时状态并提供安装、重装和删除入口。
 -->
 <template>
-  <div class="speech-settings">
-    <div class="speech-settings__header">
-      <div class="speech-settings__title">语音组件</div>
-    </div>
-
-    <div class="speech-settings__body">
-      <div class="speech-settings__overview">
-        <div class="speech-settings__overview-icon">
-          <Icon icon="lucide:mic-2" />
-        </div>
-
-        <div class="speech-settings__overview-content">
-          <div class="speech-settings__overview-title">本地语音组件</div>
-          <div class="speech-settings__overview-desc">用于本地语音转写、模型运行和音频处理</div>
-        </div>
-
-        <div class="speech-settings__status-badge" :class="`speech-settings__status-badge--${status?.state ?? 'unknown'}`">
-          <span class="speech-settings__status-dot" :class="`speech-settings__status-dot--${status?.state ?? 'unknown'}`"></span>
-          {{ statusConfig.label }}
-        </div>
-
-        <SpeechActionMenu :status="status?.state" :installing="installing" @install="handleInstall" @refresh="refreshStatus" @remove="handleRemove" />
+  <BSettingsPage title="语音组件">
+    <div class="speech-settings__overview">
+      <div class="speech-settings__overview-icon">
+        <Icon icon="lucide:mic-2" />
       </div>
 
-      <BSettingsSection title="运行环境">
-        <SpeechSettingsItem icon="lucide:activity" label="状态" hint="当前语音运行时检测结果">
-          <span class="speech-settings__status-dot" :class="`speech-settings__status-dot--${status?.state ?? 'unknown'}`"></span>
-          {{ statusConfig.label }}
-        </SpeechSettingsItem>
+      <div class="speech-settings__overview-content">
+        <div class="speech-settings__overview-title">本地语音组件</div>
+        <div class="speech-settings__overview-desc">用于本地语音转写、模型运行和音频处理</div>
+      </div>
 
-        <SpeechSettingsItem icon="lucide:monitor" label="平台" hint="当前系统平台">
-          {{ status?.platform ?? '-' }}
-        </SpeechSettingsItem>
+      <div class="speech-settings__status-badge" :class="`speech-settings__status-badge--${status?.state ?? 'unknown'}`">
+        <span class="speech-settings__status-dot" :class="`speech-settings__status-dot--${status?.state ?? 'unknown'}`"></span>
+        {{ statusConfig.label }}
+      </div>
 
-        <SpeechSettingsItem icon="lucide:binary" label="架构" hint="运行时 CPU 架构">
-          {{ status?.arch ?? '-' }}
-        </SpeechSettingsItem>
-      </BSettingsSection>
-
-      <BSettingsSection title="模型信息">
-        <SpeechSettingsItem icon="lucide:brain" label="模型" hint="当前使用的语音识别模型">
-          {{ status?.modelName ?? '-' }}
-        </SpeechSettingsItem>
-
-        <SpeechSettingsItem icon="lucide:tag" label="版本" hint="本地运行时版本">
-          {{ status?.version ?? '-' }}
-        </SpeechSettingsItem>
-
-        <SpeechSettingsItem icon="lucide:folder" label="安装目录" hint="语音组件本地存储路径" :path="true">
-          {{ status?.installDir ?? '-' }}
-        </SpeechSettingsItem>
-      </BSettingsSection>
+      <SpeechActionMenu :status="status?.state" :installing="installing" @install="handleInstall" @refresh="refreshStatus" @remove="handleRemove" />
     </div>
-  </div>
+
+    <BSettingsSection title="运行环境">
+      <SpeechSettingsItem icon="lucide:activity" label="状态" hint="当前语音运行时检测结果">
+        <span class="speech-settings__status-dot" :class="`speech-settings__status-dot--${status?.state ?? 'unknown'}`"></span>
+        {{ statusConfig.label }}
+      </SpeechSettingsItem>
+
+      <SpeechSettingsItem icon="lucide:monitor" label="平台" hint="当前系统平台">
+        {{ status?.platform ?? '-' }}
+      </SpeechSettingsItem>
+
+      <SpeechSettingsItem icon="lucide:binary" label="架构" hint="运行时 CPU 架构">
+        {{ status?.arch ?? '-' }}
+      </SpeechSettingsItem>
+    </BSettingsSection>
+
+    <BSettingsSection title="模型信息">
+      <SpeechSettingsItem icon="lucide:brain" label="模型" hint="当前使用的语音识别模型">
+        {{ status?.modelName ?? '-' }}
+      </SpeechSettingsItem>
+
+      <SpeechSettingsItem icon="lucide:tag" label="版本" hint="本地运行时版本">
+        {{ status?.version ?? '-' }}
+      </SpeechSettingsItem>
+
+      <SpeechSettingsItem icon="lucide:folder" label="安装目录" hint="语音组件本地存储路径" :path="true">
+        {{ status?.installDir ?? '-' }}
+      </SpeechSettingsItem>
+    </BSettingsSection>
+  </BSettingsPage>
 </template>
 
 <script setup lang="ts">
@@ -176,37 +170,6 @@ onUnmounted(teardownProgressListener);
 </script>
 
 <style scoped lang="less">
-.speech-settings {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  background: var(--bg-primary);
-  border-radius: 8px;
-}
-
-.speech-settings__header {
-  display: flex;
-  flex-shrink: 0;
-  gap: 6px;
-  align-items: center;
-  height: 52px;
-  padding: 0 20px;
-  border-bottom: 1px solid var(--border-primary);
-}
-
-.speech-settings__title {
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.speech-settings__body {
-  flex: 1;
-  width: 100%;
-  padding: 20px;
-  overflow: auto;
-}
-
 // ─── Overview ─────────────────────────────────────────────────────────────────
 
 .speech-settings__overview {

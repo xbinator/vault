@@ -3,53 +3,47 @@
   @description 编辑器设置页，负责管理视图偏好与真实写盘保存策略。
 -->
 <template>
-  <div class="editor-settings">
-    <div class="editor-settings__header">
-      <div class="editor-settings__title">编辑器</div>
-    </div>
-
-    <div class="editor-settings__body">
-      <BSettingsSection title="视图">
-        <div class="editor-settings__item">
-          <div class="editor-settings__meta">
-            <div class="editor-settings__label">默认视图模式</div>
-          </div>
-          <div>
-            <BSelect :value="store.viewMode" :options="viewModeOptions" :width="280" @change="handleViewModeChange" />
-          </div>
+  <BSettingsPage title="编辑器">
+    <BSettingsSection title="常用设置">
+      <div class="editor-settings__item">
+        <div class="editor-settings__meta">
+          <div class="editor-settings__label">自动保存</div>
         </div>
-
-        <div class="editor-settings__item">
-          <div class="editor-settings__meta">
-            <div class="editor-settings__label">页面宽度</div>
-          </div>
-          <div>
-            <BSelect :value="store.pageWidth" :options="pageWidthOptions" :width="280" @change="handlePageWidthChange" />
-          </div>
+        <div>
+          <BSelect :value="store.saveStrategy" :options="saveStrategyOptions" :width="280" @change="handleSaveStrategyChange" />
         </div>
+      </div>
+    </BSettingsSection>
 
-        <div class="editor-settings__item">
-          <div class="editor-settings__meta">
-            <div class="editor-settings__label">显示大纲</div>
-          </div>
-          <div>
-            <ASwitch :checked="store.showOutline" @change="handleShowOutlineChange" />
-          </div>
+    <BSettingsSection title="视图">
+      <div class="editor-settings__item">
+        <div class="editor-settings__meta">
+          <div class="editor-settings__label">默认视图模式</div>
         </div>
-      </BSettingsSection>
+        <div>
+          <BSelect :value="store.viewMode" :options="viewModeOptions" :width="280" @change="handleViewModeChange" />
+        </div>
+      </div>
 
-      <BSettingsSection title="常用设置">
-        <div class="editor-settings__item">
-          <div class="editor-settings__meta">
-            <div class="editor-settings__label">自动保存</div>
-          </div>
-          <div>
-            <BSelect :value="store.saveStrategy" :options="saveStrategyOptions" :width="280" @change="handleSaveStrategyChange" />
-          </div>
+      <div class="editor-settings__item">
+        <div class="editor-settings__meta">
+          <div class="editor-settings__label">页面宽度</div>
         </div>
-      </BSettingsSection>
-    </div>
-  </div>
+        <div>
+          <BSelect :value="store.pageWidth" :options="pageWidthOptions" :width="280" @change="handlePageWidthChange" />
+        </div>
+      </div>
+
+      <div class="editor-settings__item">
+        <div class="editor-settings__meta">
+          <div class="editor-settings__label">显示大纲</div>
+        </div>
+        <div>
+          <ASwitch :checked="store.showOutline" @change="handleShowOutlineChange" />
+        </div>
+      </div>
+    </BSettingsSection>
+  </BSettingsPage>
 </template>
 
 <script setup lang="ts">
@@ -103,41 +97,6 @@ function handleSaveStrategyChange(value: string | number) {
 </script>
 
 <style scoped lang="less">
-// ─── Root container ───────────────────────────────────────────────────────────
-
-.editor-settings {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  background: var(--bg-primary);
-  border-radius: 8px;
-}
-
-// ─── Header ───────────────────────────────────────────────────────────────────
-
-.editor-settings__header {
-  display: flex;
-  flex-shrink: 0;
-  gap: 6px;
-  align-items: center;
-  height: 52px;
-  padding: 0 20px;
-  border-bottom: 1px solid var(--border-primary);
-}
-
-.editor-settings__title {
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-// ─── Body ─────────────────────────────────────────────────────────────────────
-
-.editor-settings__body {
-  padding: 20px;
-  overflow: auto;
-}
-
 // ─── Item ─────────────────────────────────────────────────────────────────────
 .editor-settings__item {
   display: flex;
