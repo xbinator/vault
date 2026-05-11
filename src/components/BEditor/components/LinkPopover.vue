@@ -10,7 +10,7 @@
         @keydown.enter="confirm"
         @keydown.escape="cancel"
       />
-      <BButton type="text" size="small" square icon="lucide:check" :disabled="!href.trim()" @mousedown.prevent @click="confirm" />
+      <BButton type="text" size="small" :disabled="!href.trim()" @mousedown.prevent @click="confirm"> 确定 </BButton>
       <BButton v-if="props.initialHref" type="text" size="small" square danger icon="lucide:link-2-off" @mousedown.prevent @click="$emit('remove')" />
     </div>
   </Teleport>
