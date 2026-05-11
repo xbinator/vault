@@ -30,6 +30,7 @@
           :editor-state="editorState"
           :editable="editable"
           :on-search-match-element-focus="scrollSearchMatchElementIntoView"
+          @editor-blur="handleEditorBlur"
         />
 
         <PaneSourceEditor
@@ -41,6 +42,7 @@
           :editor-state="editorState"
           :on-anchor-scroll="scrollSourceAnchorIntoView"
           :editable="editable"
+          @editor-blur="handleEditorBlur"
         />
       </div>
 
@@ -84,7 +86,7 @@ const props = withDefaults(defineProps<Props>(), {
   showOutline: true
 });
 
-const emit = defineEmits(['rename-file', 'save', 'save-as', 'copy-path', 'copy-relative-path', 'show-in-folder']);
+const emit = defineEmits(['rename-file', 'save', 'save-as', 'copy-path', 'copy-relative-path', 'show-in-folder', 'editor-blur']);
 
 const isRichMode = computed<boolean>(() => props.viewMode === 'rich');
 
@@ -118,6 +120,20 @@ const editorContainerStyle = computed<CSSProperties>(() => ({
 }));
 
 const { activeAnchorId, handleChangeAnchor, handleEditorScroll, setActiveAnchorId } = useAnchors(layoutRef, scrollbarRef);
+
+/**
+ * 仅当焦点真正离开整个编辑器交互区域时，向外抛出统一的 editor-blur 事件。
+ * @param event - 编辑器内部上抛的失焦事件
+ */
+function handleEditorBlur(event: FocusEvent): void {
+  const nextTarget = event.relatedTarget;
+
+  if (nextTarget instanceof Node && layoutRef.value?.contains(nextTarget)) {
+    return;
+  }
+
+  emit('editor-blur', event);
+}
 
 function scrollSearchMatchElementIntoView(targetElement: HTMLElement): void {
   const scrollElement = scrollbarRef.value?.getScrollElement();

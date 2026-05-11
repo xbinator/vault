@@ -1,5 +1,5 @@
 <template>
-  <div ref="overlayRootRef" class="rich-editor-pane" @click="navigate.onLink">
+  <div ref="overlayRootRef" class="rich-editor-pane" @click="navigate.onLink" @focusout="handleEditorFocusOut">
     <!-- Front Matter 卡片 -->
     <FrontMatterCard
       v-if="shouldShowFrontMatterCard"
@@ -79,6 +79,12 @@ const props = withDefaults(defineProps<Props>(), {
   editorState: () => ({ content: '', name: '', path: '', id: '', ext: '' }),
   onSearchMatchElementFocus: undefined
 });
+const emit = defineEmits<{
+  /**
+   * 编辑器根区域发生失焦事件。
+   */
+  (e: 'editor-blur', event: FocusEvent): void;
+}>();
 
 const editorContent = defineModel<string>('value', { default: '' });
 const outlineContent = defineModel<string>('outlineContent', { default: '' });
@@ -99,6 +105,14 @@ function syncToExternal(): void {
   if (editorContent.value !== nextContent) {
     editorContent.value = nextContent;
   }
+}
+
+/**
+ * 将编辑区 focusout 事件统一转发给外层容器做语义过滤。
+ * @param event - 当前失焦事件
+ */
+function handleEditorFocusOut(event: FocusEvent): void {
+  emit('editor-blur', event);
 }
 
 /**

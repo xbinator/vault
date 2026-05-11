@@ -1,5 +1,5 @@
 <template>
-  <div class="source-editor-pane">
+  <div class="source-editor-pane" @focusout="handleEditorFocusOut">
     <div ref="overlayRootRef" class="source-editor-content-host">
       <div ref="editorViewHostRef" class="source-editor-codemirror"></div>
       <SelectionToolbarSource
@@ -81,6 +81,12 @@ const props = withDefaults(defineProps<Props>(), {
   editorState: () => ({ content: '', name: '', path: null, id: '', ext: '' }),
   onAnchorScroll: undefined
 });
+const emit = defineEmits<{
+  /**
+   * 编辑器根区域发生失焦事件。
+   */
+  (e: 'editor-blur', event: FocusEvent): void;
+}>();
 
 const editorContent = defineModel<string>('value', { default: '' });
 const outlineContent = defineModel<string>('outlineContent', { default: '' });
@@ -107,6 +113,14 @@ function onAIInputVisibleChange(visible: boolean): void {
   if (!visible) {
     assistant.closeAIInput();
   }
+}
+
+/**
+ * 将编辑区 focusout 事件统一转发给外层容器做语义过滤。
+ * @param event - 当前失焦事件
+ */
+function handleEditorFocusOut(event: FocusEvent): void {
+  emit('editor-blur', event);
 }
 
 function createEditableExtension(editable: boolean): Extension {
