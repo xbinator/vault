@@ -180,15 +180,6 @@ function normalizeLineRange(offset?: number, limit?: number): { offset: number; 
 }
 
 /**
- * 解析并校验文件真实路径。
- * @param request - 读取请求
- * @returns 校验后的真实路径信息
- */
-async function resolveWorkspaceFile(request: ReadWorkspaceFileRequest): Promise<{ realPath: string; securityPath: string }> {
-  return resolveWorkspacePath(request.filePath, request.workspaceRoot);
-}
-
-/**
  * 解析并校验工作区路径。
  * @param targetPath - 目标路径
  * @param workspaceRootInput - 工作区根目录
@@ -223,6 +214,15 @@ async function resolveWorkspacePath(targetPath: string, workspaceRootInput?: str
 
     throw new WorkspaceReadError('FILE_NOT_FOUND', '文件不存在或无法访问');
   }
+}
+
+/**
+ * 解析并校验文件真实路径。
+ * @param request - 读取请求
+ * @returns 校验后的真实路径信息
+ */
+async function resolveWorkspaceFile(request: ReadWorkspaceFileRequest): Promise<{ realPath: string; securityPath: string }> {
+  return resolveWorkspacePath(request.filePath, request.workspaceRoot);
 }
 
 /**

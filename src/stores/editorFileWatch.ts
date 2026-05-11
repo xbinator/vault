@@ -123,7 +123,7 @@ export const useEditorFileWatchStore = defineStore('editorFileWatch', {
     },
 
     /**
-     * 处理 native 文件事件；阶段一只响应 unlink，change 显式忽略。
+     * 处理 native 文件事件；change 显式忽略，unlink 标记丢失，add 恢复丢失状态。
      * @param event - native 文件变化事件
      */
     handleFileChanged(event: FileChangeEvent): void {
@@ -131,7 +131,14 @@ export const useEditorFileWatchStore = defineStore('editorFileWatch', {
         return;
       }
 
-      this.markPathMissing(event.filePath);
+      if (event.type === 'unlink') {
+        this.markPathMissing(event.filePath);
+        return;
+      }
+
+      if (event.type === 'add') {
+        this.clearPathMissing(event.filePath);
+      }
     },
 
     /**
@@ -145,6 +152,20 @@ export const useEditorFileWatchStore = defineStore('editorFileWatch', {
       const tabsStore = useTabsStore();
       fileIds.forEach((fileId: string) => {
         tabsStore.markMissing(fileId);
+      });
+    },
+
+    /**
+     * 清除同一路径下所有标签的文件丢失标记（文件重新出现时调用）。
+     * @param filePath - 重新出现的文件路径
+     */
+    clearPathMissing(filePath: string): void {
+      const fileIds = this.pathToFileIds.get(filePath);
+      if (!fileIds) return;
+
+      const tabsStore = useTabsStore();
+      fileIds.forEach((fileId: string) => {
+        tabsStore.clearMissing(fileId);
       });
     },
 

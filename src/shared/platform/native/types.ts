@@ -84,7 +84,7 @@ export interface ReadWorkspaceDirectoryResult {
 }
 
 export interface FileChangeEvent {
-  type: 'change' | 'unlink';
+  type: 'change' | 'unlink' | 'add';
   filePath: string;
   content?: string;
 }

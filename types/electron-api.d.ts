@@ -103,7 +103,7 @@ export interface DbExecuteResult {
 }
 
 export interface FileChangeEvent {
-  type: 'change' | 'unlink';
+  type: 'change' | 'unlink' | 'add';
   filePath: string;
   content?: string;
 }
