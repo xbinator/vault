@@ -15,7 +15,7 @@
             <div class="editor-settings__label">默认视图模式</div>
           </div>
           <div>
-            <BSelect :value="store.viewMode" :options="viewModeOptions" :width="200" @change="handleViewModeChange" />
+            <BSelect :value="store.viewMode" :options="viewModeOptions" :width="280" @change="handleViewModeChange" />
           </div>
         </div>
 
@@ -24,7 +24,7 @@
             <div class="editor-settings__label">页面宽度</div>
           </div>
           <div>
-            <BSelect :value="store.pageWidth" :options="pageWidthOptions" :width="200" @change="handlePageWidthChange" />
+            <BSelect :value="store.pageWidth" :options="pageWidthOptions" :width="280" @change="handlePageWidthChange" />
           </div>
         </div>
 
@@ -44,7 +44,7 @@
             <div class="editor-settings__label">保存策略</div>
           </div>
           <div>
-            <BSelect :value="store.saveStrategy" :options="saveStrategyOptions" :width="200" @change="handleSaveStrategyChange" />
+            <BSelect :value="store.saveStrategy" :options="saveStrategyOptions" :width="280" @change="handleSaveStrategyChange" />
           </div>
         </div>
       </BSettingsSection>
@@ -53,18 +53,9 @@
 </template>
 
 <script setup lang="ts">
+import { SelectOption } from '@/components/BSelect/types';
 import type { EditorViewMode, EditorPageWidth, EditorSaveStrategy } from '@/stores/editorPreferences';
 import { useEditorPreferencesStore } from '@/stores/editorPreferences';
-
-/**
- * 通用下拉选项。
- */
-interface SelectOption {
-  /** 选项值 */
-  value: string;
-  /** 选项标签 */
-  label: string;
-}
 
 const store = useEditorPreferencesStore();
 
@@ -89,9 +80,9 @@ const pageWidthOptions: SelectOption[] = [
  * 保存策略选项。
  */
 const saveStrategyOptions: SelectOption[] = [
-  { value: 'manual', label: '主动保存' },
-  { value: 'onBlur', label: '失去焦点保存' },
-  { value: 'onChange', label: '更新即保存' }
+  { value: 'manual', label: '关闭', tips: '不自动保存，需手动保存所有更改' },
+  { value: 'onBlur', label: '失焦保存', tips: '编辑器失去焦点时，自动保存已修改的内容' },
+  { value: 'onChange', label: '实时保存', tips: '内容变更时立即自动保存' }
 ];
 
 function handleViewModeChange(value: string | number) {

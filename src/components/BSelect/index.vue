@@ -11,6 +11,7 @@
     :style="{ width: viewWidth }"
     :class="{ 'is-fill-color': isFillColor }"
     @change="handleChange"
+    @dropdown-visible-change="handleDropdownVisibleChange"
   >
     <template #suffixIcon>
       <Icon v-if="loading" icon="lucide:loader-2" class="is-spinning" />
@@ -18,16 +19,25 @@
       <Icon v-else icon="lucide:chevron-down" :style="{ fontSize: `${suffixIconSize}px` }" />
     </template>
 
-    <template v-if="$slots.option" #option="data">
-      <slot name="option" v-bind="data"></slot>
+    <template #option="data">
+      <div class="b-select-option" @mouseenter="hoveredTips = data.tips ?? undefined" @mouseleave="hoveredTips = undefined">
+        <slot v-if="$slots.option" name="option" v-bind="data"></slot>
+        <span v-else>{{ data.label }}</span>
+      </div>
     </template>
 
     <template v-if="$slots.tagRender" #tagRender="data">
       <slot name="tagRender" v-bind="data"></slot>
     </template>
 
-    <template v-if="$slots.dropdownRender" #dropdownRender="data">
-      <slot name="dropdownRender" v-bind="data"></slot>
+    <template #dropdownRender="{ menuNode }">
+      <slot v-if="$slots.dropdownRender" name="dropdownRender" v-bind="{ menuNode }"></slot>
+      <template v-else>
+        <VNodes :vnodes="menuNode" />
+        <div v-if="displayedTips" class="b-select-tips">
+          <span>{{ displayedTips }}</span>
+        </div>
+      </template>
     </template>
 
     <slot></slot>
@@ -35,17 +45,25 @@
 </template>
 
 <script lang="ts" setup>
-import type { SelectProps } from 'ant-design-vue';
-import { computed, watch } from 'vue';
+import type { SelectOption } from './types';
+import { computed, ref, onMounted, defineComponent } from 'vue';
 import { Icon } from '@iconify/vue';
 import { useVModel } from '@vueuse/core';
+
+// Hoisted outside setup to avoid re-creating on every render
+const VNodes = defineComponent({
+  props: { vnodes: { type: Object, required: true } },
+  render() {
+    return this.vnodes;
+  }
+});
 
 interface Props {
   placeholder?: string;
   value?: string | number;
   showArrow?: boolean;
   showSearch?: boolean;
-  options?: SelectProps['options'];
+  options?: SelectOption[];
   suffixIconSize?: number;
   loading?: boolean;
   isFillColor?: boolean;
@@ -77,29 +95,34 @@ const emit = defineEmits<{
 
 const selected = useVModel(props, 'value', emit);
 
-const viewWidth = computed(() => {
-  if (typeof props.width === 'number') {
-    return `${props.width}px`;
+// Tips of the currently hovered option
+const hoveredTips = ref<string | undefined>(undefined);
+
+// Tips of the currently selected option
+const selectedTips = computed<string | undefined>(() => {
+  if (selected.value === undefined || !props.options) return undefined;
+  return props.options.find((opt) => opt.value === selected.value)?.tips ?? undefined;
+});
+
+// Hover takes priority; fall back to selected option's tips
+const displayedTips = computed(() => hoveredTips.value ?? selectedTips.value);
+
+const viewWidth = computed(() => (typeof props.width === 'number' ? `${props.width}px` : props.width));
+
+onMounted(() => {
+  if (props.defaultValue !== undefined && props.value === undefined) {
+    selected.value = props.defaultValue;
+    emit('change', props.defaultValue);
   }
-  return props.width;
 });
 
 function handleChange(value: unknown, option: unknown): void {
   emit('change', value as string | number, option);
 }
 
-watch(
-  () => [props.defaultValue, props.value],
-  () => {
-    if (props.defaultValue === undefined) return;
-
-    if (props.value !== undefined) return;
-
-    selected.value = props.defaultValue;
-    emit('change', props.defaultValue);
-  },
-  { immediate: true }
-);
+function handleDropdownVisibleChange(open: boolean): void {
+  if (!open) hoveredTips.value = undefined;
+}
 </script>
 
 <style lang="less" scoped>
@@ -114,16 +137,31 @@ watch(
       border-color: var(--bg-disabled);
     }
 
-    &.ant-select-focused {
-      :deep(.ant-select-selector) {
-        background-color: transparent;
-      }
+    &.ant-select-focused :deep(.ant-select-selector) {
+      background-color: transparent;
     }
   }
 
   .is-spinning {
     animation: spin 1s linear infinite;
   }
+}
+
+.b-select-option {
+  width: 100%;
+}
+
+.b-select-tips {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+  padding: 8px 12px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  background-color: var(--bg-elevated);
+  border-top: 1px solid var(--border-primary);
+  border-radius: 0 0 8px 8px;
 }
 
 @keyframes spin {

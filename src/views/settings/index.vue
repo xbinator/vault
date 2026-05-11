@@ -99,7 +99,7 @@ function isActive(key: SettingsMenuKey): boolean {
   padding: 0 14px;
   margin-bottom: 8px;
   font-size: 14px;
-  color: var(--text-secondary);
+  color: var(--text-primary);
   text-decoration: none;
   cursor: pointer;
   user-select: none;
@@ -112,7 +112,6 @@ function isActive(key: SettingsMenuKey): boolean {
   }
 
   &.active {
-    color: var(--text-primary);
     background: var(--color-primary-bg);
   }
 }
