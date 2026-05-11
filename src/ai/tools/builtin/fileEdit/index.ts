@@ -5,7 +5,7 @@
 import type { CreateBuiltinEditFileToolOptions, EditFileInput, EditFileResult } from './types';
 import type { AIToolConfirmationAdapter, AIToolConfirmationRequest } from '../../confirmation';
 import type { FileReadSnapshot } from '../../shared/fileTypes';
-import type { AIToolExecutionError, AIToolExecutor } from 'types/ai';
+import type { AIToolContext, AIToolExecutionError, AIToolExecutor } from 'types/ai';
 import { native } from '@/shared/platform';
 import type { ReadWorkspaceFileResult } from '@/shared/platform/native/types';
 import { createToolCancelledResult, createToolFailureResult, createToolSuccessResult } from '../../results';
@@ -73,6 +73,16 @@ function resolveTargetPath(filePath: string, workspaceRoot: string | null): { pa
   }
 
   return { path: resolvedPath };
+}
+
+/**
+ * 判断目标路径是否对应当前激活文档。
+ * @param context - 工具执行上下文
+ * @param targetPath - 规范化后的目标路径
+ * @returns 是否命中当前激活文档
+ */
+function isActiveDocumentTarget(context: AIToolContext | undefined, targetPath: string): boolean {
+  return context?.document.path === targetPath;
 }
 
 /**
@@ -201,7 +211,7 @@ export function createBuiltinEditFileTool(options: CreateBuiltinEditFileToolOpti
         additionalProperties: false
       }
     },
-    async execute(input: EditFileInput) {
+    async execute(input: EditFileInput, context?: AIToolContext) {
       const filePath = typeof input.path === 'string' ? input.path.trim() : '';
       const oldString = typeof input.oldString === 'string' ? input.oldString : '';
       const newString = typeof input.newString === 'string' ? input.newString : '';
@@ -280,7 +290,11 @@ export function createBuiltinEditFileTool(options: CreateBuiltinEditFileToolOpti
       }
 
       return executeConfirmedEdit(options.confirm, request, async () => {
-        await writeFile(currentFile.path, nextFile.content);
+        if (isActiveDocumentTarget(context, currentFile.path)) {
+          await context?.editor.replaceDocument(nextFile.content);
+        } else {
+          await writeFile(currentFile.path, nextFile.content);
+        }
         const nextSnapshot: FileReadSnapshot = {
           path: currentFile.path,
           content: nextFile.content,

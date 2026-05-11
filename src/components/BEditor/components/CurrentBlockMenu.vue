@@ -171,7 +171,17 @@ function getCurrentBlockPosition(state: EditorState, pointerPos?: number | null)
     return null;
   }
 
-  const $from = state.doc.resolve(pointerPos);
+  const maxPointerPos = typeof state.doc.content?.size === 'number' ? state.doc.content.size : Number.POSITIVE_INFINITY;
+  if (pointerPos < 0 || pointerPos > maxPointerPos) {
+    return null;
+  }
+
+  let $from;
+  try {
+    $from = state.doc.resolve(pointerPos);
+  } catch {
+    return null;
+  }
 
   for (let { depth } = $from; depth > 0; depth -= 1) {
     const node = $from.node(depth);
@@ -345,6 +355,11 @@ function syncCurrentBlock(): void {
 
   const nextBlock = getCurrentBlockPosition(editor.state, hoveredBlockPos.value);
   if (!nextBlock) {
+    if (hoveredBlockPos.value !== null) {
+      hoveredBlockPos.value = null;
+      open.value = false;
+      currentBlock.value = null;
+    }
     if (!open.value && !isHoveringMenu.value) {
       currentBlock.value = null;
     }

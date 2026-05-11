@@ -5,7 +5,7 @@
 import type { CreateBuiltinWriteFileToolOptions, WriteFileInput, WriteFileResult } from './types';
 import type { AIToolConfirmationAdapter, AIToolConfirmationRequest } from '../../confirmation';
 import type { FileReadSnapshot } from '../../shared/fileTypes';
-import type { AIToolExecutionError, AIToolExecutor } from 'types/ai';
+import type { AIToolContext, AIToolExecutionError, AIToolExecutor } from 'types/ai';
 import { native } from '@/shared/platform';
 import type { ReadWorkspaceFileResult } from '@/shared/platform/native/types';
 import { createToolCancelledResult, createToolFailureResult, createToolSuccessResult } from '../../results';
@@ -76,6 +76,16 @@ function resolveTargetPath(filePath: string, workspaceRoot: string | null): { pa
 }
 
 /**
+ * 判断目标路径是否对应当前激活文档。
+ * @param context - 工具执行上下文
+ * @param targetPath - 规范化后的目标路径
+ * @returns 是否命中当前激活文档
+ */
+function isActiveDocumentTarget(context: AIToolContext | undefined, targetPath: string): boolean {
+  return context?.document.path === targetPath;
+}
+
+/**
  * 确认写入操作是否通过。
  * @param adapter - 确认适配器
  * @param request - 确认请求
@@ -143,7 +153,7 @@ export function createBuiltinWriteFileTool(options: CreateBuiltinWriteFileToolOp
         additionalProperties: false
       }
     },
-    async execute(input: WriteFileInput) {
+    async execute(input: WriteFileInput, context?: AIToolContext) {
       const filePath = typeof input.path === 'string' ? input.path.trim() : '';
       const content = typeof input.content === 'string' ? input.content : '';
 
@@ -205,7 +215,11 @@ export function createBuiltinWriteFileTool(options: CreateBuiltinWriteFileToolOp
       }
 
       return executeConfirmedWrite(options.confirm, request, async () => {
-        await writeFile(targetPath, content);
+        if (isActiveDocumentTarget(context, targetPath)) {
+          await context.editor.replaceDocument(content);
+        } else {
+          await writeFile(targetPath, content);
+        }
         const nextSnapshot: FileReadSnapshot = {
           path: targetPath,
           content,

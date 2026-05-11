@@ -4,7 +4,7 @@
  */
 import type { AIToolConfirmationAdapter, AIToolConfirmationRequest } from '../../confirmation';
 import type { FileReadSnapshot } from '../../shared/fileTypes';
-import type { AIToolExecutionError, AIToolExecutor } from 'types/ai';
+import type { AIToolContext, AIToolExecutionError, AIToolExecutor } from 'types/ai';
 import { native } from '@/shared/platform';
 import type {
   ReadWorkspaceDirectoryOptions,
@@ -35,7 +35,9 @@ type WorkspaceReadErrorCode =
 /** read_file 工具输入参数 */
 export interface ReadFileInput {
   /** 文件路径，支持相对工作区路径或绝对路径 */
-  path: string;
+  path?: string;
+  /** 编辑器文档 ID，命中时优先解析为当前文档路径 */
+  documentId?: string;
   /** 起始行号，默认 1 */
   offset?: number;
   /** 读取行数，不传时读取到文件末尾 */
@@ -64,6 +66,8 @@ export interface CreateBuiltinReadFileToolOptions {
   confirm?: AIToolConfirmationAdapter;
   /** 获取工作区根目录，无工作区时返回 null */
   getWorkspaceRoot?: () => string | null;
+  /** 根据文档 ID 获取编辑器上下文 */
+  getEditorContext?: (documentId: string) => AIToolContext | undefined;
   /** 判断文件路径是否在最近文件列表中，命中时跳过绝对路径确认 */
   isFileInRecent?: (filePath: string) => boolean;
   /** 读取本地文件，测试时可注入替身 */
@@ -148,6 +152,28 @@ function normalizeReadRange(input: ReadFileInput): { offset: number; limit?: num
 }
 
 /**
+ * 解析 read_file 目标路径，优先使用 documentId 对应的编辑器文档路径。
+ * @param input - read_file 输入参数
+ * @param getEditorContext - 编辑器上下文查询函数
+ * @returns 解析后的目标路径
+ */
+function resolveInputFilePath(
+  input: ReadFileInput,
+  getEditorContext?: (documentId: string) => AIToolContext | undefined
+): string {
+  const documentId = typeof input.documentId === 'string' ? input.documentId.trim() : '';
+  if (documentId) {
+    const editorContext = getEditorContext?.(documentId);
+    const documentPath = editorContext?.document.path?.trim() ?? '';
+    if (documentPath) {
+      return documentPath;
+    }
+  }
+
+  return typeof input.path === 'string' ? input.path.trim() : '';
+}
+
+/**
  * 请求用户确认读取本地绝对路径。
  * @param adapter - 确认适配器
  * @param filePath - 文件路径
@@ -209,15 +235,15 @@ export function createBuiltinReadFileTool(options: CreateBuiltinReadFileToolOpti
         type: 'object',
         properties: {
           path: { type: 'string', description: '文件路径，支持相对工作区路径或绝对路径。' },
+          documentId: { type: 'string', description: '编辑器文档 ID；命中当前编辑器上下文时优先使用该文档的文件路径。' },
           offset: { type: 'number', description: '起始行号，默认 1。' },
           limit: { type: 'number', description: '读取行数；不传时读取到文件末尾。' }
         },
-        required: ['path'],
         additionalProperties: false
       }
     },
     async execute(input: ReadFileInput) {
-      const filePath = input.path.trim();
+      const filePath = resolveInputFilePath(input, options.getEditorContext);
 
       if (!filePath) {
         return createToolFailureResult(READ_FILE_TOOL_NAME, 'INVALID_INPUT', '文件路径不能为空');

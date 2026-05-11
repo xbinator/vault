@@ -2,6 +2,7 @@
  * @file builtin-file-write.test.ts
  * @description 内置 write_file 工具测试。
  */
+import type { AIToolContext } from 'types/ai';
 import { describe, expect, it, vi } from 'vitest';
 import { createBuiltinWriteFileTool } from '@/ai/tools/builtin/fileWrite';
 import type { FileReadSnapshot } from '@/ai/tools/shared/fileTypes';
@@ -22,6 +23,28 @@ function createSnapshotState(): {
     },
     setReadSnapshot(snapshot: FileReadSnapshot) {
       snapshots.set(snapshot.path, snapshot);
+    }
+  };
+}
+
+/**
+ * 创建测试用工具上下文。
+ * @param path - 当前激活文档路径
+ * @returns 工具执行上下文
+ */
+function createToolContext(path: string | null): AIToolContext {
+  return {
+    document: {
+      id: 'doc-1',
+      title: 'Example',
+      path,
+      getContent: () => 'const value = 1;\n'
+    },
+    editor: {
+      getSelection: () => null,
+      insertAtCursor: async () => undefined,
+      replaceSelection: async () => undefined,
+      replaceDocument: async () => undefined
     }
   };
 }
@@ -193,5 +216,43 @@ describe('createBuiltinWriteFileTool', () => {
       isPartial: false,
       readAt: expect.any(Number)
     });
+  });
+
+  it('writes to the active editor document when the target path matches it', async () => {
+    const snapshotState = createSnapshotState();
+    snapshotState.setReadSnapshot({
+      path: '/workspace/src/example.ts',
+      content: 'const value = 1;\n',
+      isPartial: false,
+      readAt: 1
+    });
+    const writeFile = vi.fn(async () => undefined);
+    const replaceDocument = vi.fn(async () => undefined);
+    const tool = createBuiltinWriteFileTool({
+      confirm: { confirm: async () => true },
+      getWorkspaceRoot: () => '/workspace',
+      getReadSnapshot: snapshotState.getReadSnapshot,
+      setReadSnapshot: snapshotState.setReadSnapshot,
+      readWorkspaceFile: async () => ({
+        path: '/workspace/src/example.ts',
+        content: 'const value = 1;\n',
+        totalLines: 1,
+        readLines: 1,
+        hasMore: false,
+        nextOffset: null
+      }),
+      writeFile
+    });
+    const context = createToolContext('/workspace/src/example.ts');
+    context.editor.replaceDocument = replaceDocument;
+
+    const result = await tool.execute({
+      path: 'src/example.ts',
+      content: 'const value = 2;\n'
+    }, context);
+
+    expect(result.status).toBe('success');
+    expect(replaceDocument).toHaveBeenCalledWith('const value = 2;\n');
+    expect(writeFile).not.toHaveBeenCalled();
   });
 });

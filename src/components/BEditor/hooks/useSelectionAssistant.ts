@@ -78,6 +78,20 @@ export function useSelectionAssistant(options: UseSelectionAssistantOptions) {
     panelPosition.value = null;
   }
 
+  /**
+   * 判断缓存选区在当前文档下是否仍然可信。
+   * @param adapter - 当前选区适配器
+   * @param range - 缓存的选区范围
+   * @returns 选区是否仍然有效
+   */
+  function isCachedRangeStillValid(adapter: SelectionAssistantAdapter, range: SelectionAssistantRange): boolean {
+    if (!adapter.isRangeStillValid) {
+      return true;
+    }
+
+    return adapter.isRangeStillValid(range);
+  }
+
   // ---- 事件绑定 ----
   let cleanupAdapterEvents: (() => void) | undefined;
 
@@ -402,6 +416,10 @@ export function useSelectionAssistant(options: UseSelectionAssistantOptions) {
       toolbarPosition.value = null;
       return;
     }
+    if (!isCachedRangeStillValid(adapter, range)) {
+      clearAll();
+      return;
+    }
     toolbarPosition.value = adapter.getToolbarPosition(range);
   }
 
@@ -413,6 +431,10 @@ export function useSelectionAssistant(options: UseSelectionAssistantOptions) {
     const range = cachedSelectionRange.value;
     if (!adapter || !range) {
       panelPosition.value = null;
+      return;
+    }
+    if (!isCachedRangeStillValid(adapter, range)) {
+      clearAll();
       return;
     }
     panelPosition.value = adapter.getPanelPosition(range);

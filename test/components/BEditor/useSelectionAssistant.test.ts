@@ -75,6 +75,7 @@ const adapter: SelectionAssistantAdapter = {
 
 let latestStatus: SelectionAssistantStatus = 'idle';
 let latestToolbarVisible = false;
+let recomputeAllPositionsRef: (() => void) | null = null;
 
 /**
  * 挂载 useSelectionAssistant 的测试组件。
@@ -92,6 +93,8 @@ const HookHarness = defineComponent({
       latestToolbarVisible = assistant.toolbarVisible.value;
     });
 
+    recomputeAllPositionsRef = assistant.recomputeAllPositions;
+
     return () => null;
   }
 });
@@ -102,6 +105,7 @@ describe('useSelectionAssistant', () => {
     boundHandlers = null;
     latestStatus = 'idle';
     latestToolbarVisible = false;
+    recomputeAllPositionsRef = null;
     clearSelectionHighlight.mockReset();
     showSelectionHighlight.mockReset();
   });
@@ -174,5 +178,52 @@ describe('useSelectionAssistant', () => {
 
     expect(latestToolbarVisible).toBe(false);
     expect(showSelectionHighlight).toHaveBeenCalledTimes(1);
+  });
+
+  test('skips overlay recompute when the cached range is no longer valid', async () => {
+    const getToolbarPosition = vi.fn((): SelectionAssistantPosition | null => ({
+      anchorRect: { top: 0, left: 0, width: 0, height: 0 },
+      lineHeight: 20
+    }));
+    const getPanelPosition = vi.fn((): SelectionAssistantPosition | null => ({
+      anchorRect: { top: 0, left: 0, width: 0, height: 0 },
+      lineHeight: 20
+    }));
+    const invalidatingAdapter: SelectionAssistantAdapter = {
+      ...adapter,
+      getToolbarPosition,
+      getPanelPosition,
+      isRangeStillValid: () => false
+    };
+    const InvalidRangeHarness = defineComponent({
+      name: 'InvalidRangeHarness',
+      setup() {
+        const assistant = useSelectionAssistant({
+          adapter: () => invalidatingAdapter,
+          isEditable: () => true
+        });
+
+        recomputeAllPositionsRef = assistant.recomputeAllPositions;
+        return () => null;
+      }
+    });
+
+    mount(InvalidRangeHarness);
+    await nextTick();
+
+    currentSelection = {
+      from: 1,
+      to: 6,
+      text: 'hello'
+    };
+    boundHandlers?.onSelectionChange();
+    await nextTick();
+
+    getToolbarPosition.mockClear();
+    getPanelPosition.mockClear();
+    recomputeAllPositionsRef?.();
+
+    expect(getToolbarPosition).not.toHaveBeenCalled();
+    expect(getPanelPosition).not.toHaveBeenCalled();
   });
 });
