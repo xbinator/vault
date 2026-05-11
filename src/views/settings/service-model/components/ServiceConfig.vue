@@ -1,34 +1,26 @@
 <template>
-  <div class="service-card">
-    <div class="card-header">
-      <div class="flex flex-col">
-        <div class="service-title">{{ title }}</div>
+  <BSettingsSection :title="title">
+    <div class="config-row">
+      <div class="config-info">
+        <div class="config-label">模型</div>
+        <div class="config-desc">{{ description }}</div>
       </div>
+      <BSelect v-model:value="selectedModel" :options="modelOptions" placeholder="请选择模型">
+        <template #option="{ modelId, modelName, providerName }">
+          <div class="flex items-center gap-6">
+            <BModelIcon :model="modelId" :size="18" />
+            <div class="flex-1 w-0 truncate">{{ modelName }}</div>
+            <div class="fs-12">{{ providerName }}</div>
+          </div>
+        </template>
+      </BSelect>
     </div>
 
-    <div class="card-content">
-      <div class="config-row">
-        <div class="config-info">
-          <div class="config-label">模型</div>
-          <div class="config-desc">{{ description }}</div>
-        </div>
-        <BSelect v-model:value="selectedModel" :options="modelOptions" placeholder="请选择模型">
-          <template #option="{ modelId, modelName, providerName }">
-            <div class="flex items-center gap-6">
-              <BModelIcon :model="modelId" :size="18" />
-              <div class="flex-1 w-0 truncate">{{ modelName }}</div>
-              <div class="fs-12">{{ providerName }}</div>
-            </div>
-          </template>
-        </BSelect>
+    <div v-if="showPrompt" class="config-row prompt-row">
+      <div class="config-info">
+        <div class="config-label">提示词</div>
       </div>
-
-      <div v-if="showPrompt" class="config-row prompt-row">
-        <div class="config-info">
-          <div class="config-label">提示词</div>
-        </div>
-        <BButton type="secondary" size="small" @click="openPromptModal">编 辑</BButton>
-      </div>
+      <BButton type="secondary" size="small" @click="openPromptModal">编 辑</BButton>
     </div>
 
     <BModal v-model:open="promptModalVisible" title="提示词" :width="600" :main-style="{ padding: '16px 24px 10px' }">
@@ -44,7 +36,7 @@
         <BButton @click="confirmPromptEdit">确定</BButton>
       </template>
     </BModal>
-  </div>
+  </BSettingsSection>
 </template>
 
 <script setup lang="ts">
@@ -207,36 +199,9 @@ onUnmounted(() => {
 </script>
 
 <style scoped lang="less">
-.service-card {
+:deep(.b-settings-section) {
   width: 100%;
   max-width: 800px;
-  overflow: hidden;
-  background: linear-gradient(180deg, var(--bg-primary) 0%, var(--bg-tertiary) 100%);
-  border: 1px solid var(--border-secondary);
-  border-radius: 8px;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.card-header {
-  display: flex;
-  gap: 20px;
-  align-items: center;
-  justify-content: space-between;
-  padding: 20px;
-}
-
-.service-title {
-  margin: 0;
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.card-content {
-  display: flex;
-  flex-direction: column;
-  background: var(--bg-secondary);
-  border-top: 1px solid var(--border-secondary);
 }
 
 .config-row {

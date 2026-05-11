@@ -72,7 +72,7 @@ const props = withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits<{
   'update:value': [value: string | number | undefined];
-  change: [value: unknown, option?: unknown];
+  change: [value: string | number, option?: unknown];
 }>();
 
 const selected = useVModel(props, 'value', emit);
@@ -85,7 +85,7 @@ const viewWidth = computed(() => {
 });
 
 function handleChange(value: unknown, option: unknown): void {
-  emit('change', value, option);
+  emit('change', value as string | number, option);
 }
 
 watch(

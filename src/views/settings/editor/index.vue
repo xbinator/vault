@@ -9,53 +9,51 @@
     </div>
 
     <div class="editor-settings__body">
-      <section class="editor-settings__section">
-        <div class="editor-settings__section-title">视图</div>
-
+      <BSettingsSection title="视图">
         <div class="editor-settings__item">
           <div class="editor-settings__meta">
             <div class="editor-settings__label">默认视图模式</div>
           </div>
-          <BSelect :value="store.viewMode" :options="viewModeOptions" @update:value="store.setViewMode" />
+          <div>
+            <BSelect :value="store.viewMode" :options="viewModeOptions" :width="200" @change="handleViewModeChange" />
+          </div>
         </div>
 
         <div class="editor-settings__item">
           <div class="editor-settings__meta">
             <div class="editor-settings__label">页面宽度</div>
           </div>
-          <BSelect :value="store.pageWidth" :options="pageWidthOptions" @update:value="store.setPageWidth" />
+          <div>
+            <BSelect :value="store.pageWidth" :options="pageWidthOptions" :width="200" @change="handlePageWidthChange" />
+          </div>
         </div>
 
         <div class="editor-settings__item">
           <div class="editor-settings__meta">
             <div class="editor-settings__label">显示大纲</div>
           </div>
-          <ASwitch :checked="store.showOutline" @update:checked="store.setShowOutline" />
+          <div>
+            <ASwitch :checked="store.showOutline" @change="handleShowOutlineChange" />
+          </div>
         </div>
-      </section>
+      </BSettingsSection>
 
-      <section class="editor-settings__section">
-        <div class="editor-settings__section-title">保存</div>
-
+      <BSettingsSection title="保存">
         <div class="editor-settings__item">
           <div class="editor-settings__meta">
             <div class="editor-settings__label">保存策略</div>
-            <div class="editor-settings__desc">
-              未保存到磁盘的文档仍只会保存到应用草稿。自动保存策略仅对已有磁盘路径的文档生效。
-            </div>
           </div>
-          <BSelect :value="store.saveStrategy" :options="saveStrategyOptions" @update:value="store.setSaveStrategy" />
+          <div>
+            <BSelect :value="store.saveStrategy" :options="saveStrategyOptions" :width="200" @change="handleSaveStrategyChange" />
+          </div>
         </div>
-      </section>
+      </BSettingsSection>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-/**
- * @file index.vue
- * @description 编辑器设置页脚本，负责定义设置选项并将交互写回编辑器偏好 Store。
- */
+import type { EditorViewMode, EditorPageWidth, EditorSaveStrategy } from '@/stores/editorPreferences';
 import { useEditorPreferencesStore } from '@/stores/editorPreferences';
 
 /**
@@ -95,9 +93,27 @@ const saveStrategyOptions: SelectOption[] = [
   { value: 'onBlur', label: '失去焦点保存' },
   { value: 'onChange', label: '更新即保存' }
 ];
+
+function handleViewModeChange(value: string | number) {
+  store.setViewMode(value as EditorViewMode);
+}
+
+function handlePageWidthChange(value: string | number) {
+  store.setPageWidth(value as EditorPageWidth);
+}
+
+function handleShowOutlineChange(value: boolean | string | number) {
+  store.setShowOutline(value as boolean);
+}
+
+function handleSaveStrategyChange(value: string | number) {
+  store.setSaveStrategy(value as EditorSaveStrategy);
+}
 </script>
 
 <style scoped lang="less">
+// ─── Root container ───────────────────────────────────────────────────────────
+
 .editor-settings {
   display: flex;
   flex-direction: column;
@@ -105,6 +121,8 @@ const saveStrategyOptions: SelectOption[] = [
   background: var(--bg-primary);
   border-radius: 8px;
 }
+
+// ─── Header ───────────────────────────────────────────────────────────────────
 
 .editor-settings__header {
   display: flex;
@@ -122,44 +140,34 @@ const saveStrategyOptions: SelectOption[] = [
   color: var(--text-primary);
 }
 
+// ─── Body ─────────────────────────────────────────────────────────────────────
+
 .editor-settings__body {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  gap: 16px;
-  width: 100%;
-  max-width: 820px;
   padding: 20px;
-  margin: 0 auto;
   overflow: auto;
 }
 
-.editor-settings__section {
-  display: flex;
-  flex-direction: column;
-  padding: 16px 18px;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-primary);
-  border-radius: 12px;
-}
-
-.editor-settings__section-title {
-  margin-bottom: 8px;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
+// ─── Item ─────────────────────────────────────────────────────────────────────
 .editor-settings__item {
   display: flex;
   gap: 16px;
   align-items: center;
   justify-content: space-between;
   min-height: 56px;
-}
+  padding: 0 16px;
+  transition: background 0.2s ease;
 
-.editor-settings__item + .editor-settings__item {
-  border-top: 1px solid var(--border-secondary);
+  & + & {
+    border-top: 1px solid var(--border-tertiary);
+  }
+
+  &:hover {
+    background: var(--bg-hover);
+  }
+
+  &:focus-within {
+    background: var(--bg-hover);
+  }
 }
 
 .editor-settings__meta {
@@ -172,23 +180,27 @@ const saveStrategyOptions: SelectOption[] = [
   font-size: 13px;
   font-weight: 600;
   color: var(--text-primary);
+  user-select: none;
 }
 
-.editor-settings__desc {
-  margin-top: 4px;
-  font-size: 12px;
-  line-height: 1.5;
-  color: var(--text-secondary);
-}
+// ─── Responsive ───────────────────────────────────────────────────────────────
 
 @media (width <= 720px) {
   .editor-settings__item {
     flex-direction: column;
     align-items: flex-start;
-  }
 
-  .editor-settings__item :deep(.b-select) {
-    width: 100%;
+    :deep(.b-select) {
+      width: 100%;
+    }
+  }
+}
+
+// ─── Accessibility ────────────────────────────────────────────────────────────
+
+@media (prefers-reduced-motion: reduce) {
+  .editor-settings__item {
+    transition: none;
   }
 }
 </style>

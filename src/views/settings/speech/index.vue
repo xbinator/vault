@@ -27,40 +27,34 @@
         <SpeechActionMenu :status="status?.state" :installing="installing" @install="handleInstall" @refresh="refreshStatus" @remove="handleRemove" />
       </div>
 
-      <div class="speech-settings__list">
-        <div class="speech-settings__section">
-          <div class="speech-settings__section-title">运行环境</div>
+      <BSettingsSection title="运行环境">
+        <SpeechSettingsItem icon="lucide:activity" label="状态" hint="当前语音运行时检测结果">
+          <span class="speech-settings__status-dot" :class="`speech-settings__status-dot--${status?.state ?? 'unknown'}`"></span>
+          {{ statusConfig.label }}
+        </SpeechSettingsItem>
 
-          <SpeechSettingsItem icon="lucide:activity" label="状态" hint="当前语音运行时检测结果">
-            <span class="speech-settings__status-dot" :class="`speech-settings__status-dot--${status?.state ?? 'unknown'}`"></span>
-            {{ statusConfig.label }}
-          </SpeechSettingsItem>
+        <SpeechSettingsItem icon="lucide:monitor" label="平台" hint="当前系统平台">
+          {{ status?.platform ?? '-' }}
+        </SpeechSettingsItem>
 
-          <SpeechSettingsItem icon="lucide:monitor" label="平台" hint="当前系统平台">
-            {{ status?.platform ?? '-' }}
-          </SpeechSettingsItem>
+        <SpeechSettingsItem icon="lucide:binary" label="架构" hint="运行时 CPU 架构">
+          {{ status?.arch ?? '-' }}
+        </SpeechSettingsItem>
+      </BSettingsSection>
 
-          <SpeechSettingsItem icon="lucide:binary" label="架构" hint="运行时 CPU 架构">
-            {{ status?.arch ?? '-' }}
-          </SpeechSettingsItem>
-        </div>
+      <BSettingsSection title="模型信息">
+        <SpeechSettingsItem icon="lucide:brain" label="模型" hint="当前使用的语音识别模型">
+          {{ status?.modelName ?? '-' }}
+        </SpeechSettingsItem>
 
-        <div class="speech-settings__section">
-          <div class="speech-settings__section-title">模型信息</div>
+        <SpeechSettingsItem icon="lucide:tag" label="版本" hint="本地运行时版本">
+          {{ status?.version ?? '-' }}
+        </SpeechSettingsItem>
 
-          <SpeechSettingsItem icon="lucide:brain" label="模型" hint="当前使用的语音识别模型">
-            {{ status?.modelName ?? '-' }}
-          </SpeechSettingsItem>
-
-          <SpeechSettingsItem icon="lucide:tag" label="版本" hint="本地运行时版本">
-            {{ status?.version ?? '-' }}
-          </SpeechSettingsItem>
-
-          <SpeechSettingsItem icon="lucide:folder" label="安装目录" hint="语音组件本地存储路径" :path="true">
-            {{ status?.installDir ?? '-' }}
-          </SpeechSettingsItem>
-        </div>
-      </div>
+        <SpeechSettingsItem icon="lucide:folder" label="安装目录" hint="语音组件本地存储路径" :path="true">
+          {{ status?.installDir ?? '-' }}
+        </SpeechSettingsItem>
+      </BSettingsSection>
     </div>
   </div>
 </template>
@@ -207,14 +201,9 @@ onUnmounted(teardownProgressListener);
 }
 
 .speech-settings__body {
-  display: flex;
   flex: 1;
-  flex-direction: column;
-  gap: 16px;
   width: 100%;
-  max-width: 820px;
   padding: 20px;
-  margin: 0 auto;
   overflow: auto;
 }
 
@@ -224,7 +213,9 @@ onUnmounted(teardownProgressListener);
   display: flex;
   gap: 14px;
   align-items: center;
+  max-width: 820px;
   padding: 18px;
+  margin: 0 auto 16px;
   border: 1px solid var(--color-primary-border);
   border-radius: 14px;
   box-shadow: var(--shadow-sm);
@@ -427,34 +418,5 @@ onUnmounted(teardownProgressListener);
   50% {
     opacity: 0.4;
   }
-}
-
-// ─── Section list ─────────────────────────────────────────────────────────────
-
-.speech-settings__list {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-.speech-settings__section {
-  overflow: hidden;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border-primary);
-  border-radius: 14px;
-  box-shadow: var(--shadow-sm);
-}
-
-.speech-settings__section-title {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  height: 44px;
-  padding: 0 16px;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-primary);
-  background: var(--bg-tertiary);
-  border-bottom: 1px solid var(--border-primary);
 }
 </style>
