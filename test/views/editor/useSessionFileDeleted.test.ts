@@ -139,6 +139,12 @@ vi.mock('@/stores/editorFileWatch', () => ({
   })
 }));
 
+vi.mock('@/stores/editorPreferences', () => ({
+  useEditorPreferencesStore: () => ({
+    saveStrategy: 'manual'
+  })
+}));
+
 vi.mock('@/utils/modal', () => ({
   Modal: {
     input: vi.fn(),
@@ -154,7 +160,8 @@ vi.mock('@/views/editor/hooks/useFileWatcher', () => ({
     clearWatchedFile: vi.fn(),
     setOnFileChanged: vi.fn(),
     setIsDirty: vi.fn(),
-    finishReload: vi.fn()
+    finishReload: vi.fn(),
+    suppressNextChange: vi.fn()
   })
 }));
 

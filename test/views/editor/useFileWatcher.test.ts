@@ -54,4 +54,21 @@ describe('useFileWatcher', () => {
     expect(deletedCallback).not.toHaveBeenCalled();
     expect(unwatchFileMock).not.toHaveBeenCalled();
   });
+
+  it('ignores one suppressed self-write change event for the current file', async () => {
+    const { Modal } = await import('@/utils/modal');
+    const { useFileWatcher } = await import('@/views/editor/hooks/useFileWatcher');
+    const changedCallback = vi.fn();
+    const watcher = useFileWatcher();
+
+    watcher.setOnFileChanged(changedCallback);
+    watcher.setIsDirty(() => false);
+    await watcher.switchWatchedFile('/tmp/current.md');
+    watcher.suppressNextChange('/tmp/current.md');
+
+    fileChangedCallback?.({ type: 'change', filePath: '/tmp/current.md' });
+
+    expect(changedCallback).not.toHaveBeenCalled();
+    expect(Modal.confirm).not.toHaveBeenCalled();
+  });
 });

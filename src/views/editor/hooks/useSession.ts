@@ -7,6 +7,7 @@ import { useClipboard } from '@/hooks/useClipboard';
 import { resolveRouteTabInfo } from '@/router/cache';
 import { native } from '@/shared/platform';
 import type { ReadFileResult } from '@/shared/platform/native/types';
+import { useEditorPreferencesStore } from '@/stores/editorPreferences';
 import { useEditorFileWatchStore } from '@/stores/editorFileWatch';
 import { useFilesStore } from '@/stores/files';
 import { useTabsStore } from '@/stores/tabs';
@@ -15,6 +16,7 @@ import { getDefaultSavePath, getRecoveredSavePath, parseFileName, replaceFileNam
 import { resolveFileReconcileAction } from '../utils/reconcileFileContent';
 import { useAutoSave } from './useAutoSave';
 import { useFileState } from './useFileState';
+import { type SaveToDiskResult, useSavePolicy } from './useSavePolicy';
 import { useFileWatcher } from './useFileWatcher';
 
 type ViewMode = 'rich' | 'source';
@@ -28,8 +30,9 @@ export function useSession(fileId: Ref<string>) {
   const tabsStore = useTabsStore();
   const filesStore = useFilesStore();
   const fileWatchStore = useEditorFileWatchStore();
+  const editorPreferencesStore = useEditorPreferencesStore();
   const { clipboard } = useClipboard();
-  const { switchWatchedFile, clearWatchedFile, setOnFileChanged, setIsDirty, finishReload } = useFileWatcher();
+  const { switchWatchedFile, clearWatchedFile, setOnFileChanged, setIsDirty, finishReload, suppressNextChange } = useFileWatcher();
 
   const sessionPath = ref(route.fullPath);
   const sessionCacheKey = ref(resolveRouteTabInfo(route).cacheKey);
@@ -110,6 +113,13 @@ export function useSession(fileId: Ref<string>) {
 
   setOnFileChanged(fileStateActions.handleExternalFileChange);
 
+  const savePolicy = useSavePolicy({
+    saveStrategy: computed(() => editorPreferencesStore.saveStrategy),
+    hasFilePath: computed(() => Boolean(fileState.value.path)),
+    isDirty: () => tabsStore.isDirty(fileId.value),
+    saveCurrentFileToDisk
+  });
+
   /**
    * 通过保存对话框选择目标路径并完成文件保存。
    * @returns 是否保存成功
@@ -145,11 +155,37 @@ export function useSession(fileId: Ref<string>) {
    * @param filePath - 写入目标路径
    */
   async function restoreCurrentFileAtPath(filePath: string): Promise<void> {
+    suppressNextChange(filePath);
     await native.writeFile(filePath, fileState.value.content);
     await fileStateActions.markCurrentContentSaved();
     await switchWatchedFile(filePath);
     await updateGlobalWatchPath(fileId.value, filePath);
     tabsStore.clearMissing(fileId.value);
+  }
+
+  /**
+   * 仅在已有磁盘路径时执行一次无交互写盘。
+   * @returns 本次写盘结果
+   */
+  async function saveCurrentFileToDisk(): Promise<SaveToDiskResult> {
+    const filePath = fileState.value.path;
+
+    if (!filePath) {
+      return { status: 'skipped' };
+    }
+
+    try {
+      suppressNextChange(filePath);
+      await native.writeFile(filePath, fileState.value.content);
+      await fileStateActions.markCurrentContentSaved();
+      tabsStore.clearMissing(fileId.value);
+      return { status: 'saved' };
+    } catch (error) {
+      return {
+        status: 'failed',
+        error: error instanceof Error ? error : new Error('save to disk failed')
+      };
+    }
   }
 
   /**
@@ -190,9 +226,7 @@ export function useSession(fileId: Ref<string>) {
     }
 
     if (fileState.value.path) {
-      await native.writeFile(fileState.value.path, fileState.value.content);
-      await fileStateActions.markCurrentContentSaved();
-      tabsStore.clearMissing(fileId.value);
+      await saveCurrentFileToDisk();
       return;
     }
 
@@ -410,6 +444,13 @@ export function useSession(fileId: Ref<string>) {
 
   watch([fileId, () => fileState.value.name], updateTab);
 
+  watch(
+    () => fileState.value.content,
+    (): void => {
+      savePolicy.notifyContentChanged();
+    }
+  );
+
   /**
    * 激活缓存中的编辑器实例，并接管当前文件监听。
    */
@@ -443,7 +484,7 @@ export function useSession(fileId: Ref<string>) {
     dispose();
   });
 
-  const actions = { onSave, onSaveAs, onRename, onDelete, onShowInFolder, onCopyPath, onCopyRelativePath, onDuplicate };
+  const actions = { onEditorBlur: savePolicy.handleEditorBlur, onSave, onSaveAs, onRename, onDelete, onShowInFolder, onCopyPath, onCopyRelativePath, onDuplicate };
 
   return {
     fileState,

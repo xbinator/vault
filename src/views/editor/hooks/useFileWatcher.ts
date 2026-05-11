@@ -36,6 +36,7 @@ export interface FileDeletedCallback {
 export function useFileWatcher() {
   const watchedPath = ref<string | null>(null);
   const isReloading = ref(false);
+  const suppressedChangePath = ref<string | null>(null);
   let unsubscribe: (() => void) | null = null;
   let onFileChangedCallback: FileChangedCallback | null = null;
   let isDirtyCallback: IsDirtyCallback | null = null;
@@ -111,6 +112,14 @@ export function useFileWatcher() {
   }
 
   /**
+   * 抑制当前会话对指定路径下一次 change 事件的处理，用于忽略自写入回调。
+   * @param filePath - 需要抑制一次 change 事件的文件路径
+   */
+  function suppressNextChange(filePath: string): void {
+    suppressedChangePath.value = filePath;
+  }
+
+  /**
    * 清理当前页面事件订阅。
    */
   function dispose(): void {
@@ -127,6 +136,11 @@ export function useFileWatcher() {
   async function handleFileChanged(event: FileChangeEvent): Promise<void> {
     if (isReloading.value) return;
     if (event.filePath !== watchedPath.value) return;
+
+    if (event.type === 'change' && suppressedChangePath.value === event.filePath) {
+      suppressedChangePath.value = null;
+      return;
+    }
 
     if (event.type === 'change') {
       const isDirty = isDirtyCallback ? isDirtyCallback() : false;
@@ -161,6 +175,7 @@ export function useFileWatcher() {
     setIsDirty,
     setOnFileDeleted,
     finishReload,
+    suppressNextChange,
     isReloading
   };
 }

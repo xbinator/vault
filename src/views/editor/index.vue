@@ -8,6 +8,7 @@
           v-model:value="fileState"
           :view-mode="editorPreferencesStore.viewMode"
           :show-outline="editorPreferencesStore.showOutline"
+          @editor-blur="actions.onEditorBlur"
           @rename-file="actions.onRename"
           @save="actions.onSave"
           @save-as="actions.onSaveAs"
