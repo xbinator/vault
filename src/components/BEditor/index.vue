@@ -56,7 +56,7 @@ import type { BEditorViewMode, EditorState } from './types';
 import type { CSSProperties } from 'vue';
 import { computed, defineAsyncComponent, ref } from 'vue';
 import BScrollbar from '@/components/BScrollbar/index.vue';
-import { useSettingStore } from '@/stores/setting';
+import { useEditorPreferencesStore } from '@/stores/editorPreferences';
 import { handleEditorAnchorNavigation } from './adapters/editorAnchorNavigation';
 import FindBar from './components/FindBar.vue';
 import { useAnchors } from './hooks/useAnchors';
@@ -67,7 +67,7 @@ const PaneSourceEditor = defineAsyncComponent(() => import('./components/PaneSou
 
 const layoutRef = ref<HTMLElement | null>(null);
 const scrollbarRef = ref<InstanceType<typeof BScrollbar> | null>(null);
-const settingStore = useSettingStore();
+const editorPreferencesStore = useEditorPreferencesStore();
 
 interface Props {
   // 是否可编辑
@@ -103,7 +103,7 @@ const sourceEditorPaneRef = ref<EditorController | null>(null);
 const findBarVisible = ref(false);
 
 const editorPageMaxWidth = computed<string>(() => {
-  switch (settingStore.editorPageWidth) {
+  switch (editorPreferencesStore.pageWidth) {
     case 'wide':
       return '1200px';
     case 'full':

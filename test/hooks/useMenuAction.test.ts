@@ -64,18 +64,31 @@ describe('useMenuAction', () => {
   });
 
   it('maps page-width menu actions to setting store updates', async () => {
-    const { useSettingStore } = await import('@/stores/setting');
+    const { useEditorPreferencesStore } = await import('@/stores/editorPreferences');
     mount(HookHarness);
 
-    const settingStore = useSettingStore();
+    const editorPreferencesStore = useEditorPreferencesStore();
 
     menuCallbacks[0]?.('view:pageWidth:wide');
-    expect(settingStore.editorPageWidth).toBe('wide');
+    expect(editorPreferencesStore.pageWidth).toBe('wide');
 
     menuCallbacks[0]?.('view:pageWidth:full');
-    expect(settingStore.editorPageWidth).toBe('full');
+    expect(editorPreferencesStore.pageWidth).toBe('full');
 
     menuCallbacks[0]?.('view:pageWidth:default');
-    expect(settingStore.editorPageWidth).toBe('default');
+    expect(editorPreferencesStore.pageWidth).toBe('default');
+  });
+
+  it('maps source and outline menu actions to editor preferences updates', async () => {
+    const { useEditorPreferencesStore } = await import('@/stores/editorPreferences');
+    mount(HookHarness);
+
+    const editorPreferencesStore = useEditorPreferencesStore();
+
+    menuCallbacks[0]?.('view:toggleSource');
+    expect(editorPreferencesStore.viewMode).toBe('source');
+
+    menuCallbacks[0]?.('view:toggleOutline');
+    expect(editorPreferencesStore.showOutline).toBe(false);
   });
 });

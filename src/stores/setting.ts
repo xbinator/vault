@@ -8,7 +8,6 @@ import { native } from '@/shared/platform';
 import { local } from '@/shared/storage/base';
 
 export type ThemeMode = 'dark' | 'light' | 'system';
-export type EditorPageWidth = 'default' | 'wide' | 'full';
 export type ToolPermissionMode = 'ask' | 'readonly' | 'autoSafe';
 export type ToolPermissionGrantScope = 'session' | 'always';
 
@@ -16,8 +15,6 @@ type ResolvedTheme = 'dark' | 'light';
 
 const SETTINGS_STORAGE_KEY = 'app_settings';
 const LEGACY_THEME_STORAGE_KEY = 'app_theme';
-const LEGACY_OUTLINE_STORAGE_KEY = 'editor_showOutline';
-const LEGACY_SOURCE_MODE_STORAGE_KEY = 'editor_sourceMode';
 const LEGACY_SIDEBAR_VISIBLE_KEY = 'sidebar_visible';
 const LEGACY_SIDEBAR_WIDTH_KEY = 'sidebar_width';
 
@@ -30,12 +27,6 @@ interface PersistedSettingState {
   settingsSidebarCollapsed: boolean;
   // 主题模式：dark、light 或 system
   theme: ThemeMode;
-  // 是否显示大纲，开启后在消息气泡中显示大纲按钮，点击可查看消息的大纲结构
-  showOutline: boolean;
-  // 源代码模式开关，开启后在消息气泡中显示源代码按钮，点击可查看消息的原始 Markdown 内容
-  sourceMode: boolean;
-  // 编辑器正文页宽模式
-  editorPageWidth: EditorPageWidth;
   // 侧边栏是否可见
   sidebarVisible: boolean;
   // 侧边栏宽度，单位像素
@@ -56,9 +47,6 @@ const DEFAULT_SETTINGS: PersistedSettingState = {
   providerSidebarCollapsed: false,
   settingsSidebarCollapsed: false,
   theme: 'system',
-  showOutline: true,
-  sourceMode: false,
-  editorPageWidth: 'default',
   sidebarVisible: false,
   sidebarWidth: 340,
   toolPermissionMode: 'ask',
@@ -89,10 +77,6 @@ function isToolPermissionMode(value: unknown): value is ToolPermissionMode {
   return value === 'ask' || value === 'readonly' || value === 'autoSafe';
 }
 
-function isEditorPageWidth(value: unknown): value is EditorPageWidth {
-  return value === 'default' || value === 'wide' || value === 'full';
-}
-
 function normalizeSidebarWidth(value: unknown): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : DEFAULT_SETTINGS.sidebarWidth;
 }
@@ -115,11 +99,6 @@ function normalizeSettings(value: unknown): PersistedSettingState {
     normalized.toolPermissionMode = DEFAULT_SETTINGS.toolPermissionMode;
   }
 
-  // 确保页宽模式有效
-  if (!isEditorPageWidth(normalized.editorPageWidth)) {
-    normalized.editorPageWidth = DEFAULT_SETTINGS.editorPageWidth;
-  }
-
   // 确保持久授权记录是普通对象
   if (
     !normalized.alwaysToolPermissionGrants ||
@@ -137,8 +116,6 @@ function normalizeSettings(value: unknown): PersistedSettingState {
 
 function removeLegacySettings(): void {
   local.removeItem(LEGACY_THEME_STORAGE_KEY);
-  local.removeItem(LEGACY_OUTLINE_STORAGE_KEY);
-  local.removeItem(LEGACY_SOURCE_MODE_STORAGE_KEY);
   local.removeItem(LEGACY_SIDEBAR_VISIBLE_KEY);
   local.removeItem(LEGACY_SIDEBAR_WIDTH_KEY);
 }
@@ -146,8 +123,6 @@ function removeLegacySettings(): void {
 function loadLegacySettings(): PersistedSettingState {
   return normalizeSettings({
     theme: local.getItem<ThemeMode>(LEGACY_THEME_STORAGE_KEY),
-    showOutline: local.getItem<boolean>(LEGACY_OUTLINE_STORAGE_KEY),
-    sourceMode: local.getItem<boolean>(LEGACY_SOURCE_MODE_STORAGE_KEY),
     sidebarVisible: local.getItem<boolean>(LEGACY_SIDEBAR_VISIBLE_KEY),
     sidebarWidth: local.getItem<number>(LEGACY_SIDEBAR_WIDTH_KEY)
   });
@@ -193,14 +168,9 @@ export const useSettingStore = defineStore('setting', {
 
   actions: {
     syncNativeMenuState(): void {
-      native.updateMenuItem?.('view:source', { checked: this.sourceMode });
-      native.updateMenuItem?.('view:outline', { checked: this.showOutline });
       native.updateMenuItem?.('theme:light', { checked: this.theme === 'light' });
       native.updateMenuItem?.('theme:dark', { checked: this.theme === 'dark' });
       native.updateMenuItem?.('theme:system', { checked: this.theme === 'system' });
-      native.updateMenuItem?.('view:pageWidth:default', { checked: this.editorPageWidth === 'default' });
-      native.updateMenuItem?.('view:pageWidth:wide', { checked: this.editorPageWidth === 'wide' });
-      native.updateMenuItem?.('view:pageWidth:full', { checked: this.editorPageWidth === 'full' });
     },
 
     persistSettings(): void {
@@ -209,9 +179,6 @@ export const useSettingStore = defineStore('setting', {
         providerSidebarCollapsed: this.providerSidebarCollapsed,
         settingsSidebarCollapsed: this.settingsSidebarCollapsed,
         theme: this.theme,
-        showOutline: this.showOutline,
-        sourceMode: this.sourceMode,
-        editorPageWidth: this.editorPageWidth,
         sidebarVisible: this.sidebarVisible,
         sidebarWidth: this.sidebarWidth,
         toolPermissionMode: this.toolPermissionMode,
@@ -241,56 +208,6 @@ export const useSettingStore = defineStore('setting', {
       const currentIndex = themes.indexOf(this.theme);
       const newTheme = themes[(currentIndex + 1) % themes.length];
       this.setTheme(newTheme);
-    },
-
-    // ==================== 大纲设置 ====================
-
-    /**
-     * 设置大纲显示状态
-     * @param show 是否显示大纲
-     */
-    setShowOutline(show: boolean): void {
-      this.showOutline = show;
-      this.persistSettings();
-      this.syncNativeMenuState();
-    },
-
-    /**
-     * 切换大纲显示状态
-     */
-    toggleOutline(): void {
-      this.setShowOutline(!this.showOutline);
-    },
-
-    // ==================== 源代码模式设置 ====================
-
-    /**
-     * 设置源代码模式
-     * @param enabled 是否启用源代码模式
-     */
-    setSourceMode(enabled: boolean): void {
-      this.sourceMode = enabled;
-      this.persistSettings();
-      this.syncNativeMenuState();
-    },
-
-    /**
-     * 切换源代码模式
-     */
-    toggleSourceMode(): void {
-      this.setSourceMode(!this.sourceMode);
-    },
-
-    // ==================== 编辑器页宽设置 ====================
-
-    /**
-     * 设置编辑器正文页宽模式。
-     * @param width - 页宽模式
-     */
-    setEditorPageWidth(width: EditorPageWidth): void {
-      this.editorPageWidth = width;
-      this.persistSettings();
-      this.syncNativeMenuState();
     },
 
     // ==================== 侧边栏设置 ====================

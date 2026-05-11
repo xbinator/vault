@@ -4,6 +4,7 @@
  */
 import { onMounted, onUnmounted } from 'vue';
 import { native } from '@/shared/platform';
+import { useEditorPreferencesStore } from '@/stores/editorPreferences';
 import { useSettingStore } from '@/stores/setting';
 import { emitter } from '@/utils/emitter';
 
@@ -11,6 +12,7 @@ import { emitter } from '@/utils/emitter';
  * 注册系统菜单行为监听。
  */
 export function useMenuAction(): void {
+  const editorPreferencesStore = useEditorPreferencesStore();
   const settingStore = useSettingStore();
 
   let unregisterMenuAction: (() => void) | undefined;
@@ -65,10 +67,10 @@ export function useMenuAction(): void {
         break;
 
       case 'view:toggleSource':
-        settingStore.toggleSourceMode();
+        editorPreferencesStore.setViewMode(editorPreferencesStore.viewMode === 'source' ? 'rich' : 'source');
         break;
       case 'view:toggleOutline':
-        settingStore.toggleOutline();
+        editorPreferencesStore.setShowOutline(!editorPreferencesStore.showOutline);
         break;
       case 'theme:light':
         settingStore.setTheme('light');
@@ -80,13 +82,13 @@ export function useMenuAction(): void {
         settingStore.setTheme('system');
         break;
       case 'view:pageWidth:default':
-        settingStore.setEditorPageWidth('default');
+        editorPreferencesStore.setPageWidth('default');
         break;
       case 'view:pageWidth:wide':
-        settingStore.setEditorPageWidth('wide');
+        editorPreferencesStore.setPageWidth('wide');
         break;
       case 'view:pageWidth:full':
-        settingStore.setEditorPageWidth('full');
+        editorPreferencesStore.setPageWidth('full');
         break;
 
       case 'help:shortcuts':
@@ -100,6 +102,7 @@ export function useMenuAction(): void {
 
   onMounted(() => {
     settingStore.init();
+    editorPreferencesStore.syncNativeMenuState();
 
     if (native.onMenuAction) {
       unregisterMenuAction = native.onMenuAction((action: string) => {

@@ -9,7 +9,7 @@ import { createPinia, setActivePinia } from 'pinia';
 import { flushPromises, mount, VueWrapper } from '@vue/test-utils';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import BEditor from '@/components/BEditor/index.vue';
-import { useSettingStore } from '@/stores/setting';
+import { useEditorPreferencesStore } from '@/stores/editorPreferences';
 
 const storage = new Map<string, string>();
 
@@ -43,8 +43,13 @@ const ScrollbarStub = defineComponent({
 function mountEditor(): VueWrapper {
   return mount(BEditor, {
     props: {
-      value: '# Title',
-      title: 'Doc'
+      value: {
+        id: 'doc-1',
+        name: 'Doc',
+        content: '# Title',
+        ext: 'md',
+        path: '/tmp/doc.md'
+      }
     },
     global: {
       stubs: {
@@ -82,8 +87,8 @@ describe('BEditor page width', () => {
   });
 
   it('uses 1200px max width in wide mode', async () => {
-    const settingStore = useSettingStore();
-    settingStore.setEditorPageWidth('wide');
+    const editorPreferencesStore = useEditorPreferencesStore();
+    editorPreferencesStore.setPageWidth('wide');
 
     const wrapper = await mountSettledEditor();
     expect(wrapper.find('.b-editor-container').attributes('style')).toContain('--editor-page-max-width: 1200px;');
@@ -91,8 +96,8 @@ describe('BEditor page width', () => {
   });
 
   it('uses none max width in full mode', async () => {
-    const settingStore = useSettingStore();
-    settingStore.setEditorPageWidth('full');
+    const editorPreferencesStore = useEditorPreferencesStore();
+    editorPreferencesStore.setPageWidth('full');
 
     const wrapper = await mountSettledEditor();
     expect(wrapper.find('.b-editor-container').attributes('style')).toContain('--editor-page-max-width: none;');

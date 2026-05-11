@@ -6,8 +6,8 @@
           ref="editorRef"
           :key="fileState.id"
           v-model:value="fileState"
-          :view-mode="settingStore.sourceMode ? 'source' : 'rich'"
-          :show-outline="settingStore.showOutline"
+          :view-mode="editorPreferencesStore.viewMode"
+          :show-outline="editorPreferencesStore.showOutline"
           @rename-file="actions.onRename"
           @save="actions.onSave"
           @save-as="actions.onSaveAs"
@@ -26,17 +26,17 @@ import { useRoute } from 'vue-router';
 import { editorToolContextRegistry } from '@/ai/tools/editor-context';
 import BEditor from '@/components/BEditor/index.vue';
 import type { BEditorPublicInstance } from '@/components/BEditor/types';
-import { useSettingStore } from '@/stores/setting';
+import { useEditorPreferencesStore } from '@/stores/editorPreferences';
 import { useBindings } from './hooks/useBindings';
 import { useFileSelection } from './hooks/useFileSelection';
 import { useSession } from './hooks/useSession';
 
 const route = useRoute();
+const editorPreferencesStore = useEditorPreferencesStore();
 
 const fileId = ref(String(route.params.id || ''));
 
 const { fileState, actions } = useSession(fileId);
-const settingStore = useSettingStore();
 
 const editorRef = ref<BEditorPublicInstance | null>(null);
 const isActive = ref(true);
