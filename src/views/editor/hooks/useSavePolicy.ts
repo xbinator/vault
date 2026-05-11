@@ -92,7 +92,7 @@ export function useSavePolicy(options: SavePolicyOptions) {
 
     clearScheduledSave();
     timer = setTimeout(() => {
-      void runSave();
+      runSave();
     }, ON_CHANGE_DELAY);
   }
 

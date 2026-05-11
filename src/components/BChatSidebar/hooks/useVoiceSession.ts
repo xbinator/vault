@@ -143,26 +143,27 @@ export function useVoiceSession(transcribe: VoiceSegmentTranscriber = defaultVoi
   /**
    * 增量文本，包含 final 和 transcribing 状态的段，用于实时显示。
    */
-  const partialText = computed<string>(() =>
-    [...segments.value]
-      .sort((a, b) => a.index - b.index)
-      .reduce<{ blocked: boolean; text: string }>(
-        (state, segment) => {
-          if (state.blocked) {
-            return state;
-          }
+  const partialText = computed<string>(
+    () =>
+      [...segments.value]
+        .sort((a, b) => a.index - b.index)
+        .reduce<{ blocked: boolean; text: string }>(
+          (state, segment) => {
+            if (state.blocked) {
+              return state;
+            }
 
-          if (segment.status !== 'final') {
-            return { ...state, blocked: true };
-          }
+            if (segment.status !== 'final') {
+              return { ...state, blocked: true };
+            }
 
-          return {
-            blocked: false,
-            text: `${state.text}${segment.separator}${segment.text}`
-          };
-        },
-        { blocked: false, text: '' }
-      ).text
+            return {
+              blocked: false,
+              text: `${state.text}${segment.separator}${segment.text}`
+            };
+          },
+          { blocked: false, text: '' }
+        ).text
   );
 
   // ── 内部工具 ───────────────────────────────────────────────────────────────

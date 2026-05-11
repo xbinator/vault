@@ -7,8 +7,8 @@ import { useClipboard } from '@/hooks/useClipboard';
 import { resolveRouteTabInfo } from '@/router/cache';
 import { native } from '@/shared/platform';
 import type { ReadFileResult } from '@/shared/platform/native/types';
-import { useEditorPreferencesStore } from '@/stores/editorPreferences';
 import { useEditorFileWatchStore } from '@/stores/editorFileWatch';
+import { useEditorPreferencesStore } from '@/stores/editorPreferences';
 import { useFilesStore } from '@/stores/files';
 import { useTabsStore } from '@/stores/tabs';
 import { Modal } from '@/utils/modal';
@@ -16,8 +16,8 @@ import { getDefaultSavePath, getRecoveredSavePath, parseFileName, replaceFileNam
 import { resolveFileReconcileAction } from '../utils/reconcileFileContent';
 import { useAutoSave } from './useAutoSave';
 import { useFileState } from './useFileState';
-import { type SaveToDiskResult, useSavePolicy } from './useSavePolicy';
 import { useFileWatcher } from './useFileWatcher';
+import { type SaveToDiskResult, useSavePolicy } from './useSavePolicy';
 
 type ViewMode = 'rich' | 'source';
 
@@ -117,6 +117,7 @@ export function useSession(fileId: Ref<string>) {
     saveStrategy: computed(() => editorPreferencesStore.saveStrategy),
     hasFilePath: computed(() => Boolean(fileState.value.path)),
     isDirty: () => tabsStore.isDirty(fileId.value),
+    // eslint-disable-next-line no-use-before-define
     saveCurrentFileToDisk
   });
 
@@ -484,7 +485,17 @@ export function useSession(fileId: Ref<string>) {
     dispose();
   });
 
-  const actions = { onEditorBlur: savePolicy.handleEditorBlur, onSave, onSaveAs, onRename, onDelete, onShowInFolder, onCopyPath, onCopyRelativePath, onDuplicate };
+  const actions = {
+    onEditorBlur: savePolicy.handleEditorBlur,
+    onSave,
+    onSaveAs,
+    onRename,
+    onDelete,
+    onShowInFolder,
+    onCopyPath,
+    onCopyRelativePath,
+    onDuplicate
+  };
 
   return {
     fileState,

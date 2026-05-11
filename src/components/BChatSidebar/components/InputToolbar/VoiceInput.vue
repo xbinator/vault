@@ -26,6 +26,7 @@
 <script setup lang="ts">
 import { computed, onUnmounted, ref, watch } from 'vue';
 import { Icon } from '@iconify/vue';
+import { message } from 'ant-design-vue';
 import { getElectronAPI, hasElectronAPI } from '@/shared/platform/electron-api';
 import { Modal } from '@/utils/modal';
 import { useInteraction } from '../../hooks/useInteraction';
@@ -112,11 +113,14 @@ defineExpose({
 /**
  * 监听增量文本变化，实时通知父组件。
  */
-watch(() => session.partialText.value, (text) => {
-  if (isRecording.value || isTranscribing.value) {
-    emit('partial-text', { text });
+watch(
+  () => session.partialText.value,
+  (text) => {
+    if (isRecording.value || isTranscribing.value) {
+      emit('partial-text', { text });
+    }
   }
-});
+);
 
 /**
  * 卸载安装进度监听。
@@ -158,11 +162,7 @@ async function ensureSpeechRuntimeReady(): Promise<boolean> {
   installingRuntime.value = true;
   disposeInstallProgressListener();
   unbindInstallProgress.value = electronAPI.onSpeechInstallProgress((progress) => {
-    showToast({
-      type: 'info',
-      content: `正在安装语音组件：${progress.message}`,
-      duration: 0
-    });
+    showToast({ type: 'info', content: `正在安装语音组件：${progress.message}`, duration: 0 });
   });
 
   try {
@@ -174,10 +174,8 @@ async function ensureSpeechRuntimeReady(): Promise<boolean> {
     showToast({ type: 'success', content: '语音组件安装完成' });
     return true;
   } catch (error) {
-    showToast({
-      type: 'error',
-      content: error instanceof Error ? error.message : '语音组件安装失败'
-    });
+    message.error(error instanceof Error ? error.message : '语音组件安装失败');
+
     return false;
   } finally {
     installingRuntime.value = false;

@@ -4,13 +4,13 @@
  * @vitest-environment jsdom
  */
 
-import type { BEditorPublicInstance } from '@/components/BEditor/types';
-import type { EditorFile } from '@/views/editor/types';
-import { createPinia, setActivePinia } from 'pinia';
 import { nextTick, ref } from 'vue';
+import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
-import { useFileSelection } from '@/views/editor/hooks/useFileSelection';
+import type { BEditorPublicInstance } from '@/components/BEditor/types';
 import { useFileSelectionIntentStore } from '@/stores/fileSelectionIntent';
+import { useFileSelection } from '@/views/editor/hooks/useFileSelection';
+import type { EditorFile } from '@/views/editor/types';
 
 /**
  * 创建最小 editor file 状态。
