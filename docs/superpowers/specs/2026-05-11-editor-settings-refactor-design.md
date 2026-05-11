@@ -35,6 +35,7 @@
 - 本次不支持回车行为配置。
 - 本次不支持粘贴行为配置。
 - 本次不支持按文档或按标签页覆盖全局编辑器设置。
+- 本次不处理多窗口或多实例同时写同一路径文件的并发协调。
 - 本次不提供自动保存延迟的用户可配置项，先使用代码内固定默认值。
 
 ## 方案对比
@@ -132,6 +133,26 @@ const DEFAULT_EDITOR_PREFERENCES: PersistedEditorPreferences = {
 };
 ```
 
+### 合法值归一化
+
+建议在 `editorPreferences` 内部实现专用归一化函数，例如：
+
+- `normalizeEditorPreferences(value: unknown): PersistedEditorPreferences`
+
+职责：
+
+- 校验 `viewMode`
+- 校验 `showOutline`
+- 校验 `pageWidth`
+- 校验 `saveStrategy`
+
+兜底规则：
+
+- 非法或缺失 `viewMode` 时回退为 `rich`
+- 非法或缺失 `showOutline` 时回退为 `true`
+- 非法或缺失 `pageWidth` 时回退为 `default`
+- 非法或缺失 `saveStrategy` 时回退为 `manual`
+
 ### 迁移策略
 
 首次加载 `editorPreferences` 时，按以下顺序读取：
@@ -149,8 +170,10 @@ const DEFAULT_EDITOR_PREFERENCES: PersistedEditorPreferences = {
 - `sourceMode: true` -> `viewMode: 'source'`
 - `sourceMode: false` -> `viewMode: 'rich'`
 - `showOutline` -> `showOutline`
-- `editorPageWidth` -> `pageWidth`
-- `saveStrategy` 为新增字段，无旧值时默认 `manual`
+- `editorPageWidth: 'default' | 'wide' | 'full'` -> `pageWidth: 'default' | 'wide' | 'full'`
+- `saveStrategy` 为新增字段，旧存储中不存在；迁移结果交由 `normalizeEditorPreferences()` 兜底为 `manual`
+
+当前代码中的旧 `editorPageWidth` 枚举已经是 `default | wide | full`，因此本次迁移为一一对应拷贝，不涉及额外值转换。
 
 ### Store Action
 
@@ -160,7 +183,6 @@ const DEFAULT_EDITOR_PREFERENCES: PersistedEditorPreferences = {
 - `setShowOutline(show: boolean): void`
 - `setPageWidth(width: EditorPageWidth): void`
 - `setSaveStrategy(strategy: EditorSaveStrategy): void`
-- `persistPreferences(): void`
 
 如当前系统菜单仍依赖选中态同步，则保留：
 
@@ -173,6 +195,8 @@ const DEFAULT_EDITOR_PREFERENCES: PersistedEditorPreferences = {
 - 页宽选中态
 
 本次不为保存策略增加系统菜单入口。
+
+持久化策略建议与当前 `settingStore` 保持一致：由各 `setXxx(...)` action 在内部自动调用持久化，不向外暴露显式 `persistPreferences()` 作为公开 API。若实现层需要保留内部 `persistPreferences()` 辅助方法，它应保持为 store 内部细节，不作为调用方契约的一部分。
 
 ## 运行时职责拆分
 
@@ -201,7 +225,15 @@ const DEFAULT_EDITOR_PREFERENCES: PersistedEditorPreferences = {
 
 它不直接持久化设置，而是消费 `editorPreferences.saveStrategy` 并在运行时决定何时触发磁盘保存。
 
-这个执行层应由 `useSession` 驱动，因为只有 `useSession` 同时掌握：
+依赖方向建议明确为：
+
+- `useSession` 在内部实例化 `useSavePolicy`
+- `useSession` 将 `path`、dirty 状态读取函数、`saveCurrentFileToDisk()` 和编辑器事件桥接方法传入 `useSavePolicy`
+- `useSavePolicy` 不反向引用 `useSession`，只消费传入参数并返回可调用控制器
+
+这样可以保证 `useSession` 仍然是编辑器会话编排层，而 `useSavePolicy` 只是纯粹的策略执行层。
+
+这个执行层之所以应由 `useSession` 持有，是因为只有 `useSession` 同时掌握：
 
 - 当前文件是否已有 `path`
 - `saveWithDialog()`
@@ -238,6 +270,8 @@ const DEFAULT_EDITOR_PREFERENCES: PersistedEditorPreferences = {
 - 未发生实际修改时不写盘。
 - 应监听编辑器可编辑区域的失焦，而不是整个页面容器的失焦。
 - 如果正在保存中，后续 blur 事件不应重复触发并发写入。
+- 失焦事件需由编辑器内部先做过滤：若焦点只是从编辑区移动到同一编辑器容器内的工具栏、气泡或附属控件，则不应向上抛出 `editor-blur`。
+- 保存互斥建议与 `onChange` 共用同一把异步锁，而不是分别维护两套状态。
 
 ### `onChange`
 
@@ -246,16 +280,19 @@ const DEFAULT_EDITOR_PREFERENCES: PersistedEditorPreferences = {
 - 当前文件已有磁盘路径。
 - 内容变化后按固定 debounce 自动写盘。
 
-默认延迟建议：
+默认延迟固定为：
 
-- `600ms` 到 `1000ms`
-
-本次建议先使用固定值 `800ms`，后续若需要再开放为设置项。
+- `800ms`
 
 边界要求：
 
 - 不应每个字符都立刻写盘。
 - 正在保存时如果又有新变更，需合并为下一轮保存，而不是并发写盘。
+- 建议机制为“保存中锁 + 待补写标记”：
+  - debounce 到期后，若当前未在保存，则立即执行一次写盘
+  - 若 debounce 到期时仍在保存，则只记录一次待补写
+  - 当前写盘完成后，如存在待补写，再立即发起下一轮写盘，而不是丢弃这次变更
+- debounce 负责收敛输入频率，保存锁负责避免并发写盘；两者职责不要混用。
 
 ## `useSession` 重构设计
 
@@ -273,20 +310,52 @@ const DEFAULT_EDITOR_PREFERENCES: PersistedEditorPreferences = {
 
 建议在 `useSession` 内抽出一个无交互写盘入口，例如：
 
-- `saveCurrentFileToDisk(): Promise<boolean>`
+- `saveCurrentFileToDisk(): Promise<SaveToDiskResult>`
+
+其中返回值建议为：
+
+```ts
+interface SaveToDiskResult {
+  status: 'saved' | 'skipped' | 'failed';
+  error?: Error;
+}
+```
 
 职责：
 
 - 仅在当前文件已有 `path` 时执行 `native.writeFile(...)`
+- 在写盘前后完成 watcher 协调，避免把当前会话自己的写入误判为外部变更
 - 调用 `fileStateActions.markCurrentContentSaved()`
 - 清理 missing / dirty 状态
-- 返回是否真的完成了写盘
+- 将结果显式返回给上层策略执行层
 
 不负责：
 
 - 弹 `saveWithDialog()`
 - 恢复丢失文件的交互确认
 - 创建新路径
+
+失败语义建议如下：
+
+- `saved`：已成功写盘并完成状态收尾
+- `skipped`：当前文件没有 `path`，或当前状态不允许写盘
+- `failed`：写盘异常；保持 dirty 状态，不吞掉错误信息
+
+自动保存场景下不应抛出未捕获异常中断编辑器。建议由 `useSavePolicy` 消费 `failed` 结果，并记录一次可观测失败状态，例如：
+
+- 最近一次自动保存失败时间
+- 最近一次自动保存失败错误
+
+第一版不要求设计完整错误面板，但至少要保留后续接入非阻塞提示的能力。
+
+### watcher 协调
+
+当前 `useFileWatcher` 仅依赖 dirty 状态与 native 事件判断“是否视为外部修改”，并没有显式的“忽略本次自写入”协议。因此本次抽取 `saveCurrentFileToDisk()` 时，需要一并定义自写入协调策略，避免 `onChange` 高频写盘后 watcher 反复把本次写入当作外部变更。
+
+建议优先采用以下两种方式之一，并在实现时二选一：
+
+- 如果现有 watcher 能通过 `markCurrentContentSaved()` + dirty 清零稳定避免误判，则复用现有链路，并补验证用例
+- 如果现有链路不足，则在 `native.writeFile(...)` 周围增加一次会话级“自写入抑制窗口”或写入 token，让 watcher 在短时间内忽略对应路径的本次 change 事件
 
 ### 保留手动保存完整流程
 
@@ -319,6 +388,14 @@ const DEFAULT_EDITOR_PREFERENCES: PersistedEditorPreferences = {
 - `notifyContentChanged()` 供内容变化监听触发
 - `dispose()` 负责清理 debounce 和监听资源
 
+策略执行层内部应维护一套共享状态，至少包括：
+
+- `isSaving`
+- `pendingResave`
+- 最近一次自动保存失败信息
+
+这样 `onBlur` 与 `onChange` 才能共用同一套互斥和补写语义。
+
 ## 编辑器组件接入
 
 ### 视图偏好接入
@@ -347,6 +424,11 @@ const DEFAULT_EDITOR_PREFERENCES: PersistedEditorPreferences = {
 - `@editor-blur`
 
 由内部富文本与源码编辑器分别转发。
+
+这个事件不应直接等同于原生 `blur`。建议由 `BEditor` 内部先做语义过滤：
+
+- 若 `relatedTarget` 仍位于当前编辑器根容器内，则视为“编辑器内部焦点迁移”，不向外抛出
+- 仅当焦点真正离开整个编辑器交互区域时，才向页面层发出一次 `editor-blur`
 
 ### 内容变化事件接入
 
@@ -399,6 +481,10 @@ const DEFAULT_EDITOR_PREFERENCES: PersistedEditorPreferences = {
 #### 保存
 
 - 保存策略：`主动保存 / 失去焦点保存 / 更新即保存`
+- 规范选项值与文案映射：
+  - `manual` -> `主动保存`
+  - `onBlur` -> `失去焦点保存`
+  - `onChange` -> `更新即保存`
 - 说明文案：
   - 未保存到磁盘的文档仍只会保存到应用草稿
   - 自动保存策略仅对已有磁盘路径的文档生效
@@ -464,6 +550,12 @@ const DEFAULT_EDITOR_PREFERENCES: PersistedEditorPreferences = {
 - 保存中锁
 - 待补写标记或下一轮调度
 
+### 冷启动与持久化时序
+
+当前代码中的设置存储基于同步 `localStorage` 适配器，因此本次设计默认 `editorPreferences` 在 store 初始化阶段即可同步完成读取与迁移，不存在异步加载窗口。
+
+如果未来编辑器偏好迁移到异步持久化后端，则需要补充“默认值先渲染，再在 hydrate 完成后响应式更新”的初始化策略；这不属于本次实现范围。
+
 ## 验证方案
 
 ### 迁移验证
@@ -494,7 +586,7 @@ const DEFAULT_EDITOR_PREFERENCES: PersistedEditorPreferences = {
 1. 新建 `editorPreferences` store，并完成旧字段迁移
 2. 将编辑器视图设置从 `settingStore` 切换到 `editorPreferences`
 3. 抽取 `useSession` 中的无交互写盘入口
-4. 新增保存策略执行层，并完成 `manual / onBlur / onChange`
-5. 在 `BEditor` 对外暴露统一的编辑器失焦事件
+4. 在 `BEditor` 对外暴露统一且经过内部过滤的编辑器失焦事件
+5. 新增保存策略执行层，并完成 `manual / onBlur / onChange`
 6. 新增 `/settings/editor` 页面并接入偏好读写
-7. 补充迁移与保存策略验证
+7. 补充迁移、watcher 协调与保存策略验证
