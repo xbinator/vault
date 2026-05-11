@@ -80,7 +80,7 @@ const pageWidthOptions: SelectOption[] = [
  * 保存策略选项。
  */
 const saveStrategyOptions: SelectOption[] = [
-  { value: 'manual', label: '关闭', tips: '不自动保存，需手动保存所有更改' },
+  { value: 'off', label: '关闭', tips: '不自动保存，需手动保存所有更改' },
   { value: 'onBlur', label: '失焦保存', tips: '编辑器失去焦点时，自动保存已修改的内容' },
   { value: 'onChange', label: '实时保存', tips: '内容变更时立即自动保存' }
 ];

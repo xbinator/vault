@@ -19,7 +19,7 @@ export type EditorPageWidth = 'default' | 'wide' | 'full';
 /**
  * 编辑器真实磁盘保存策略。
  */
-export type EditorSaveStrategy = 'manual' | 'onBlur' | 'onChange';
+export type EditorSaveStrategy = 'off' | 'onBlur' | 'onChange';
 
 const EDITOR_PREFERENCES_STORAGE_KEY = 'editor_preferences';
 const LEGACY_SETTINGS_STORAGE_KEY = 'app_settings';
@@ -54,7 +54,7 @@ const DEFAULT_EDITOR_PREFERENCES: PersistedEditorPreferences = {
   viewMode: 'rich',
   showOutline: true,
   pageWidth: 'default',
-  saveStrategy: 'manual'
+  saveStrategy: 'off'
 };
 
 /**
@@ -81,7 +81,7 @@ function isEditorPageWidth(value: unknown): value is EditorPageWidth {
  * @returns 是否为合法保存策略
  */
 function isEditorSaveStrategy(value: unknown): value is EditorSaveStrategy {
-  return value === 'manual' || value === 'onBlur' || value === 'onChange';
+  return value === 'off' || value === 'onBlur' || value === 'onChange';
 }
 
 /**
@@ -119,7 +119,7 @@ function loadLegacyEditorPreferences(): PersistedEditorPreferences {
     viewMode: legacySettings?.sourceMode === true ? 'source' : 'rich',
     showOutline: legacySettings?.showOutline,
     pageWidth: legacySettings?.editorPageWidth,
-    saveStrategy: 'manual'
+    saveStrategy: 'off'
   });
 }
 
