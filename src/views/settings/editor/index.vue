@@ -38,10 +38,10 @@
         </div>
       </BSettingsSection>
 
-      <BSettingsSection title="保存">
+      <BSettingsSection title="常用设置">
         <div class="editor-settings__item">
           <div class="editor-settings__meta">
-            <div class="editor-settings__label">保存策略</div>
+            <div class="editor-settings__label">自动保存</div>
           </div>
           <div>
             <BSelect :value="store.saveStrategy" :options="saveStrategyOptions" :width="280" @change="handleSaveStrategyChange" />
