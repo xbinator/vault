@@ -1,21 +1,64 @@
 /**
  * @file builtin/index.ts
- * @description 内置工具工厂函数
+ * @description 内置工具工厂函数，内置工具名称清单与默认暴露策略
  */
 import type { AIToolConfirmationAdapter } from '../confirmation';
 import type { FileReadSnapshot } from '../shared/fileTypes';
 import type { AIToolExecutor } from 'types/ai';
 import { nanoid } from 'nanoid';
-import { isDefaultBuiltinReadonlyToolName, isDefaultBuiltinWritableToolName } from '../builtinCatalog';
 import { createFileStateStore } from '../shared/fileState';
-import { createAskUserChoiceTool, type PendingQuestionSnapshot } from './askUserChoice';
-import { createBuiltinEnvironmentTools } from './environment';
-import { createBuiltinEditFileTool } from './fileEdit';
-import { createBuiltinReadDirectoryTool, createBuiltinReadFileTool } from './fileRead';
-import { createBuiltinWriteFileTool } from './fileWrite';
-import { createBuiltinLogTools } from './logs';
-import { createBuiltinReadTools } from './read';
-import { createBuiltinSettingsTools } from './settings';
+import { ASK_USER_QUESTION_TOOL_NAME, createAskUserQuestionTool, type PendingQuestionSnapshot } from './AskUserQuestionTool';
+import { READ_CURRENT_DOCUMENT_TOOL_NAME, createBuiltinReadTools } from './DocumentTool';
+import { GET_CURRENT_TIME_TOOL_NAME, createBuiltinEnvironmentTools } from './EnvironmentTool';
+import { EDIT_FILE_TOOL_NAME, createBuiltinEditFileTool } from './FileEditTool';
+import { createBuiltinReadDirectoryTool, createBuiltinReadFileTool, READ_DIRECTORY_TOOL_NAME, READ_FILE_TOOL_NAME } from './FileReadTool';
+import { createBuiltinWriteFileTool, WRITE_FILE_TOOL_NAME } from './FileWriteTool';
+import { createBuiltinLogTools, QUERY_LOGS_TOOL_NAME } from './LogsTool';
+import { createBuiltinSettingsTools, GET_SETTINGS_TOOL_NAME, UPDATE_SETTINGS_TOOL_NAME } from './SettingsTool';
+
+/**
+ * 默认开放的只读内置工具名称列表。
+ */
+export const DEFAULT_BUILTIN_READONLY_TOOL_NAMES = [
+  READ_CURRENT_DOCUMENT_TOOL_NAME,
+  GET_CURRENT_TIME_TOOL_NAME,
+  ASK_USER_QUESTION_TOOL_NAME,
+  READ_FILE_TOOL_NAME,
+  READ_DIRECTORY_TOOL_NAME,
+  GET_SETTINGS_TOOL_NAME,
+  QUERY_LOGS_TOOL_NAME
+] as const;
+
+/**
+ * 默认开放的内置写工具名称列表。
+ */
+export const DEFAULT_BUILTIN_WRITABLE_TOOL_NAMES = [EDIT_FILE_TOOL_NAME, WRITE_FILE_TOOL_NAME, UPDATE_SETTINGS_TOOL_NAME] as const;
+
+/**
+ * 获取默认聊天工具名称列表。
+ * @returns 默认聊天工具名称数组
+ */
+export function getDefaultBuiltinChatToolNames(): string[] {
+  return [...DEFAULT_BUILTIN_READONLY_TOOL_NAMES, ...DEFAULT_BUILTIN_WRITABLE_TOOL_NAMES];
+}
+
+/**
+ * 判断工具名称是否属于默认只读工具。
+ * @param toolName - 工具名称
+ * @returns 是否为默认只读工具
+ */
+export function isDefaultBuiltinReadonlyToolName(toolName: string): boolean {
+  return DEFAULT_BUILTIN_READONLY_TOOL_NAMES.includes(toolName as (typeof DEFAULT_BUILTIN_READONLY_TOOL_NAMES)[number]);
+}
+
+/**
+ * 判断工具名称是否属于默认低风险写工具。
+ * @param toolName - 工具名称
+ * @returns 是否为默认低风险写工具
+ */
+export function isDefaultBuiltinWritableToolName(toolName: string): boolean {
+  return DEFAULT_BUILTIN_WRITABLE_TOOL_NAMES.includes(toolName as (typeof DEFAULT_BUILTIN_WRITABLE_TOOL_NAMES)[number]);
+}
 
 /**
  * 创建内置工具的选项
@@ -51,7 +94,7 @@ export function createBuiltinTools(options: CreateBuiltinToolsOptions = {}): AIT
   const allReadonlyTools: AIToolExecutor[] = [
     readTools.readCurrentDocument,
     environmentTools.getCurrentTime,
-    createAskUserChoiceTool({
+    createAskUserQuestionTool({
       getPendingQuestion: options.getPendingQuestion ?? (() => null),
       createQuestionId: options.createQuestionId ?? (() => nanoid())
     }),

@@ -157,10 +157,7 @@ function normalizeReadRange(input: ReadFileInput): { offset: number; limit?: num
  * @param getEditorContext - 编辑器上下文查询函数
  * @returns 解析后的目标路径
  */
-function resolveInputFilePath(
-  input: ReadFileInput,
-  getEditorContext?: (documentId: string) => AIToolContext | undefined
-): string {
+function resolveInputFilePath(input: ReadFileInput, getEditorContext?: (documentId: string) => AIToolContext | undefined): string {
   const documentId = typeof input.documentId === 'string' ? input.documentId.trim() : '';
   if (documentId) {
     const editorContext = getEditorContext?.(documentId);

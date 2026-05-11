@@ -1,5 +1,5 @@
 /**
- * @file read/index.ts
+ * @file DocumentTool/index.ts
  * @description 内置文档只读工具实现
  */
 import type { AIToolContext, AIToolExecutor } from 'types/ai';

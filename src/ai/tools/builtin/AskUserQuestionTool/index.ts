@@ -1,20 +1,20 @@
 /**
- * @file askUserChoice/index.ts
+ * @file AskUserQuestionTool/index.ts
  * @description Built-in executor for pausing tool flow until the user makes a choice.
  */
 import type { AIChoiceOption, AIAwaitingUserChoiceQuestion, AIToolExecutor } from 'types/ai';
 import { createAwaitingUserInputResult, createToolFailureResult } from '../../results';
 
 /** Shared tool name constant. */
-export const ASK_USER_CHOICE_TOOL_NAME = 'ask_user_choice';
+export const ASK_USER_QUESTION_TOOL_NAME = 'ask_user_question';
 
 /** Maximum number of options accepted by the executor. */
 const MAX_CHOICE_OPTIONS = 10;
 
 /**
- * Ask-user-choice tool input.
+ * Ask-user-question tool input.
  */
-export interface AskUserChoiceInput {
+export interface AskUserQuestionInput {
   /** Prompt shown to the user. */
   question: string;
   /** Selection mode. */
@@ -38,9 +38,9 @@ export interface PendingQuestionSnapshot {
 }
 
 /**
- * Factory options for the ask_user_choice tool.
+ * Factory options for the ask_user_question tool.
  */
-export interface CreateAskUserChoiceToolOptions {
+export interface CreateAskUserQuestionToolOptions {
   /** Reads the current pending question, if one exists. */
   getPendingQuestion: () => PendingQuestionSnapshot | null;
   /** Creates a stable question identifier. */
@@ -57,11 +57,11 @@ function isValidChoiceOption(option: AIChoiceOption): boolean {
 }
 
 /**
- * Validates ask_user_choice input at execution time.
+ * Validates ask_user_question input at execution time.
  * @param input - Raw tool input.
  * @returns Validation error message, or null when valid.
  */
-function validateAskUserChoiceInput(input: AskUserChoiceInput): string | null {
+function validateAskUserQuestionInput(input: AskUserQuestionInput): string | null {
   if (typeof input.question !== 'string' || input.question.trim().length === 0) {
     return '问题内容不能为空。';
   }
@@ -109,7 +109,7 @@ function validateAskUserChoiceInput(input: AskUserChoiceInput): string | null {
  * @param questionId - Generated question identifier.
  * @returns Question payload sent through the terminal tool result.
  */
-function createQuestionPayload(input: AskUserChoiceInput, questionId: string): AIAwaitingUserChoiceQuestion {
+function createQuestionPayload(input: AskUserQuestionInput, questionId: string): AIAwaitingUserChoiceQuestion {
   return {
     questionId,
     toolCallId: '',
@@ -122,14 +122,14 @@ function createQuestionPayload(input: AskUserChoiceInput, questionId: string): A
 }
 
 /**
- * Creates the built-in ask_user_choice tool.
+ * Creates the built-in ask_user_question tool.
  * @param options - Factory dependencies.
  * @returns Configured read-only tool executor.
  */
-export function createAskUserChoiceTool(options: CreateAskUserChoiceToolOptions): AIToolExecutor<AskUserChoiceInput, AIAwaitingUserChoiceQuestion> {
+export function createAskUserQuestionTool(options: CreateAskUserQuestionToolOptions): AIToolExecutor<AskUserQuestionInput, AIAwaitingUserChoiceQuestion> {
   return {
     definition: {
-      name: ASK_USER_CHOICE_TOOL_NAME,
+      name: ASK_USER_QUESTION_TOOL_NAME,
       description: '向用户发起单选或多选问题，并等待用户选择后继续。',
       source: 'builtin',
       riskLevel: 'read',
@@ -161,22 +161,22 @@ export function createAskUserChoiceTool(options: CreateAskUserChoiceToolOptions)
         additionalProperties: false
       }
     },
-    async execute(input: AskUserChoiceInput) {
+    async execute(input: AskUserQuestionInput) {
       if (options.getPendingQuestion()) {
-        return createToolFailureResult(ASK_USER_CHOICE_TOOL_NAME, 'EXECUTION_FAILED', '当前已有待回答问题，请等待用户先完成作答。');
+        return createToolFailureResult(ASK_USER_QUESTION_TOOL_NAME, 'EXECUTION_FAILED', '当前已有待回答问题，请等待用户先完成作答。');
       }
 
-      const normalizedInput: AskUserChoiceInput = {
+      const normalizedInput: AskUserQuestionInput = {
         ...input,
         allowOther: input.allowOther ?? false
       };
-      const validationError = validateAskUserChoiceInput(normalizedInput);
+      const validationError = validateAskUserQuestionInput(normalizedInput);
 
       if (validationError) {
-        return createToolFailureResult(ASK_USER_CHOICE_TOOL_NAME, 'INVALID_INPUT', validationError);
+        return createToolFailureResult(ASK_USER_QUESTION_TOOL_NAME, 'INVALID_INPUT', validationError);
       }
 
-      return createAwaitingUserInputResult(ASK_USER_CHOICE_TOOL_NAME, createQuestionPayload(normalizedInput, options.createQuestionId()));
+      return createAwaitingUserInputResult(ASK_USER_QUESTION_TOOL_NAME, createQuestionPayload(normalizedInput, options.createQuestionId()));
     }
   };
 }
