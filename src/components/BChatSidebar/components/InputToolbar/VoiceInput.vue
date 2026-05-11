@@ -24,7 +24,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onUnmounted, ref } from 'vue';
+import { computed, onUnmounted, ref, watch } from 'vue';
 import { Icon } from '@iconify/vue';
 import { getElectronAPI, hasElectronAPI } from '@/shared/platform/electron-api';
 import { Modal } from '@/utils/modal';
@@ -46,6 +46,7 @@ withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits<{
   (e: 'start'): void;
+  (e: 'partial-text', payload: { text: string }): void;
   (e: 'complete', payload: { text: string }): void;
 }>();
 
@@ -104,7 +105,17 @@ const isRecording = computed<boolean>(() => recorder.status.value === 'recording
  */
 defineExpose({
   isRecording,
-  waveformSamples: recorder.waveformSamples
+  waveformSamples: recorder.waveformSamples,
+  partialText: session.partialText
+});
+
+/**
+ * 监听增量文本变化，实时通知父组件。
+ */
+watch(() => session.partialText.value, (text) => {
+  if (isRecording.value || isTranscribing.value) {
+    emit('partial-text', { text });
+  }
 });
 
 /**

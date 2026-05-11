@@ -689,6 +689,18 @@ defineExpose({
     view.value?.focus();
   },
   /**
+   * 获取保存选区或当前选区的光标位置。
+   * @returns 光标位置
+   */
+  getCursorPosition: (): number => {
+    if (!view.value) {
+      return 0;
+    }
+
+    const selection = lastSelection.value ?? view.value.state.selection;
+    return selection.main.head;
+  },
+  /**
    * 保存当前选区，用于延迟的外部插入操作
    */
   saveCursorPosition: () => {
@@ -714,6 +726,22 @@ defineExpose({
     });
 
     lastSelection.value = null;
+  },
+  /**
+   * 替换指定范围的文本。
+   * @param from - 起始位置
+   * @param to - 结束位置
+   * @param text - 替换后的文本
+   */
+  replaceTextRange: (from: number, to: number, text: string) => {
+    if (!view.value) return;
+
+    view.value.focus();
+    const insertEnd = from + text.length;
+    view.value.dispatch({
+      changes: { from, to, insert: text },
+      selection: { anchor: insertEnd }
+    });
   },
   /**
    * 获取编辑器原始文本，包括 {{...}} 标记

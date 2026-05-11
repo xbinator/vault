@@ -5,7 +5,7 @@
 <template>
   <div class="chat-input-toolbar">
     <template v-if="isVoiceRecording">
-      <VoiceWaveform :samples="voiceWaveformSamples" />
+      <VoiceWaveform :samples="voiceWaveformSamples" :text="voicePartialText" />
 
       <div class="toolbar-space"></div>
     </template>
@@ -22,7 +22,7 @@
     </template>
 
     <div class="action-buttons">
-      <VoiceInput ref="voiceInputRef" :disabled="loading" @start="emit('voice-start')" @complete="handleVoiceComplete" />
+      <VoiceInput ref="voiceInputRef" :disabled="loading" @start="emit('voice-start')" @partial-text="handleVoicePartial" @complete="handleVoiceComplete" />
 
       <BButton v-if="loading" size="small" tooltip="停止" square @click="$emit('abort')">
         <svg class="loading-icon" color="currentColor" viewBox="0 0 1000 1000" xmlns="http://www.w3.org/2000/svg">
@@ -76,6 +76,7 @@ const emit = defineEmits<{
   (e: 'model-change', model: { providerId: string; modelId: string }): void;
   (e: 'image-select', files: File[]): void;
   (e: 'voice-start'): void;
+  (e: 'voice-partial', payload: { text: string }): void;
   (e: 'voice-complete', payload: { text: string }): void;
 }>();
 
@@ -103,6 +104,14 @@ const isVoiceRecording = computed<boolean>(() => {
 const voiceWaveformSamples = computed<number[]>(() => {
   const input = voiceInputRef.value;
   return input?.waveformSamples ?? [];
+});
+
+/**
+ * 当前录音时的实时转写文本。
+ */
+const voicePartialText = computed<string>(() => {
+  const input = voiceInputRef.value;
+  return input?.partialText ?? '';
 });
 
 /**
@@ -134,6 +143,14 @@ function handleImageInputChange(files: FileList): void {
  */
 function handleVoiceComplete(payload: { text: string }): void {
   emit('voice-complete', payload);
+}
+
+/**
+ * 处理语音输入增量文本事件。
+ * @param payload - 增量转写文本
+ */
+function handleVoicePartial(payload: { text: string }): void {
+  emit('voice-partial', payload);
 }
 
 /**

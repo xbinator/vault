@@ -19,6 +19,11 @@ const buttonStubTemplate =
 const recorderStatus = ref<'idle' | 'recording' | 'stopping'>('idle');
 
 /**
+ * 增量文本引用。
+ */
+const partialText = ref('');
+
+/**
  * 最终文本引用。
  */
 const finalText = ref('第一段');
@@ -47,9 +52,15 @@ const completeSessionMock = vi.fn(async () => ({ text: finalText.value, failedSe
  */
 const getSpeechRuntimeStatusMock = vi.fn(async () => ({ state: 'ready' as const }));
 
+/**
+ * 麦克风权限请求桩。
+ */
+const requestMicrophonePermissionMock = vi.fn(async () => true);
+
 vi.mock('@/shared/platform/electron-api', () => ({
   hasElectronAPI: () => true,
   getElectronAPI: () => ({
+    requestMicrophonePermission: requestMicrophonePermissionMock,
     getSpeechRuntimeStatus: getSpeechRuntimeStatusMock
   })
 }));
@@ -66,6 +77,12 @@ vi.mock('@/utils/modal', () => ({
   Modal: {
     confirm: vi.fn(async () => [false])
   }
+}));
+
+vi.mock('@/components/BChatSidebar/hooks/useInteraction', () => ({
+  useInteraction: () => ({
+    showToast: vi.fn()
+  })
 }));
 
 /**
@@ -86,6 +103,7 @@ vi.mock('@/components/BChatSidebar/hooks/useVoiceRecorder', () => ({
 vi.mock('@/components/BChatSidebar/hooks/useVoiceSession', () => ({
   useVoiceSession: () => ({
     finalText,
+    partialText,
     enqueueSegment: vi.fn(),
     resetSession: vi.fn(),
     completeSession: completeSessionMock
@@ -95,12 +113,14 @@ vi.mock('@/components/BChatSidebar/hooks/useVoiceSession', () => ({
 describe('VoiceInput', () => {
   beforeEach(() => {
     recorderStatus.value = 'idle';
+    partialText.value = '';
     finalText.value = '第一段';
     startMock.mockClear();
     stopMock.mockClear();
     completeSessionMock.mockReset();
     completeSessionMock.mockImplementation(async () => ({ text: finalText.value, failedSegmentIds: [] }));
     getSpeechRuntimeStatusMock.mockClear();
+    requestMicrophonePermissionMock.mockClear();
   });
 
   it('emits complete with the final transcript after stopping a recording session', async () => {
@@ -121,6 +141,7 @@ describe('VoiceInput', () => {
     });
 
     await wrapper.get('[data-testid="voice-start"]').trigger('click');
+    await nextTick();
     await wrapper.get('[data-testid="voice-stop"]').trigger('click');
 
     expect(startMock).toHaveBeenCalledTimes(1);
@@ -154,6 +175,7 @@ describe('VoiceInput', () => {
     });
 
     await wrapper.get('[data-testid="voice-start"]').trigger('click');
+    await nextTick();
     const stopPromise = wrapper.get('[data-testid="voice-stop"]').trigger('click');
     await Promise.resolve();
     await nextTick();
@@ -170,5 +192,30 @@ describe('VoiceInput', () => {
     expect(wrapper.find('[data-testid="voice-transcribing"]').exists()).toBe(false);
     expect(wrapper.find('[data-testid="voice-start"]').exists()).toBe(true);
     expect(wrapper.emitted('complete')?.[0]?.[0].text).toBe('第一段');
+  });
+
+  it('emits partial text while recording', async () => {
+    const { default: VoiceInput } = await import('@/components/BChatSidebar/components/InputToolbar/VoiceInput.vue');
+    const wrapper = mount(VoiceInput, {
+      props: {
+        disabled: false
+      },
+      global: {
+        stubs: {
+          BButton: {
+            props: ['disabled', 'loading'],
+            emits: ['click'],
+            template: buttonStubTemplate
+          }
+        }
+      }
+    });
+
+    await wrapper.get('[data-testid="voice-start"]').trigger('click');
+    await nextTick();
+    partialText.value = '实时转写';
+    await nextTick();
+
+    expect(wrapper.emitted('partial-text')?.at(-1)?.[0]).toEqual({ text: '实时转写' });
   });
 });

@@ -22,7 +22,10 @@
       ></span>
     </div>
 
-    <div class="voice-waveform__hint">
+    <div v-if="text" class="voice-waveform__text">
+      {{ text }}
+    </div>
+    <div v-else class="voice-waveform__hint">
       请说，我再听
       <span class="voice-waveform__dots">
         <span class="voice-waveform__dot">.</span>
@@ -44,6 +47,8 @@ import { computed } from 'vue';
 interface Props {
   /** 波形采样数组。 */
   samples: number[];
+  /** 实时转写文本。 */
+  text?: string;
 }
 
 const props = defineProps<Props>();
@@ -125,6 +130,16 @@ function resolveBarHeight(sample: number, distance = 0): number {
 
 .voice-waveform__bar--center {
   width: 2px;
+}
+
+.voice-waveform__text {
+  max-width: 260px;
+  margin-left: 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 12px;
+  color: var(--text-primary);
+  white-space: nowrap;
 }
 
 .voice-waveform__hint {

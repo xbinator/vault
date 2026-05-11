@@ -111,4 +111,60 @@ describe('useVoiceSession', () => {
       failedSegmentIds: ['2']
     });
   });
+
+  it('keeps partial text ordered by waiting for the leading contiguous final segments', async () => {
+    const resolvers = new Map<string, () => void>();
+    const transcribe = vi.fn(({ id }: { id: string }) => {
+      return new Promise<{ text: string }>((resolve) => {
+        resolvers.set(id, () => {
+          resolve({ text: TRANSCRIPT_MAP[id] });
+        });
+      });
+    });
+    const session = useVoiceSession(transcribe);
+
+    session.enqueueSegment({ id: '1', separator: '', buffer: new ArrayBuffer(4), mimeType: 'audio/webm' });
+    session.enqueueSegment({ id: '2', separator: '', buffer: new ArrayBuffer(4), mimeType: 'audio/webm' });
+    await vi.waitFor(() => {
+      expect(transcribe).toHaveBeenCalledTimes(2);
+    });
+
+    resolvers.get('2')?.();
+    await Promise.resolve();
+    expect(session.partialText.value).toBe('');
+
+    resolvers.get('1')?.();
+    await vi.waitFor(() => {
+      expect(session.partialText.value).toBe('第一段第二段');
+    });
+  });
+
+  it('ignores stale async results after resetting into a new recording session', async () => {
+    let resolveFirstSegment: ((value: { text: string }) => void) | null = null;
+    const transcribe = vi.fn(({ id }: { id: string }) => {
+      if (id === '1') {
+        return new Promise<{ text: string }>((resolve) => {
+          resolveFirstSegment = resolve;
+        });
+      }
+
+      return Promise.resolve({ text: TRANSCRIPT_MAP[id] });
+    });
+    const session = useVoiceSession(transcribe);
+
+    session.enqueueSegment({ id: '1', separator: '', buffer: new ArrayBuffer(4), mimeType: 'audio/webm' });
+    session.resetSession();
+    session.enqueueSegment({ id: '2', separator: '', buffer: new ArrayBuffer(4), mimeType: 'audio/webm' });
+
+    await vi.waitFor(() => {
+      expect(session.finalText.value).toBe('第二段');
+    });
+
+    resolveFirstSegment?.({ text: '旧会话结果' });
+    await Promise.resolve();
+
+    expect(session.finalText.value).toBe('第二段');
+    expect(session.segments.value).toHaveLength(1);
+    expect(session.segments.value[0]?.id).toBe('2');
+  });
 });

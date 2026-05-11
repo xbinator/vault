@@ -80,6 +80,8 @@
             @abort="handleAbort"
             @image-select="imageUpload.appendImages"
             @model-change="handleModelChange"
+            @voice-start="handleVoiceStart"
+            @voice-partial="handleVoicePartial"
             @voice-complete="handleVoiceComplete"
           />
         </div>
@@ -192,18 +194,80 @@ function saveCursorPosition(): void {
   promptEditorRef.value?.saveCursorPosition();
 }
 
+/**
+ * 当前语音实时转写在输入框中的占位范围。
+ */
+const activeVoiceInsertionRange = ref<{ start: number; end: number } | null>(null);
+
 /** 插入文本到光标位置 */
 function insertTextAtCursor(text: string): void {
   promptEditorRef.value?.insertTextAtCursor(text);
 }
 
 /**
- * 使用最终转写文本替换当前语音占位块。
+ * 替换语音占位范围中的文本。
+ * @param text - 新的占位文本
+ */
+function replaceVoiceInsertionText(text: string): void {
+  const range = activeVoiceInsertionRange.value;
+  const editor = promptEditorRef.value;
+
+  if (!range || !editor) {
+    return;
+  }
+
+  editor.replaceTextRange(range.start, range.end, text);
+  activeVoiceInsertionRange.value = {
+    start: range.start,
+    end: range.start + text.length
+  };
+}
+
+/**
+ * 记录本次语音输入在编辑器中的插入起点。
+ */
+function handleVoiceStart(): void {
+  const editor = promptEditorRef.value;
+  if (!editor) {
+    activeVoiceInsertionRange.value = null;
+    return;
+  }
+
+  saveCursorPosition();
+  const cursorPosition = editor.getCursorPosition();
+  activeVoiceInsertionRange.value = {
+    start: cursorPosition,
+    end: cursorPosition
+  };
+}
+
+/**
+ * 处理语音实时转写增量文本。
+ * @param payload - 增量转写文本
+ */
+function handleVoicePartial(payload: { text: string }): void {
+  replaceVoiceInsertionText(payload.text);
+}
+
+/**
+ * 使用最终转写文本插入到光标位置。
  * @param payload - 语音转写结果
  */
 function handleVoiceComplete(payload: { text: string }): void {
+  const hadActiveVoiceInsertion = Boolean(activeVoiceInsertionRange.value);
+
   if (!payload.text.trim()) {
+    if (hadActiveVoiceInsertion) {
+      replaceVoiceInsertionText('');
+      activeVoiceInsertionRange.value = null;
+    }
     message.error('语音转写结果为空，请重试');
+    return;
+  }
+
+  if (hadActiveVoiceInsertion) {
+    replaceVoiceInsertionText(payload.text);
+    activeVoiceInsertionRange.value = null;
     return;
   }
 

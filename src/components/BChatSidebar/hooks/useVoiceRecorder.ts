@@ -23,7 +23,7 @@ export interface VoiceRecorderSegment {
 export interface VoiceRecorderOptions {
   /** 单段录音完成时的回调。 */
   onSegment?: (segment: VoiceRecorderSegment) => Promise<void> | void;
-  /** 自动切片时长（毫秒），默认 4000。 */
+  /** 自动切片时长（毫秒），默认 1000。 */
   segmentDurationMs?: number;
 }
 
@@ -264,7 +264,7 @@ export function useVoiceRecorder(options: VoiceRecorderOptions = {}) {
 
     segmentTimerId = setInterval(() => {
       enqueueCurrentSegment();
-    }, options.segmentDurationMs ?? 4000);
+    }, options.segmentDurationMs ?? 1000);
 
     status.value = 'recording';
   }

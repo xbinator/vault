@@ -1,6 +1,6 @@
 /**
  * @file useVoiceTranscriptionSession.ts
- * @description 管理语音转写会话中的分段队列、转写状态与最终拼接结果。
+ * @description 管理语音转写会话中的分段队列、并行转写与增量拼接结果。
  */
 import { computed, ref } from 'vue';
 import { hasElectronAPI, getElectronAPI } from '@/shared/platform/electron-api';
@@ -68,14 +68,50 @@ export async function defaultVoiceSegmentTranscriber(segment: PendingVoiceSegmen
   return { text: result.text };
 }
 
+// ─── 并发控制 ────────────────────────────────────────────────────────────────
+
+const MAX_CONCURRENT = 2;
+
+/**
+ * 创建并发门，用于限制同时转写的段数。
+ * @param max - 最大并发数
+ * @returns 获取与释放令牌的方法
+ */
+function createConcurrencyGate(max: number) {
+  let active = 0;
+  const pending: Array<() => void> = [];
+
+  async function acquire(): Promise<void> {
+    if (active < max) {
+      active += 1;
+      return;
+    }
+    return new Promise<void>((resolve) => {
+      pending.push(resolve);
+    });
+  }
+
+  function release(): void {
+    active -= 1;
+    const next = pending.shift();
+    if (next) {
+      active += 1;
+      next();
+    }
+  }
+
+  return { acquire, release };
+}
+
 // ─── Hook ────────────────────────────────────────────────────────────────────
 
 /**
  * 管理语音转写分段会话。
  *
- * - 保证转写串行执行，入队顺序即转写顺序。
+ * - 分段并行转写，最大并发 2，入队顺序即显示顺序。
+ * - `partialText` 包含所有已完成和正在转写的段文本，用于实时显示。
  * - `finalText` 仅拼接状态为 `final` 的段。
- * - `completeSession` 返回失败段列表，供调用方决策。
+ * - `completeSession` 等待全部段完成，返回失败段列表。
  *
  * @param transcribe - 单段转写执行器，默认使用 Electron IPC。
  */
@@ -83,17 +119,19 @@ export function useVoiceSession(transcribe: VoiceSegmentTranscriber = defaultVoi
   /** 当前会话的全部段信息。 */
   const segments = ref<VoiceSegment[]>([]);
 
-  /**
-   * 串行转写队列尾部 Promise。
-   * 每次入队都链在当前尾部，保证严格串行。
-   */
-  let queueTail: Promise<void> = Promise.resolve();
+  /** 并发控制门。 */
+  const gate = createConcurrencyGate(MAX_CONCURRENT);
+
+  /** 当前会话中所有段的转写 Promise，用于 completeSession 等待。 */
+  let inFlightTasks: Promise<void>[] = [];
+
+  /** 会话版本号，用于隔离 reset 之前遗留的异步结果。 */
+  let sessionVersion = 0;
 
   // ── 计算属性 ───────────────────────────────────────────────────────────────
 
   /**
    * 已完成段按入队顺序拼接的最终文本。
-   * index 即 push 顺序，无需额外排序。
    */
   const finalText = computed<string>(() =>
     segments.value
@@ -102,41 +140,84 @@ export function useVoiceSession(transcribe: VoiceSegmentTranscriber = defaultVoi
       .join('')
   );
 
+  /**
+   * 增量文本，包含 final 和 transcribing 状态的段，用于实时显示。
+   */
+  const partialText = computed<string>(() =>
+    [...segments.value]
+      .sort((a, b) => a.index - b.index)
+      .reduce<{ blocked: boolean; text: string }>(
+        (state, segment) => {
+          if (state.blocked) {
+            return state;
+          }
+
+          if (segment.status !== 'final') {
+            return { ...state, blocked: true };
+          }
+
+          return {
+            blocked: false,
+            text: `${state.text}${segment.separator}${segment.text}`
+          };
+        },
+        { blocked: false, text: '' }
+      ).text
+  );
+
   // ── 内部工具 ───────────────────────────────────────────────────────────────
 
   /**
    * 通过索引更新段字段，触发 Vue 响应式。
-   * 直接修改 `segment.xxx` 在某些场景下会绕过代理追踪。
    */
   function patchSegment(index: number, patch: Partial<Pick<VoiceSegment, 'status' | 'text'>>): void {
-    segments.value[index] = { ...segments.value[index], ...patch };
+    const segment = segments.value[index];
+    if (!segment) {
+      return;
+    }
+
+    segments.value[index] = { ...segment, ...patch };
   }
 
   // ── 对外接口 ───────────────────────────────────────────────────────────────
 
   /**
-   * 把新的语音段加入队列并串行转写。
+   * 把新的语音段加入并行转写队列。
    *
+   * 不等待任何前序段，直接通过并发门发起转写。
    * 调用方无需 await 此方法；如需等待转写完成，await `completeSession()`。
-   * 若确实需要等待单段完成，可 await 返回值，但注意并发调用仍保证串行。
    *
    * @param input - 待入队语音段
    */
   function enqueueSegment(input: PendingVoiceSegment): void {
     const index = segments.value.length;
     segments.value.push({ ...input, index, status: 'pending', text: '' });
+    const taskSessionVersion = sessionVersion;
 
-    // 链在当前队列尾部，保证严格串行；不在此处 await，避免并发调用时的竞态
-    queueTail = queueTail.then(async () => {
+    const task = gate.acquire().then(async () => {
+      if (taskSessionVersion !== sessionVersion) {
+        return;
+      }
+
       patchSegment(index, { status: 'transcribing' });
 
       try {
         const { text } = await transcribe(input);
+        if (taskSessionVersion !== sessionVersion || segments.value[index]?.id !== input.id) {
+          return;
+        }
         patchSegment(index, { status: 'final', text });
-      } catch (err) {
+      } catch {
+        if (taskSessionVersion !== sessionVersion || segments.value[index]?.id !== input.id) {
+          return;
+        }
         patchSegment(index, { status: 'failed', text: '' });
+      } finally {
+        gate.release();
       }
     });
+
+    inFlightTasks.push(task);
   }
 
   /**
@@ -145,7 +226,7 @@ export function useVoiceSession(transcribe: VoiceSegmentTranscriber = defaultVoi
    * @returns 最终拼接文本与失败段 ID 列表
    */
   async function completeSession(): Promise<SessionResult> {
-    await queueTail;
+    await Promise.allSettled(inFlightTasks);
 
     const failedSegmentIds = segments.value.filter((s) => s.status === 'failed').map((s) => s.id);
 
@@ -157,13 +238,15 @@ export function useVoiceSession(transcribe: VoiceSegmentTranscriber = defaultVoi
    * 建议在 `completeSession` 完成后调用，避免重置正在转写中的段。
    */
   function resetSession(): void {
+    sessionVersion += 1;
     segments.value = [];
-    queueTail = Promise.resolve();
+    inFlightTasks = [];
   }
 
   return {
     segments,
     finalText,
+    partialText,
     enqueueSegment,
     completeSession,
     resetSession
