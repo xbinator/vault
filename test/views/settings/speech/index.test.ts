@@ -20,7 +20,7 @@ describe('Speech settings wiring', () => {
     const constantsSource = readSource('src/views/settings/constants.ts');
     const routesSource = readSource('src/router/routes/modules/settings.ts');
 
-    expect(constantsSource).toContain("export type SettingsMenuKey = 'provider' | 'service-model' | 'speech' | 'logger';");
+    expect(constantsSource).toContain("export type SettingsMenuKey = 'provider' | 'service-model' | 'editor' | 'speech' | 'logger';");
     expect(constantsSource).toContain("{ key: 'speech', label: '语音组件', icon: 'lucide:mic', path: '/settings/speech' }");
     expect(routesSource).toContain("path: 'speech'");
     expect(routesSource).toContain("name: 'speech'");
