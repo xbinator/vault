@@ -36,6 +36,7 @@ import { VueNodeViewRenderer } from '@tiptap/vue-3';
 import { common, createLowlight } from 'lowlight';
 import { captureSourceLineRange, createSourceLineTracker, resetSourceLineTracker } from '../adapters/sourceLineMapping';
 import CodeBlockView from '../components/CodeBlock.vue';
+import TableView from '../components/TableView.vue';
 import { AISelectionHighlight } from '../extensions/aiRangeHighlight';
 import { Search, type SearchScrollContext } from '../extensions/editorSearch';
 
@@ -577,6 +578,7 @@ export function useExtensions(editorInstanceId: Ref<string>, options: UseExtensi
         }
       });
     },
+    addNodeView: () => VueNodeViewRenderer(TableView as unknown as Component<NodeViewProps>),
     parseMarkdown: (token: MarkdownTableTokenData, helpers: MarkdownParseHelpers): MarkdownParseResult => {
       const rows: JSONContent[] = [];
       const alignments = Array.isArray(token.align) ? token.align : [];
