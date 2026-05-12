@@ -4,10 +4,15 @@
  * @vitest-environment jsdom
  */
 
+import { defineComponent, h } from 'vue';
 import { createPinia, setActivePinia } from 'pinia';
 import { mount } from '@vue/test-utils';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { DropdownOption, DropdownOptionItem } from '@/components/BDropdown/type';
 import { useTabsStore } from '@/stores/tabs';
+
+const routerPushMock = vi.fn(async () => undefined);
+const confirmMock = vi.fn(async () => [false, false] as [boolean, boolean]);
 
 const dragModuleMock = vi.hoisted(() => ({
   cleanup: vi.fn(),
@@ -24,9 +29,26 @@ vi.mock('vue-router', () => ({
     fullPath: '/a'
   }),
   useRouter: () => ({
-    push: vi.fn(async () => undefined)
+    push: routerPushMock
   })
 }));
+
+vi.mock('ant-design-vue', async () => {
+  const vue = await import('vue');
+
+  return {
+    Dropdown: vue.defineComponent({
+      name: 'DropdownStub',
+      setup(_, { slots }) {
+        return () =>
+          vue.h('div', { class: 'dropdown-stub' }, [
+            vue.h('div', { class: 'dropdown-stub__trigger' }, slots.default?.()),
+            vue.h('div', { class: 'dropdown-stub__overlay' }, slots.overlay?.())
+          ]);
+      }
+    })
+  };
+});
 
 vi.mock('@/layouts/default/hooks/useTabDragger', () => ({
   useTabDragger: () => ({
@@ -40,6 +62,12 @@ vi.mock('@/layouts/default/hooks/useTabDragger', () => ({
       dropIndicatorOffset: dragModuleMock.dropIndicatorOffset
     }
   })
+}));
+
+vi.mock('@/utils/modal', () => ({
+  Modal: {
+    confirm: confirmMock
+  }
 }));
 
 /**
@@ -58,7 +86,49 @@ async function mountHeaderTabs() {
   const wrapper = mount(HeaderTabs, {
     attachTo: document.body,
     global: {
-      plugins: [pinia]
+      plugins: [pinia],
+      stubs: {
+        BDropdownMenu: defineComponent({
+          name: 'BDropdownMenuStub',
+          props: {
+            options: {
+              type: Array as () => DropdownOption[],
+              required: true
+            }
+          },
+          setup(props) {
+            /**
+             * 判断当前选项是否为可点击项。
+             * @param option - 菜单选项
+             * @returns 是否为普通菜单项
+             */
+            function isItem(option: DropdownOption): option is DropdownOptionItem {
+              return option.type !== 'divider';
+            }
+
+            return () =>
+              h(
+                'div',
+                { class: 'b-dropdown-menu' },
+                props.options.map((option, index) => {
+                  if (!isItem(option)) {
+                    return h('div', { key: `divider-${index}`, class: 'b-dropdown-menu-item-divider' });
+                  }
+
+                  return h(
+                    'div',
+                    {
+                      key: `item-${index}`,
+                      class: 'b-dropdown-menu-item',
+                      onClick: () => option.onClick?.()
+                    },
+                    option.label
+                  );
+                })
+              );
+          }
+        })
+      }
     }
   });
   await wrapper.vm.$nextTick();
@@ -69,6 +139,9 @@ describe('HeaderTabs', () => {
   beforeEach(() => {
     vi.resetModules();
     setActivePinia(createPinia());
+    routerPushMock.mockReset();
+    confirmMock.mockReset();
+    confirmMock.mockResolvedValue([false, false]);
     dragModuleMock.cleanup.mockReset();
     dragModuleMock.registerTabElement.mockClear();
     dragModuleMock.unregisterTabElement.mockClear();
@@ -95,6 +168,54 @@ describe('HeaderTabs', () => {
     const indicator = wrapper.find('.header-tabs__drop-indicator');
     expect(indicator.exists()).toBe(true);
     expect(indicator.attributes('style')).toContain('left: 199px;');
+    wrapper.unmount();
+  });
+
+  it('uses the close button path to close the last tab without disabling the action', async () => {
+    const wrapper = await mountHeaderTabs();
+    const tabsStore = useTabsStore();
+    tabsStore.tabs = [{ id: 'tab-1', path: '/a', title: 'A', cacheKey: 'cache:a' }];
+    await wrapper.vm.$nextTick();
+
+    await wrapper.find('.header-tab__close').trigger('click');
+
+    expect(tabsStore.tabs).toEqual([]);
+    expect(routerPushMock).toHaveBeenCalledWith('/welcome');
+    wrapper.unmount();
+  });
+
+  it('confirms before context close when the target tab is dirty', async () => {
+    const wrapper = await mountHeaderTabs();
+    const tabsStore = useTabsStore();
+    tabsStore.setDirty('tab-2');
+    await wrapper.vm.$nextTick();
+
+    const menuItems = wrapper.findAll('.dropdown-stub')[1]?.findAll('.b-dropdown-menu-item') ?? [];
+    const closeItem = menuItems.find((item) => item.text().trim() === '关闭');
+    expect(closeItem).toBeTruthy();
+
+    await closeItem!.trigger('click');
+
+    expect(confirmMock).toHaveBeenCalledTimes(1);
+    wrapper.unmount();
+  });
+
+  it('closes saved tabs from the context menu without asking for confirmation', async () => {
+    const wrapper = await mountHeaderTabs();
+    const tabsStore = useTabsStore();
+    tabsStore.setDirty('tab-2');
+    await wrapper.vm.$nextTick();
+
+    const closeSavedItem = wrapper
+      .findAll('.dropdown-stub')[1]
+      ?.findAll('.b-dropdown-menu-item')
+      .find((item) => item.text().trim() === '关闭已保存');
+    expect(closeSavedItem).toBeTruthy();
+
+    await closeSavedItem!.trigger('click');
+
+    expect(confirmMock).not.toHaveBeenCalled();
+    expect(tabsStore.tabs.map((tab) => tab.id)).toEqual(['tab-2']);
     wrapper.unmount();
   });
 });

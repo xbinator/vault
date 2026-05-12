@@ -5,24 +5,22 @@
 <template>
   <div ref="scrollContainer" class="header-tabs" @wheel.prevent="handleWheel">
     <div v-if="dropIndicatorStyle" class="header-tabs__drop-indicator" :style="dropIndicatorStyle"></div>
-    <div
-      v-for="tab in tabsStore.tabs"
-      :key="tab.id"
-      :ref="setTabRef(tab.id)"
-      :data-tab-id="tab.id"
-      class="header-tab"
-      :class="getTabClassName(tab)"
-      @click="handleClickTab(tab.path)"
-    >
-      <div class="header-tab__title">
-        <span v-if="tabsStore.isDirty(tab.id)" class="header-tab__dirty-mark">*</span>
-        <span class="header-tab__title-text">{{ tab.title }}</span>
+    <Dropdown v-for="tab in tabsStore.tabs" :key="tab.id" :trigger="['contextmenu']" placement="bottomLeft">
+      <div :ref="setTabRef(tab.id)" :data-tab-id="tab.id" class="header-tab" :class="getTabClassName(tab)" @click="handleClickTab(tab.path)">
+        <div class="header-tab__title">
+          <span v-if="tabsStore.isDirty(tab.id)" class="header-tab__dirty-mark">*</span>
+          <span class="header-tab__title-text">{{ tab.title }}</span>
+        </div>
+
+        <button class="header-tab__close" @click.stop="handleCloseButton(tab)">
+          <Icon icon="ic:round-close" width="12" height="12" />
+        </button>
       </div>
 
-      <button class="header-tab__close" @click.stop="handleCloseTab(tab)">
-        <Icon icon="ic:round-close" width="12" height="12" />
-      </button>
-    </div>
+      <template #overlay>
+        <BDropdownMenu :value="''" :options="getContextMenuOptions(tab)" row-class="header-tab__menu-item" />
+      </template>
+    </Dropdown>
   </div>
 </template>
 
@@ -35,8 +33,11 @@
 import { computed, shallowRef, onUnmounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Icon } from '@iconify/vue';
+import { Dropdown } from 'ant-design-vue';
+import type { DropdownOption } from '@/components/BDropdown/type';
 import { useTabsStore } from '@/stores/tabs';
-import type { Tab, TabMovePosition } from '@/stores/tabs';
+import type { Tab, TabCloseAction, TabClosePlan, TabMovePosition } from '@/stores/tabs';
+import { Modal } from '@/utils/modal';
 import { useTabDragger } from '../hooks/useTabDragger';
 
 const tabsStore = useTabsStore();
@@ -134,6 +135,77 @@ function getDropIndicatorStyle(): Record<string, string> | null {
 const dropIndicatorStyle = computed(() => getDropIndicatorStyle());
 
 /**
+ * 根据当前路由推导激活标签 ID。
+ * @returns 当前激活标签 ID，不存在时返回 null
+ */
+function getActiveTabId(): string | null {
+  return tabsStore.tabs.find((tab) => tab.path === route.fullPath)?.id ?? null;
+}
+
+/**
+ * 为某个锚点标签批量生成右键菜单所需的关闭计划。
+ * @param tabId - 锚点标签 ID
+ * @returns 各动作对应的关闭计划
+ */
+function getContextClosePlans(tabId: string): Record<TabCloseAction, TabClosePlan> {
+  const activeTabId = getActiveTabId();
+
+  return {
+    close: tabsStore.getClosePlan('close', { anchorTabId: tabId, activeTabId }),
+    closeOthers: tabsStore.getClosePlan('closeOthers', { anchorTabId: tabId, activeTabId }),
+    closeRight: tabsStore.getClosePlan('closeRight', { anchorTabId: tabId, activeTabId }),
+    closeSaved: tabsStore.getClosePlan('closeSaved', { activeTabId }),
+    closeAll: tabsStore.getClosePlan('closeAll', { activeTabId })
+  };
+}
+
+/**
+ * 执行关闭计划，按需确认并处理导航。
+ * @param plan - 待执行的关闭计划
+ */
+async function executeClosePlan(plan: TabClosePlan): Promise<void> {
+  if (plan.disabled) {
+    return;
+  }
+
+  if (plan.requiresConfirm) {
+    const [cancelled] = await Modal.confirm(
+      plan.action === 'close' ? '关闭标签' : '批量关闭标签',
+      plan.action === 'close' ? '当前标签有未保存更改，确认关闭吗？' : `即将关闭 ${plan.targetTabIds.length} 个标签，其中包含未保存更改，确认继续吗？`
+    );
+    if (cancelled) {
+      return;
+    }
+  }
+
+  tabsStore.applyClosePlan(plan);
+
+  if (!plan.requiresNavigation) {
+    return;
+  }
+
+  await router.push(plan.nextActivePath ?? '/welcome');
+}
+
+/**
+ * 构建某个标签的右键菜单项。
+ * @param tab - 当前标签页
+ * @returns 下拉菜单选项
+ */
+function getContextMenuOptions(tab: Tab): DropdownOption[] {
+  const plans = getContextClosePlans(tab.id);
+
+  return [
+    { value: 'close', label: '关闭', disabled: plans.close.disabled, onClick: () => executeClosePlan(plans.close) },
+    { value: 'closeOthers', label: '关闭其他', disabled: plans.closeOthers.disabled, onClick: () => executeClosePlan(plans.closeOthers) },
+    { value: 'closeRight', label: '关闭右侧', disabled: plans.closeRight.disabled, onClick: () => executeClosePlan(plans.closeRight) },
+    { type: 'divider' },
+    { value: 'closeSaved', label: '关闭已保存', disabled: plans.closeSaved.disabled, onClick: () => executeClosePlan(plans.closeSaved) },
+    { value: 'closeAll', label: '全部关闭', disabled: plans.closeAll.disabled, onClick: () => executeClosePlan(plans.closeAll) }
+  ];
+}
+
+/**
  * 点击标签页时切换路由。
  * @param path - 目标路由路径
  */
@@ -149,22 +221,17 @@ async function handleClickTab(path: string): Promise<void> {
 }
 
 /**
- * 关闭标签页，并在必要时跳转到相邻标签。
+ * 顶部关闭按钮：允许关闭最后一个标签。
  * @param tab - 待关闭的标签页
  */
-async function handleCloseTab(tab: Tab): Promise<void> {
-  const isActive = isActiveTab(tab);
-  const closingIndex = tabsStore.tabs.findIndex((item) => item.id === tab.id);
-  const nextTab = closingIndex === -1 ? null : tabsStore.tabs[closingIndex + 1] ?? tabsStore.tabs[closingIndex - 1] ?? null;
+async function handleCloseButton(tab: Tab): Promise<void> {
+  const plan = tabsStore.getClosePlan('close', {
+    anchorTabId: tab.id,
+    activeTabId: getActiveTabId(),
+    allowCloseLastTab: true
+  });
 
-  tabsStore.removeTab(tab.id);
-
-  if (isActive && nextTab) {
-    await router.push(nextTab.path);
-  } else if (tabsStore.tabs.length === 0) {
-    // 最后一个标签页被关闭时，跳转到欢迎页
-    await router.push('/welcome');
-  }
+  await executeClosePlan(plan);
 }
 
 /**

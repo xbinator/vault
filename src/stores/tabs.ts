@@ -13,6 +13,23 @@ import { local } from '@/shared/storage/base';
 export type TabMovePosition = 'before' | 'after';
 
 /**
+ * 标签页关闭动作类型。
+ */
+export type TabCloseAction = 'close' | 'closeOthers' | 'closeRight' | 'closeSaved' | 'closeAll';
+
+/**
+ * 关闭计划生成时的输入参数。
+ */
+export interface TabClosePlanOptions {
+  /** 右键命中的锚点标签 ID */
+  anchorTabId?: string | null;
+  /** 调用方感知到的当前激活标签 ID */
+  activeTabId?: string | null;
+  /** 是否允许关闭最后一个剩余标签 */
+  allowCloseLastTab?: boolean;
+}
+
+/**
  * 单个标签页数据。
  */
 export interface Tab {
@@ -38,6 +55,32 @@ export interface TabsState {
   missingById: Record<string, boolean>;
   /** 当前需要保留的 KeepAlive 缓存 key 列表 */
   cachedKeys: string[];
+}
+
+/**
+ * 单次标签页关闭动作的执行计划。
+ */
+export interface TabClosePlan {
+  /** 关闭动作类型 */
+  action: TabCloseAction;
+  /** 本次动作的锚点标签 ID */
+  anchorTabId: string | null;
+  /** 当前激活标签 ID */
+  activeTabId: string | null;
+  /** 是否允许关闭最后一个剩余标签 */
+  allowCloseLastTab: boolean;
+  /** 当前动作是否禁用 */
+  disabled: boolean;
+  /** 命中的目标标签 ID 列表 */
+  targetTabIds: string[];
+  /** 目标中处于脏状态的标签 ID 列表 */
+  dirtyTabIds: string[];
+  /** 是否需要二次确认 */
+  requiresConfirm: boolean;
+  /** 执行后是否需要导航 */
+  requiresNavigation: boolean;
+  /** 导航目标路径；当 requiresNavigation 为 true 且为 null 时表示跳转欢迎页 */
+  nextActivePath: string | null;
 }
 
 const TABS_STORAGE_KEY = 'app_tabs';
@@ -85,6 +128,119 @@ export function loadSavedData(): TabsState {
  */
 export function persistData(state: TabsState): void {
   local.setItem(TABS_STORAGE_KEY, state);
+}
+
+/**
+ * 在标签页列表中查找指定标签的索引。
+ * @param tabs - 当前标签页列表
+ * @param tabId - 待查找的标签 ID
+ * @returns 标签索引，不存在时返回 -1
+ */
+function findTabIndex(tabs: Tab[], tabId: string | null | undefined): number {
+  if (!tabId) {
+    return -1;
+  }
+
+  return tabs.findIndex((tab) => tab.id === tabId);
+}
+
+/**
+ * 按关闭动作收集将被关闭的目标标签。
+ * @param tabs - 当前标签页列表
+ * @param action - 关闭动作类型
+ * @param anchorIndex - 锚点标签索引
+ * @param dirtyById - 脏状态映射
+ * @returns 命中的目标标签列表
+ */
+function collectTargetTabs(tabs: Tab[], action: TabCloseAction, anchorIndex: number, dirtyById: Record<string, boolean>): Tab[] {
+  if (action === 'close') {
+    return anchorIndex === -1 ? [] : [tabs[anchorIndex]];
+  }
+
+  if (action === 'closeOthers') {
+    return anchorIndex === -1 ? [] : tabs.filter((_, index) => index !== anchorIndex);
+  }
+
+  if (action === 'closeRight') {
+    return anchorIndex === -1 ? [] : tabs.slice(anchorIndex + 1);
+  }
+
+  if (action === 'closeSaved') {
+    return tabs.filter((tab) => dirtyById[tab.id] !== true);
+  }
+
+  return tabs.slice();
+}
+
+/**
+ * 收集目标集合中的脏标签 ID。
+ * @param targetTabIds - 目标标签 ID 列表
+ * @param dirtyById - 脏状态映射
+ * @returns 脏标签 ID 列表
+ */
+function collectDirtyTabIds(targetTabIds: string[], dirtyById: Record<string, boolean>): string[] {
+  return targetTabIds.filter((tabId) => dirtyById[tabId] === true);
+}
+
+/**
+ * 计算关闭后需要回退到的标签路径。
+ * @param tabs - 关闭前的标签顺序
+ * @param activeTabId - 当前激活标签 ID
+ * @param targetTabIds - 本次将关闭的标签 ID 列表
+ * @returns 导航目标路径；null 表示应跳转欢迎页
+ */
+function resolveNextActivePath(tabs: Tab[], activeTabId: string | null, targetTabIds: string[]): string | null {
+  const activeIndex = findTabIndex(tabs, activeTabId);
+  if (activeIndex === -1) {
+    return null;
+  }
+
+  const closingIds = new Set(targetTabIds);
+  const survivingTabs = tabs.filter((tab) => !closingIds.has(tab.id));
+  if (survivingTabs.length === 0) {
+    return null;
+  }
+
+  // 优先选择原激活标签右侧仍然保留的标签。
+  for (let index = activeIndex + 1; index < tabs.length; index += 1) {
+    const candidate = tabs[index];
+    if (candidate && !closingIds.has(candidate.id)) {
+      return candidate.path;
+    }
+  }
+
+  // 若右侧没有，再回退到左侧最近的保留标签。
+  for (let index = activeIndex - 1; index >= 0; index -= 1) {
+    const candidate = tabs[index];
+    if (candidate && !closingIds.has(candidate.id)) {
+      return candidate.path;
+    }
+  }
+
+  return null;
+}
+
+/**
+ * 生成不可执行的空关闭计划。
+ * @param action - 关闭动作类型
+ * @param anchorTabId - 锚点标签 ID
+ * @param activeTabId - 当前激活标签 ID
+ * @param allowCloseLastTab - 是否允许关闭最后一个标签
+ * @returns 禁用态关闭计划
+ */
+function createDisabledClosePlan(action: TabCloseAction, anchorTabId: string | null, activeTabId: string | null, allowCloseLastTab: boolean): TabClosePlan {
+  return {
+    action,
+    anchorTabId,
+    activeTabId,
+    allowCloseLastTab,
+    disabled: true,
+    targetTabIds: [],
+    dirtyTabIds: [],
+    requiresConfirm: false,
+    requiresNavigation: false,
+    nextActivePath: null
+  };
 }
 
 // 标签页状态管理 Store
@@ -171,22 +327,104 @@ export const useTabsStore = defineStore('tabs', {
     },
 
     /**
+     * 根据关闭动作生成统一关闭计划。
+     * @param action - 关闭动作类型
+     * @param options - 关闭动作上下文
+     * @returns 关闭计划
+     */
+    getClosePlan(action: TabCloseAction, options: TabClosePlanOptions = {}): TabClosePlan {
+      const anchorTabId = options.anchorTabId ?? null;
+      const activeTabId = options.activeTabId ?? null;
+      const allowCloseLastTab = options.allowCloseLastTab === true;
+      const anchorIndex = findTabIndex(this.tabs, anchorTabId);
+      const activeIndex = findTabIndex(this.tabs, activeTabId);
+      const targetTabs = collectTargetTabs(this.tabs, action, anchorIndex, this.dirtyById);
+      const targetTabIds = targetTabs.map((tab) => tab.id);
+      const dirtyTabIds = collectDirtyTabIds(targetTabIds, this.dirtyById);
+
+      let disabled = false;
+      if (action === 'close') {
+        disabled = anchorIndex === -1 || (!allowCloseLastTab && this.tabs.length === 1);
+      } else if (action === 'closeOthers') {
+        disabled = anchorIndex === -1 || this.tabs.length === 1;
+      } else if (action === 'closeRight') {
+        disabled = anchorIndex === -1 || anchorIndex === this.tabs.length - 1;
+      } else if (action === 'closeSaved') {
+        disabled = targetTabIds.length === 0;
+      } else if (action === 'closeAll') {
+        disabled = this.tabs.length === 0;
+      }
+
+      if (disabled || targetTabIds.length === 0) {
+        return createDisabledClosePlan(action, anchorTabId, activeTabId, allowCloseLastTab);
+      }
+
+      const closesActiveTab = activeIndex !== -1 && targetTabIds.includes(activeTabId as string);
+
+      return {
+        action,
+        anchorTabId,
+        activeTabId,
+        allowCloseLastTab,
+        disabled: false,
+        targetTabIds,
+        dirtyTabIds,
+        requiresConfirm: action !== 'closeSaved' && dirtyTabIds.length > 0,
+        requiresNavigation: closesActiveTab,
+        nextActivePath: closesActiveTab ? resolveNextActivePath(this.tabs, activeTabId, targetTabIds) : null
+      };
+    },
+
+    /**
+     * 按关闭计划批量删除标签页。
+     * @param plan - 已确认的关闭计划
+     */
+    applyClosePlan(plan: TabClosePlan): void {
+      if (plan.disabled || plan.targetTabIds.length === 0) {
+        return;
+      }
+
+      const existingIds = new Set(this.tabs.map((tab) => tab.id));
+      const validIds = plan.targetTabIds.filter((tabId) => existingIds.has(tabId));
+      if (validIds.length === 0) {
+        return;
+      }
+
+      this.removeTabsByIds(validIds);
+    },
+
+    /**
+     * 批量删除标签页并清理关联状态。
+     * @param ids - 待删除的标签页 ID 列表
+     */
+    removeTabsByIds(ids: string[]): void {
+      if (ids.length === 0) {
+        return;
+      }
+
+      const idSet = new Set(ids);
+      const removedCacheKeys = this.tabs
+        .filter((tab) => idSet.has(tab.id))
+        .map((tab) => tab.cacheKey || tab.id)
+        .filter(Boolean);
+
+      this.tabs = this.tabs.filter((tab) => !idSet.has(tab.id));
+      this.cachedKeys = this.cachedKeys.filter((cacheKey) => !removedCacheKeys.includes(cacheKey));
+
+      ids.forEach((id) => {
+        delete this.dirtyById[id];
+        delete this.missingById[id];
+      });
+
+      persistData(this.$state);
+    },
+
+    /**
      * 删除标签页。
      * @param id - 标签页 ID
      */
     removeTab(id: string): void {
-      const index = this.tabs.findIndex((t) => t.id === id);
-      if (index === -1) return;
-
-      const [removedTab] = this.tabs.splice(index, 1);
-      const removedCacheKey = removedTab?.cacheKey || removedTab?.id || '';
-      if (removedCacheKey) {
-        this.cachedKeys = this.cachedKeys.filter((cacheKey) => cacheKey !== removedCacheKey);
-      }
-      delete this.dirtyById[id];
-      delete this.missingById[id];
-
-      persistData(this.$state);
+      this.removeTabsByIds([id]);
     },
 
     /**
