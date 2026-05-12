@@ -28,14 +28,6 @@
             </template>
           </BSelect>
         </AFormItem>
-
-        <AFormItem label="代理地址">
-          <AInput v-model:value="dataItem.baseUrl" placeholder="例如: https://api.example.com/v1" />
-        </AFormItem>
-
-        <AFormItem label="API Key">
-          <AInputPassword v-model:value="dataItem.apiKey" placeholder="请输入 API Key" />
-        </AFormItem>
       </div>
     </AForm>
 

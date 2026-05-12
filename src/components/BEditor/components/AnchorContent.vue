@@ -1,22 +1,22 @@
 <template>
-  <BScrollbar class="anchor-panel__content" inset="vertical">
-    <TransitionGroup name="anchor-fade" tag="div">
+  <BScrollbar class="b-editor-anchor__content" inset="vertical">
+    <TransitionGroup name="b-editor-anchor-fade" tag="div">
       <div
         v-for="item in treeItems"
         :key="item.id"
         :ref="(el) => setItemRef(el as HTMLElement, item.id)"
-        class="anchor-item"
+        class="b-editor-anchor__item"
         :class="{ active: activeId === item.id }"
         :style="item.style"
         @click="handleClick(item)"
       >
-        <div v-if="item.children.length" class="anchor-item__toggle" @click.stop="toggleCollapsed(item.id)">
+        <div v-if="item.children.length" class="b-editor-anchor__toggle" @click.stop="toggleCollapsed(item.id)">
           <Icon :icon="isCollapsed(item.id) ? 'lucide:chevron-right' : 'lucide:chevron-down'" />
         </div>
 
-        <span v-else class="anchor-item__toggle--empty"></span>
+        <span v-else class="b-editor-anchor__toggle--empty"></span>
 
-        <span class="anchor-item__text">{{ item.text }}</span>
+        <span class="b-editor-anchor__text">{{ item.text }}</span>
       </div>
     </TransitionGroup>
   </BScrollbar>
@@ -130,11 +130,11 @@ watch(
 </script>
 
 <style lang="less" scoped>
-.anchor-panel__content {
+.b-editor-anchor__content {
   padding: 2px 0 8px 8px;
 }
 
-.anchor-item {
+.b-editor-anchor__item {
   display: flex;
   gap: 6px;
   align-items: center;
@@ -155,7 +155,7 @@ watch(
   }
 }
 
-.anchor-item__toggle {
+.b-editor-anchor__toggle {
   display: inline-flex;
   flex: 0 0 18px;
   align-items: center;
@@ -175,33 +175,33 @@ watch(
   }
 }
 
-.anchor-item__toggle--empty {
+.b-editor-anchor__toggle--empty {
   width: 18px;
   height: 18px;
 }
 
-.anchor-item__text {
+.b-editor-anchor__text {
   overflow: hidden;
   text-overflow: ellipsis;
   font-size: 13px;
   white-space: nowrap;
 }
 
-.anchor-fade-enter-active,
-.anchor-fade-leave-active {
+.b-editor-anchor-fade-enter-active,
+.b-editor-anchor-fade-leave-active {
   overflow: hidden;
   transition: all 0.2s ease;
 }
 
-.anchor-fade-enter-from,
-.anchor-fade-leave-to {
+.b-editor-anchor-fade-enter-from,
+.b-editor-anchor-fade-leave-to {
   min-height: 0;
   max-height: 0;
   opacity: 0;
 }
 
-.anchor-fade-enter-to,
-.anchor-fade-leave-from {
+.b-editor-anchor-fade-enter-to,
+.b-editor-anchor-fade-leave-from {
   max-height: 28px;
 }
 </style>

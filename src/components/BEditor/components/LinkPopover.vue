@@ -1,11 +1,11 @@
 <template>
   <Teleport v-if="overlayRoot && visible" :to="overlayRoot">
-    <div ref="popoverRef" class="rich-link-popover" :style="popoverStyle">
+    <div ref="popoverRef" class="b-editor-link" :style="popoverStyle">
       <input
         ref="inputRef"
         v-model="href"
         type="url"
-        class="rich-link-popover__input"
+        class="b-editor-link__input"
         placeholder="输入链接地址..."
         @keydown.enter="confirm"
         @keydown.escape="cancel"
@@ -121,7 +121,7 @@ onBeforeUnmount((): void => {
 </script>
 
 <style lang="less" scoped>
-.rich-link-popover {
+.b-editor-link {
   display: flex;
   gap: 4px;
   align-items: center;
@@ -132,7 +132,7 @@ onBeforeUnmount((): void => {
   box-shadow: var(--shadow-lg);
 }
 
-.rich-link-popover__input {
+.b-editor-link__input {
   flex: 1;
   height: 28px;
   padding: 0 8px;

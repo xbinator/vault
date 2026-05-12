@@ -1,22 +1,15 @@
 <template>
-  <NodeViewWrapper class="b-table-node-view">
-    <div class="b-table-node-view__viewport">
-      <div ref="scrollerRef" class="b-table-node-view__scroller" @mousemove="handleMouseMove" @mouseleave="clearHoverState" @scroll="handleScroll">
-        <NodeViewContent as="table" class="b-table-node-view__table" />
+  <NodeViewWrapper class="b-editor-table">
+    <div class="b-editor-table__viewport">
+      <div ref="scrollerRef" class="b-editor-table__scroller" @mousemove="handleMouseMove" @mouseleave="clearHoverState" @scroll="handleScroll">
+        <NodeViewContent as="table" class="b-editor-table__table" />
       </div>
 
       <!-- 分割线 + 新增按钮 -->
       <template v-if="hoverState.type === 'divider'">
-        <div class="b-table-node-view__line-overlay" contenteditable="false">
-          <div class="b-table-node-view__line-highlight" :style="lineHighlightStyle"></div>
-          <button
-            type="button"
-            class="b-table-node-view__add-button"
-            :class="addButtonVariantClass"
-            :style="addButtonStyle"
-            @mousedown.prevent
-            @click="handleAdd"
-          >
+        <div class="b-editor-table__line-overlay" contenteditable="false">
+          <div class="b-editor-table__line-highlight" :style="lineHighlightStyle"></div>
+          <button type="button" class="b-editor-table__add-button" :class="addButtonVariantClass" :style="addButtonStyle" @mousedown.prevent @click="handleAdd">
             +
           </button>
         </div>
@@ -24,15 +17,11 @@
 
       <!-- 区段 + 删除按钮 -->
       <template v-else-if="hoverState.type === 'segment'">
-        <div class="b-table-node-view__segment-overlay" contenteditable="false">
-          <div
-            v-if="removeRowButtonStyle"
-            class="b-table-node-view__segment-button-group b-table-node-view__segment-button-group--row"
-            :style="removeRowButtonStyle"
-          >
+        <div class="b-editor-table__segment-overlay" contenteditable="false">
+          <div v-if="removeRowButtonStyle" class="b-editor-table__segment-button-group b-editor-table__segment-button-group--row" :style="removeRowButtonStyle">
             <button
               type="button"
-              class="b-table-node-view__remove-button b-table-node-view__remove-button--row"
+              class="b-editor-table__remove-button b-editor-table__remove-button--row"
               @mousedown.prevent
               @click="handleRemove(hoverState.hits.row)"
             >
@@ -41,12 +30,12 @@
           </div>
           <div
             v-if="removeColumnButtonStyle"
-            class="b-table-node-view__segment-button-group b-table-node-view__segment-button-group--column"
+            class="b-editor-table__segment-button-group b-editor-table__segment-button-group--column"
             :style="removeColumnButtonStyle"
           >
             <button
               type="button"
-              class="b-table-node-view__remove-button b-table-node-view__remove-button--column"
+              class="b-editor-table__remove-button b-editor-table__remove-button--column"
               @mousedown.prevent
               @click="handleRemove(hoverState.hits.column)"
             >
@@ -358,8 +347,8 @@ function getRemoveStyle(hit: SegmentHit | null): CSSProperties | null {
 }
 
 const addButtonVariantClass = computed(() => ({
-  'b-table-node-view__add-button--column': hoverState.value.type === 'divider' && hoverState.value.hit.type === 'column',
-  'b-table-node-view__add-button--row': hoverState.value.type === 'divider' && hoverState.value.hit.type === 'row'
+  'b-editor-table__add-button--column': hoverState.value.type === 'divider' && hoverState.value.hit.type === 'column',
+  'b-editor-table__add-button--row': hoverState.value.type === 'divider' && hoverState.value.hit.type === 'row'
 }));
 
 const removeRowButtonStyle = computed<CSSProperties | null>(() => (hoverState.value.type === 'segment' ? getRemoveStyle(hoverState.value.hits.row) : null));
@@ -375,25 +364,25 @@ onBeforeUnmount(() => {
 </script>
 
 <style lang="less">
-.b-table-node-view {
+.b-editor-table {
   width: 100%;
   margin: 0.75em 0;
   overflow: visible;
 }
 
-.b-table-node-view__viewport {
+.b-editor-table__viewport {
   position: relative;
   box-sizing: border-box;
   width: 100%;
   overflow: visible;
 }
 
-.b-table-node-view__scroller {
+.b-editor-table__scroller {
   width: 100%;
   overflow-x: auto;
 }
 
-.b-table-node-view__table {
+.b-editor-table__table {
   width: 100%;
   margin: 0;
   border-spacing: 0;
@@ -402,14 +391,14 @@ onBeforeUnmount(() => {
   border-radius: 8px;
 }
 
-.b-table-node-view__line-overlay,
-.b-table-node-view__segment-overlay {
+.b-editor-table__line-overlay,
+.b-editor-table__segment-overlay {
   position: absolute;
   inset: 0;
   pointer-events: none;
 }
 
-.b-table-node-view__line-highlight {
+.b-editor-table__line-highlight {
   position: absolute;
   z-index: 1;
   pointer-events: none;
@@ -417,8 +406,8 @@ onBeforeUnmount(() => {
   border-radius: 999px;
 }
 
-.b-table-node-view__add-button,
-.b-table-node-view__remove-button {
+.b-editor-table__add-button,
+.b-editor-table__remove-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -431,14 +420,14 @@ onBeforeUnmount(() => {
   box-shadow: 0 4px 14px rgb(15 23 42 / 14%), 0 1px 3px rgb(15 23 42 / 12%);
 }
 
-.b-table-node-view__add-button {
+.b-editor-table__add-button {
   position: absolute;
   z-index: 2;
   color: color-mix(in srgb, var(--editor-text) 72%, white);
   pointer-events: auto;
 }
 
-.b-table-node-view__add-button--column {
+.b-editor-table__add-button--column {
   width: 42px;
   height: 32px;
   padding: 0;
@@ -447,7 +436,7 @@ onBeforeUnmount(() => {
   transform: translate(-50%, -50%);
 }
 
-.b-table-node-view__add-button--row {
+.b-editor-table__add-button--row {
   width: 32px;
   height: 42px;
   padding: 0;
@@ -456,7 +445,7 @@ onBeforeUnmount(() => {
   transform: translate(-50%, -50%);
 }
 
-.b-table-node-view__segment-button-group {
+.b-editor-table__segment-button-group {
   position: absolute;
   z-index: 3;
   display: flex;
@@ -472,7 +461,7 @@ onBeforeUnmount(() => {
   transform: translate(-50%, -50%);
 }
 
-.b-table-node-view__remove-button {
+.b-editor-table__remove-button {
   width: 30px;
   height: 30px;
   padding: 0;
@@ -481,8 +470,8 @@ onBeforeUnmount(() => {
   color: var(--ant-color-error);
 }
 
-.b-table-node-view__remove-button--row,
-.b-table-node-view__remove-button--column {
+.b-editor-table__remove-button--row,
+.b-editor-table__remove-button--column {
   min-width: 28px;
 }
 </style>

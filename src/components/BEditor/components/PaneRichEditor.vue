@@ -1,5 +1,5 @@
 <template>
-  <div ref="overlayRootRef" class="rich-editor-pane" @click="navigate.onLink" @focusout="handleEditorFocusOut">
+  <div ref="overlayRootRef" class="b-editor-rich" @click="navigate.onLink" @focusout="handleEditorFocusOut">
     <!-- Front Matter 卡片 -->
     <FrontMatterCard
       v-if="shouldShowFrontMatterCard"
@@ -39,7 +39,7 @@
     />
 
     <!-- 编辑器内容 -->
-    <EditorContent :key="editorState?.id" :editor="editorInstance ?? undefined" class="b-editor-content" />
+    <EditorContent :key="editorState?.id" :editor="editorInstance ?? undefined" class="b-editor-rich__content" />
   </div>
 </template>
 
@@ -489,11 +489,11 @@ defineExpose({
 <style lang="less">
 @import url('@/assets/styles/markdown.less');
 
-.rich-editor-pane {
+.b-editor-rich {
   position: relative;
 }
 
-.b-editor-content {
+.b-editor-rich__content {
   height: 100%;
   min-height: 100%;
 

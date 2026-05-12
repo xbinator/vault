@@ -1,24 +1,24 @@
 <template>
-  <Transition name="find-bar-flip">
-    <div v-if="visible" class="find-bar">
-      <div class="find-bar-container" :class="{ 'no-match': isNoMatchFound }">
+  <Transition name="b-editor-findbar-flip">
+    <div v-if="visible" class="b-editor-findbar">
+      <div class="b-editor-findbar__container" :class="{ 'no-match': isNoMatchFound }">
         <input
           ref="inputRef"
           v-model="keyword"
-          class="find-bar-input"
+          class="b-editor-findbar__input"
           placeholder="在文档中查找"
           @keydown.enter.prevent="handleEnter"
           @keydown.esc.prevent="closeFind"
         />
-        <span class="find-bar-result" :class="{ 'find-bar-result--empty': isNoMatchFound }">{{ findResultText }}</span>
-        <button type="button" class="find-bar-btn" :disabled="!hasMatches" @click="findPrevious">
+        <span class="b-editor-findbar__result" :class="{ 'b-editor-findbar__result--empty': isNoMatchFound }">{{ findResultText }}</span>
+        <button type="button" class="b-editor-findbar__btn" :disabled="!hasMatches" @click="findPrevious">
           <Icon icon="lucide:chevron-up" />
         </button>
-        <button type="button" class="find-bar-btn" :disabled="!hasMatches" @click="findNext">
+        <button type="button" class="b-editor-findbar__btn" :disabled="!hasMatches" @click="findNext">
           <Icon icon="lucide:chevron-down" />
         </button>
-        <span class="find-bar-divider"></span>
-        <button type="button" class="find-bar-btn" @click="closeFind">
+        <span class="b-editor-findbar__divider"></span>
+        <button type="button" class="b-editor-findbar__btn" @click="closeFind">
           <Icon icon="lucide:x" />
         </button>
       </div>
@@ -159,7 +159,7 @@ registerShortcut({
 </script>
 
 <style scoped>
-.find-bar {
+.b-editor-findbar {
   position: absolute;
   top: 60px;
   right: 40px;
@@ -168,25 +168,25 @@ registerShortcut({
   transform-origin: top center;
 }
 
-.find-bar-flip-enter-active {
+.b-editor-findbar-flip-enter-active {
   transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-.find-bar-flip-leave-active {
+.b-editor-findbar-flip-leave-active {
   transition: all 0.2s ease-in;
 }
 
-.find-bar-flip-enter-from {
+.b-editor-findbar-flip-enter-from {
   opacity: 0;
   transform: perspective(400px) rotateX(-15deg) translateY(-10px);
 }
 
-.find-bar-flip-leave-to {
+.b-editor-findbar-flip-leave-to {
   opacity: 0;
   transform: perspective(400px) rotateX(15deg) translateY(-10px);
 }
 
-.find-bar-container {
+.b-editor-findbar__container {
   display: flex;
   gap: 4px;
   align-items: center;
@@ -200,12 +200,12 @@ registerShortcut({
   box-shadow: var(--shadow-sm);
 }
 
-.find-bar-container.no-match {
+.b-editor-findbar__container.no-match {
   border-color: var(--color-warning-border);
   box-shadow: 0 0 0 1px var(--color-warning-border);
 }
 
-.find-bar-input {
+.b-editor-findbar__input {
   flex: 1;
   min-width: 0;
   height: 24px;
@@ -220,28 +220,28 @@ registerShortcut({
   box-shadow: none;
 }
 
-.find-bar-input::placeholder {
+.b-editor-findbar__input::placeholder {
   color: var(--text-placeholder);
 }
 
-.find-bar-result {
+.b-editor-findbar__result {
   min-width: 40px;
   font-size: 12px;
   color: var(--text-tertiary);
   text-align: right;
 }
 
-.find-bar-result--empty {
+.b-editor-findbar__result--empty {
   color: var(--input-error-text);
 }
 
-.find-bar-divider {
+.b-editor-findbar__divider {
   width: 1px;
   height: 16px;
   background: var(--bg-active);
 }
 
-.find-bar-btn {
+.b-editor-findbar__btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -256,12 +256,12 @@ registerShortcut({
   transition: background-color 0.15s ease, color 0.15s ease;
 }
 
-.find-bar-btn:hover:not(:disabled) {
+.b-editor-findbar__btn:hover:not(:disabled) {
   color: var(--text-primary);
   background: var(--bg-hover);
 }
 
-.find-bar-btn:disabled {
+.b-editor-findbar__btn:disabled {
   color: var(--text-quaternary);
   cursor: not-allowed;
 }

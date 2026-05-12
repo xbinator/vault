@@ -1,73 +1,73 @@
 <template>
-  <div class="front-matter-card">
-    <div class="front-matter-header">
-      <span class="front-matter-title">元数据</span>
-      <div class="front-matter-actions">
-        <button class="action-btn toggle-btn" :title="collapsed ? '展开' : '折叠'" @click="collapsed = !collapsed">
+  <div class="b-editor-frontmatter">
+    <div class="b-editor-frontmatter__header">
+      <span class="b-editor-frontmatter__title">元数据</span>
+      <div class="b-editor-frontmatter__actions">
+        <button class="b-editor-frontmatter__action-btn b-editor-frontmatter__toggle-btn" :title="collapsed ? '展开' : '折叠'" @click="collapsed = !collapsed">
           <Icon :icon="collapsed ? 'mdi:chevron-down' : 'mdi:chevron-up'" />
         </button>
       </div>
     </div>
 
-    <Transition name="collapse">
-      <div v-show="!collapsed" class="front-matter-content">
-        <div v-for="(value, key) in data" :key="key" class="front-matter-item">
+    <Transition name="b-editor-frontmatter-collapse">
+      <div v-show="!collapsed" class="b-editor-frontmatter__content">
+        <div v-for="(value, key) in data" :key="key" class="b-editor-frontmatter__item">
           <input
             v-if="editingKey === key"
             v-model="editKeyInput"
             v-focus="{ selectAll: true }"
-            class="item-key editing"
+            class="b-editor-frontmatter__key editing"
             placeholder="键名"
             @blur="handleKeyEditComplete(String(key))"
             @keydown.enter="handleKeyEditComplete(String(key))"
             @keydown.escape="cancelKeyEdit"
           />
-          <div v-else class="item-key" @dblclick="startKeyEdit(String(key))">
+          <div v-else class="b-editor-frontmatter__key" @dblclick="startKeyEdit(String(key))">
             {{ key }}
           </div>
 
-          <div class="item-value-wrapper">
+          <div class="b-editor-frontmatter__value-wrapper">
             <input
               v-if="isSimpleValue(value)"
               v-model="localData[key]"
-              class="item-value"
+              class="b-editor-frontmatter__value"
               :placeholder="'值'"
               @input="handleValueChange(String(key), localData[key])"
             />
-            <div v-else class="item-value complex" @click="toggleComplexEdit(String(key))">
+            <div v-else class="b-editor-frontmatter__value complex" @click="toggleComplexEdit(String(key))">
               {{ formatComplexValue(value) }}
             </div>
           </div>
 
-          <button class="item-delete" title="删除" @click="handleDeleteField(String(key))">
+          <button class="b-editor-frontmatter__delete" title="删除" @click="handleDeleteField(String(key))">
             <Icon icon="mdi:close" />
           </button>
 
-          <Transition name="slide">
-            <div v-if="complexEditingKey === String(key)" class="complex-editor-inline">
+          <Transition name="b-editor-frontmatter-slide">
+            <div v-if="complexEditingKey === String(key)" class="b-editor-frontmatter__complex-editor">
               <textarea
                 v-model="complexEditValue"
-                class="complex-textarea-inline"
+                class="b-editor-frontmatter__complex-textarea"
                 placeholder="输入 YAML 格式的值"
                 @keydown.enter.ctrl="confirmComplexEditInline"
               ></textarea>
-              <div class="complex-editor-actions">
-                <button class="complex-btn cancel" @click="cancelComplexEdit">取消</button>
-                <button class="complex-btn confirm" @click="confirmComplexEditInline">确定</button>
+              <div class="b-editor-frontmatter__complex-actions">
+                <button class="b-editor-frontmatter__complex-btn cancel" @click="cancelComplexEdit">取消</button>
+                <button class="b-editor-frontmatter__complex-btn confirm" @click="confirmComplexEditInline">确定</button>
               </div>
             </div>
           </Transition>
         </div>
 
-        <div class="add-field-row">
-          <input v-model="newKey" class="item-key new-key" placeholder="新键名" @keydown.enter="confirmAddField" />
-          <input v-model="newValue" class="item-value new-value" placeholder="新值" @keydown.enter="confirmAddField" />
-          <button class="action-btn add-btn" title="添加" :disabled="!newKey.trim()" @click="confirmAddField">
+        <div class="b-editor-frontmatter__add-row">
+          <input v-model="newKey" class="b-editor-frontmatter__key b-editor-frontmatter__new-key" placeholder="新键名" @keydown.enter="confirmAddField" />
+          <input v-model="newValue" class="b-editor-frontmatter__value b-editor-frontmatter__new-value" placeholder="新值" @keydown.enter="confirmAddField" />
+          <button class="b-editor-frontmatter__action-btn b-editor-frontmatter__add-btn" title="添加" :disabled="!newKey.trim()" @click="confirmAddField">
             <Icon icon="mdi:check" />
           </button>
         </div>
 
-        <div v-if="Object.keys(data).length === 0 && !newKey" class="front-matter-empty">暂无元数据</div>
+        <div v-if="Object.keys(data).length === 0 && !newKey" class="b-editor-frontmatter__empty">暂无元数据</div>
       </div>
     </Transition>
   </div>
@@ -218,21 +218,21 @@ function confirmComplexEditInline(): void {
 </script>
 
 <style lang="less" scoped>
-.front-matter-card {
+.b-editor-frontmatter {
   margin: 16px 0;
   background-color: var(--frontmatter-bg);
   border: 1px solid var(--frontmatter-border);
   border-radius: 8px;
 }
 
-.front-matter-header {
+.b-editor-frontmatter__header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 10px 14px;
 }
 
-.front-matter-title {
+.b-editor-frontmatter__title {
   font-size: 12px;
   font-weight: 600;
   color: var(--frontmatter-key-text);
@@ -240,12 +240,12 @@ function confirmComplexEditInline(): void {
   letter-spacing: 0.5px;
 }
 
-.front-matter-actions {
+.b-editor-frontmatter__actions {
   display: flex;
   gap: 4px;
 }
 
-.action-btn {
+.b-editor-frontmatter__action-btn {
   display: flex;
   flex-shrink: 0;
   align-items: center;
@@ -267,12 +267,12 @@ function confirmComplexEditInline(): void {
   }
 }
 
-.front-matter-content {
+.b-editor-frontmatter__content {
   padding: 8px 14px;
   border-top: 1px solid var(--frontmatter-border);
 }
 
-.front-matter-item {
+.b-editor-frontmatter__item {
   position: relative;
   display: flex;
   gap: 8px;
@@ -280,7 +280,7 @@ function confirmComplexEditInline(): void {
   padding: 6px 0;
 }
 
-.item-key {
+.b-editor-frontmatter__key {
   box-sizing: border-box;
   min-width: 80px;
   max-width: 150px;
@@ -309,12 +309,12 @@ function confirmComplexEditInline(): void {
   }
 }
 
-.item-value-wrapper {
+.b-editor-frontmatter__value-wrapper {
   flex: 1;
   min-width: 0;
 }
 
-.item-value {
+.b-editor-frontmatter__value {
   box-sizing: border-box;
   width: 100%;
   height: 28px;
@@ -346,7 +346,7 @@ function confirmComplexEditInline(): void {
   }
 }
 
-.item-delete {
+.b-editor-frontmatter__delete {
   display: flex;
   flex-shrink: 0;
   align-items: center;
@@ -369,11 +369,11 @@ function confirmComplexEditInline(): void {
   }
 }
 
-.front-matter-item:hover .item-delete {
+.b-editor-frontmatter__item:hover .b-editor-frontmatter__delete {
   opacity: 1;
 }
 
-.add-field-row {
+.b-editor-frontmatter__add-row {
   display: flex;
   gap: 8px;
   align-items: center;
@@ -382,16 +382,16 @@ function confirmComplexEditInline(): void {
   border-top: 1px dashed var(--frontmatter-divider);
 }
 
-.new-key {
+.b-editor-frontmatter__new-key {
   background-color: var(--bg-primary);
   border: 1px solid var(--border-primary);
 }
 
-.new-value {
+.b-editor-frontmatter__new-value {
   background-color: var(--bg-primary);
 }
 
-.add-btn {
+.b-editor-frontmatter__add-btn {
   opacity: 0.5;
 
   &:not(:disabled):hover {
@@ -405,7 +405,7 @@ function confirmComplexEditInline(): void {
   }
 }
 
-.complex-editor-inline {
+.b-editor-frontmatter__complex-editor {
   position: absolute;
   right: 0;
   z-index: 10;
@@ -418,7 +418,7 @@ function confirmComplexEditInline(): void {
   box-shadow: var(--shadow-md);
 }
 
-.complex-textarea-inline {
+.b-editor-frontmatter__complex-textarea {
   width: 100%;
   height: 120px;
   padding: 8px;
@@ -434,14 +434,14 @@ function confirmComplexEditInline(): void {
   }
 }
 
-.complex-editor-actions {
+.b-editor-frontmatter__complex-actions {
   display: flex;
   gap: 8px;
   justify-content: flex-end;
   margin-top: 8px;
 }
 
-.complex-btn {
+.b-editor-frontmatter__complex-btn {
   padding: 4px 12px;
   font-size: 12px;
   cursor: pointer;
@@ -469,40 +469,40 @@ function confirmComplexEditInline(): void {
   }
 }
 
-.front-matter-empty {
+.b-editor-frontmatter__empty {
   padding: 12px 0;
   font-size: 13px;
   color: var(--tag-placeholder);
   text-align: center;
 }
 
-.collapse-enter-active,
-.collapse-leave-active {
+.b-editor-frontmatter-collapse-enter-active,
+.b-editor-frontmatter-collapse-leave-active {
   overflow: hidden;
   transition: all 0.3s ease;
 }
 
-.collapse-enter-from,
-.collapse-leave-to {
+.b-editor-frontmatter-collapse-enter-from,
+.b-editor-frontmatter-collapse-leave-to {
   max-height: 0;
   padding-top: 0;
   padding-bottom: 0;
   opacity: 0;
 }
 
-.collapse-enter-to,
-.collapse-leave-from {
+.b-editor-frontmatter-collapse-enter-to,
+.b-editor-frontmatter-collapse-leave-from {
   max-height: 500px;
   opacity: 1;
 }
 
-.slide-enter-active,
-.slide-leave-active {
+.b-editor-frontmatter-slide-enter-active,
+.b-editor-frontmatter-slide-leave-active {
   transition: all 0.2s ease;
 }
 
-.slide-enter-from,
-.slide-leave-to {
+.b-editor-frontmatter-slide-enter-from,
+.b-editor-frontmatter-slide-leave-to {
   opacity: 0;
   transform: translateY(-10px);
 }

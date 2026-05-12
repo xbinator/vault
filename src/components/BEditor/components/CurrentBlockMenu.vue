@@ -1,28 +1,28 @@
 <template>
-  <div v-if="isVisible" ref="rootRef" class="current-block-menu" :style="buttonStyle" @mouseenter="isHoveringMenu = true" @mouseleave="handleMenuMouseLeave">
-    <button type="button" class="current-block-menu__trigger" :class="{ 'is-open': open }" @mousedown.prevent="toggleMenu" @click.prevent>
+  <div v-if="isVisible" ref="rootRef" class="b-editor-blockmenu" :style="buttonStyle" @mouseenter="isHoveringMenu = true" @mouseleave="handleMenuMouseLeave">
+    <button type="button" class="b-editor-blockmenu__trigger" :class="{ 'is-open': open }" @mousedown.prevent="toggleMenu" @click.prevent>
       <Icon :icon="triggerIcon" />
     </button>
 
-    <div v-if="open" class="current-block-menu__panel" :class="panelClass">
-      <BScrollbar :max-height="320" class="current-block-menu__scrollbar" inset>
-        <div class="current-block-menu__content">
+    <div v-if="open" class="b-editor-blockmenu__panel" :class="panelClass">
+      <BScrollbar :max-height="320" class="b-editor-blockmenu__scrollbar" inset>
+        <div class="b-editor-blockmenu__content">
           <template v-for="item in menuItems" :key="item.value">
-            <div v-if="item.type === 'divider'" class="current-block-menu__divider"></div>
+            <div v-if="item.type === 'divider'" class="b-editor-blockmenu__divider"></div>
             <button
               v-else
               type="button"
-              class="current-block-menu__item"
+              class="b-editor-blockmenu__item"
               :class="{ 'is-active': item.active, 'is-danger': item.danger, 'is-disabled': item.disabled }"
               :disabled="item.disabled"
               @mousedown.prevent="handleSelect(item)"
               @click.prevent
             >
-              <span class="current-block-menu__item-icon">
+              <span class="b-editor-blockmenu__item-icon">
                 <Icon :icon="item.icon" />
               </span>
-              <span class="current-block-menu__item-label">{{ item.label }}</span>
-              <span v-if="item.active" class="current-block-menu__item-check">
+              <span class="b-editor-blockmenu__item-label">{{ item.label }}</span>
+              <span v-if="item.active" class="b-editor-blockmenu__item-check">
                 <Icon icon="lucide:check" />
               </span>
             </button>
@@ -321,7 +321,7 @@ function updatePosition(): void {
 }
 
 function updatePlacement(): void {
-  const triggerElement = rootRef.value?.querySelector('.current-block-menu__trigger');
+  const triggerElement = rootRef.value?.querySelector('.b-editor-blockmenu__trigger');
   const rootElement = getPositionContainer();
 
   if (!(triggerElement instanceof HTMLElement) || !rootElement) {
@@ -704,12 +704,12 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-.current-block-menu {
+.b-editor-blockmenu {
   position: absolute;
   z-index: 12;
 }
 
-.current-block-menu__trigger {
+.b-editor-blockmenu__trigger {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -724,14 +724,14 @@ onBeforeUnmount(() => {
   transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
 }
 
-.current-block-menu__trigger:hover,
-.current-block-menu__trigger.is-open {
+.b-editor-blockmenu__trigger:hover,
+.b-editor-blockmenu__trigger.is-open {
   color: var(--text-primary);
   background: var(--bg-tertiary);
   border-color: var(--border-primary);
 }
 
-.current-block-menu__panel {
+.b-editor-blockmenu__panel {
   position: absolute;
   right: calc(100% + 8px);
   min-width: 172px;
@@ -742,31 +742,31 @@ onBeforeUnmount(() => {
   box-shadow: var(--shadow-lg);
 }
 
-.current-block-menu__panel.is-placement-left-bottom {
+.b-editor-blockmenu__panel.is-placement-left-bottom {
   top: 0;
 }
 
-.current-block-menu__panel.is-placement-left-top {
+.b-editor-blockmenu__panel.is-placement-left-top {
   bottom: 0;
 }
 
-.current-block-menu__panel.is-placement-bottom {
+.b-editor-blockmenu__panel.is-placement-bottom {
   top: calc(100% + 8px);
   right: auto;
   left: 0;
 }
 
-.current-block-menu__scrollbar {
+.b-editor-blockmenu__scrollbar {
   max-height: 320px;
 }
 
-.current-block-menu__content {
+.b-editor-blockmenu__content {
   display: flex;
   flex-direction: column;
   gap: 2px;
 }
 
-.current-block-menu__item {
+.b-editor-blockmenu__item {
   display: flex;
   gap: 8px;
   align-items: center;
@@ -781,46 +781,46 @@ onBeforeUnmount(() => {
   border-radius: 8px;
 }
 
-.current-block-menu__item:hover {
+.b-editor-blockmenu__item:hover {
   background: var(--bg-hover);
 }
 
-.current-block-menu__item.is-disabled,
-.current-block-menu__item:disabled {
+.b-editor-blockmenu__item.is-disabled,
+.b-editor-blockmenu__item:disabled {
   color: var(--text-disabled);
   cursor: not-allowed;
   background: transparent;
 }
 
-.current-block-menu__item.is-active {
+.b-editor-blockmenu__item.is-active {
   background: var(--color-primary-bg);
 }
 
-.current-block-menu__item.is-danger {
+.b-editor-blockmenu__item.is-danger {
   color: var(--color-error);
 }
 
-.current-block-menu__divider {
+.b-editor-blockmenu__divider {
   height: 1px;
   margin: 4px 6px;
   background: var(--dropdown-divider);
 }
 
-.current-block-menu__item-icon,
-.current-block-menu__item-check {
+.b-editor-blockmenu__item-icon,
+.b-editor-blockmenu__item-check {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 16px;
 }
 
-.current-block-menu__item-label {
+.b-editor-blockmenu__item-label {
   flex: 1;
   text-align: left;
 }
 
 @media (width <= 768px) {
-  .current-block-menu {
+  .b-editor-blockmenu {
     display: none;
   }
 }

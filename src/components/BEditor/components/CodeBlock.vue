@@ -1,6 +1,6 @@
 <template>
-  <NodeViewWrapper class="b-code-block" :class="{ 'is-collapsed': isCollapsed, 'is-word-wrap': isWordWrap }">
-    <div class="b-code-block__header" contenteditable="false">
+  <NodeViewWrapper class="b-editor-codeblock" :class="{ 'is-collapsed': isCollapsed, 'is-word-wrap': isWordWrap }">
+    <div class="b-editor-codeblock__header" contenteditable="false">
       <BSelect v-model:value="selectedLanguage" :width="200" :options="languageOptions" @change="handleLanguageChange" />
 
       <div class="flex-1"></div>
@@ -8,7 +8,7 @@
       <button
         v-if="isMermaidLanguage"
         type="button"
-        class="b-code-block__control-btn"
+        class="b-editor-codeblock__control-btn"
         :class="{ 'is-active': isMermaidPreviewVisible }"
         :disabled="!hasMermaidCode"
         :title="hasMermaidCode ? '预览' : '输入代码后可预览'"
@@ -18,24 +18,24 @@
         <Icon :icon="showMermaidPreview ? 'lucide:eye-off' : 'lucide:eye'" />
       </button>
 
-      <button type="button" class="b-code-block__control-btn" :class="{ 'is-active': isCollapsed }" @mousedown.prevent @click="toggleCollapse">
+      <button type="button" class="b-editor-codeblock__control-btn" :class="{ 'is-active': isCollapsed }" @mousedown.prevent @click="toggleCollapse">
         <Icon :icon="isCollapsed ? 'lucide:chevron-down' : 'lucide:chevron-up'" />
       </button>
 
-      <button type="button" class="b-code-block__copy" :title="copyLabel" :aria-label="copyLabel" @mousedown.prevent @click="handleCopy">
-        <Icon class="b-code-block__copy-icon" :icon="copyIconName" />
+      <button type="button" class="b-editor-codeblock__copy" :title="copyLabel" :aria-label="copyLabel" @mousedown.prevent @click="handleCopy">
+        <Icon class="b-editor-codeblock__copy-icon" :icon="copyIconName" />
       </button>
     </div>
 
-    <div v-show="!isCollapsed" class="b-code-block__body-wrapper">
-      <div v-show="isMermaidPreviewVisible" class="b-code-block__mermaid-preview" contenteditable="false">
-        <div v-if="renderError" class="b-code-block__mermaid-error">
+    <div v-show="!isCollapsed" class="b-editor-codeblock__body-wrapper">
+      <div v-show="isMermaidPreviewVisible" class="b-editor-codeblock__mermaid-preview" contenteditable="false">
+        <div v-if="renderError" class="b-editor-codeblock__mermaid-error">
           <Icon icon="lucide:alert-circle" />
           <span>{{ renderError }}</span>
         </div>
-        <div v-else ref="mermaidPreviewRef" class="b-code-block__mermaid-diagram"></div>
+        <div v-else ref="mermaidPreviewRef" class="b-editor-codeblock__mermaid-diagram"></div>
       </div>
-      <pre v-show="!isMermaidPreviewVisible" class="b-code-block__body"><NodeViewContent as="code" :class="codeClassName" /></pre>
+      <pre v-show="!isMermaidPreviewVisible" class="b-editor-codeblock__body"><NodeViewContent as="code" :class="codeClassName" /></pre>
     </div>
   </NodeViewWrapper>
 </template>
@@ -308,7 +308,7 @@ onUnmounted(() => {
 </script>
 
 <style lang="less" scoped>
-.b-code-block {
+.b-editor-codeblock {
   margin: 0.75em 0;
   overflow: hidden;
   background: var(--code-bg);
@@ -318,13 +318,13 @@ onUnmounted(() => {
   transition: all 0.2s ease;
 
   &.is-collapsed {
-    .b-code-block__body-wrapper {
+    .b-editor-codeblock__body-wrapper {
       display: none;
     }
   }
 
   &.is-word-wrap {
-    .b-code-block__body {
+    .b-editor-codeblock__body {
       code {
         overflow-wrap: break-word;
         white-space: pre-wrap;
@@ -333,7 +333,7 @@ onUnmounted(() => {
   }
 }
 
-.b-code-block__header {
+.b-editor-codeblock__header {
   display: flex;
   gap: 6px;
   align-items: center;
@@ -343,7 +343,7 @@ onUnmounted(() => {
   background: var(--code-header-bg);
 }
 
-.b-code-block__control-btn {
+.b-editor-codeblock__control-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -386,7 +386,7 @@ onUnmounted(() => {
   }
 }
 
-.b-code-block__copy {
+.b-editor-codeblock__copy {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -403,22 +403,22 @@ onUnmounted(() => {
   }
 }
 
-.b-code-block__copy-icon {
+.b-editor-codeblock__copy-icon {
   font-size: 14px;
 }
 
-.b-code-block__body-wrapper {
+.b-editor-codeblock__body-wrapper {
   overflow: hidden;
 }
 
-.b-code-block__mermaid-preview {
+.b-editor-codeblock__mermaid-preview {
   padding: 20px;
   overflow: auto;
   background: var(--bg-primary);
   border-top: 1px solid var(--code-border);
 }
 
-.b-code-block__mermaid-diagram {
+.b-editor-codeblock__mermaid-diagram {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -430,12 +430,12 @@ onUnmounted(() => {
   }
 }
 
-.b-code-block__mermaid-placeholder {
+.b-editor-codeblock__mermaid-placeholder {
   font-size: 14px;
   color: var(--text-tertiary);
 }
 
-.b-code-block__mermaid-error {
+.b-editor-codeblock__mermaid-error {
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -451,7 +451,7 @@ onUnmounted(() => {
   }
 }
 
-.b-code-block__body {
+.b-editor-codeblock__body {
   padding: 16px;
   margin: 0;
   overflow-x: auto;

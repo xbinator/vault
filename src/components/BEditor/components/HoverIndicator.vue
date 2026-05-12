@@ -1,6 +1,6 @@
 <template>
-  <Transition name="hover-indicator-fade">
-    <div v-show="isVisible" class="hover-indicator" :class="`is-${type}`" :style="{ top }">
+  <Transition name="b-editor-hover-fade">
+    <div v-show="isVisible" class="b-editor-hover" :class="`is-${type}`" :style="{ top }">
       {{ label }}
     </div>
   </Transition>
@@ -25,7 +25,7 @@ withDefaults(defineProps<Props>(), {
 </script>
 
 <style lang="less" scoped>
-.hover-indicator {
+.b-editor-hover {
   position: absolute;
   top: 0;
   left: 4px;
@@ -52,13 +52,13 @@ withDefaults(defineProps<Props>(), {
   }
 }
 
-.hover-indicator-fade-enter-active,
-.hover-indicator-fade-leave-active {
+.b-editor-hover-fade-enter-active,
+.b-editor-hover-fade-leave-active {
   transition: all 0.2s ease;
 }
 
-.hover-indicator-fade-enter-from,
-.hover-indicator-fade-leave-to {
+.b-editor-hover-fade-enter-from,
+.b-editor-hover-fade-leave-to {
   opacity: 0;
   transform: translateY(-50%) scale(0.8);
 }

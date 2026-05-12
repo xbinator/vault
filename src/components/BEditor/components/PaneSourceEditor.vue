@@ -1,7 +1,7 @@
 <template>
-  <div class="source-editor-pane" @focusout="handleEditorFocusOut">
-    <div ref="overlayRootRef" class="source-editor-content-host">
-      <div ref="editorViewHostRef" class="source-editor-codemirror"></div>
+  <div class="b-editor-source" @focusout="handleEditorFocusOut">
+    <div ref="overlayRootRef" class="b-editor-source__host">
+      <div ref="editorViewHostRef" class="b-editor-source__codemirror"></div>
       <SelectionToolbarSource
         :visible="assistant.toolbarVisible.value"
         :position="assistant.toolbarPosition.value"
@@ -514,18 +514,18 @@ defineExpose(controller);
 </script>
 
 <style lang="less">
-.source-editor-pane {
+.b-editor-source {
   display: flex;
   flex-direction: column;
   min-height: 100%;
 }
 
-.source-editor-content-host {
+.b-editor-source__host {
   position: relative;
   min-height: 100%;
 }
 
-.source-editor-codemirror {
+.b-editor-source__codemirror {
   width: 100%;
   min-height: 100%;
 
@@ -584,7 +584,7 @@ defineExpose(controller);
     background-color: var(--source-editor-markdown-line-highlight);
   }
 
-  .source-ai-selection-highlight {
+  .b-editor-source__ai-highlight {
     color: var(--selection-color);
     background: var(--selection-bg);
     box-shadow: 0 0.2em 0 0 var(--selection-bg), 0 -0.2em 0 0 var(--selection-bg);

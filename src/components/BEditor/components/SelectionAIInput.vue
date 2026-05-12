@@ -1,14 +1,14 @@
 <template>
-  <div v-if="adapter && visible" ref="wrapperRef" class="ai-input-wrapper" :style="wrapperStyle">
+  <div v-if="adapter && visible" ref="wrapperRef" class="b-editor-selai" :style="wrapperStyle">
     <!-- AI 生成预览区 -->
-    <div v-if="previewText || loading" class="ai-preview">
-      <div class="ai-preview-text">
+    <div v-if="previewText || loading" class="b-editor-selai__preview">
+      <div class="b-editor-selai__preview-text">
         <BMessage :content="previewText" :max-height="200" type="text" status="streaming" :loading="loading" />
       </div>
-      <div class="ai-preview-hint">
+      <div class="b-editor-selai__preview-hint">
         <div v-if="loading" class="flex items-center justify-between">
           <div class="flex items-center gap-4">
-            <Icon icon="svg-spinners:ring-resize" class="ai-loading-icon" />
+            <Icon icon="svg-spinners:ring-resize" class="b-editor-selai__loading-icon" />
             <span>正在编写中...</span>
           </div>
           <BButton type="secondary" size="small" @click.stop="stopStreaming">停 止</BButton>

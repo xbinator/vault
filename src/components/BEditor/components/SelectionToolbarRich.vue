@@ -1,6 +1,6 @@
 <template>
   <Teleport v-if="overlayRoot" :to="overlayRoot">
-    <div v-if="visible" ref="toolbarRef" class="rich-selection-toolbar" :style="style">
+    <div v-if="visible" ref="toolbarRef" class="b-editor-selrich" :style="style">
       <SelectionToolbar :format-buttons="resolvedFormatButtons" @ai="$emit('ai')" @reference="$emit('reference')" @format="handleFormat" />
     </div>
     <LinkPopover

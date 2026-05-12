@@ -19,7 +19,7 @@ import { restoreSourceEditorSelectionDraw, suppressSourceEditorSelectionDraw } f
 /**
  * 源码模式高亮 decoration 的 CSS class。
  */
-const HIGHLIGHT_CLASS = 'source-ai-selection-highlight';
+const HIGHLIGHT_CLASS = 'b-editor-source__ai-highlight';
 
 /**
  * 高亮范围状态字段。

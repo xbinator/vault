@@ -1,6 +1,6 @@
 <template>
   <Teleport v-if="overlayRoot" :to="overlayRoot">
-    <div v-if="visible" ref="toolbarRef" class="source-selection-toolbar" :style="style">
+    <div v-if="visible" ref="toolbarRef" class="b-editor-selsource" :style="style">
       <SelectionToolbar :format-buttons="formatButtons" @ai="$emit('ai')" @reference="$emit('reference')" @format="$emit('format', $event)" />
     </div>
   </Teleport>

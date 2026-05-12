@@ -1,23 +1,23 @@
 <template>
-  <div class="selection-toolbar">
+  <div class="b-editor-seltoolbar">
     <template v-if="isModelAvailable">
-      <div class="selection-toolbar__ai-btn" @mousedown.prevent="$emit('ai')">
+      <div class="b-editor-seltoolbar__ai-btn" @mousedown.prevent="$emit('ai')">
         <Icon icon="lucide:sparkles" />
         <span>AI 助手</span>
       </div>
     </template>
 
-    <div class="selection-toolbar__ai-btn" @mousedown.prevent="$emit('reference')">
+    <div class="b-editor-seltoolbar__ai-btn" @mousedown.prevent="$emit('reference')">
       <Icon icon="lucide:message-square-plus" />
       <span>插入对话</span>
     </div>
-    <div v-if="buttons.length" class="selection-toolbar__divider"></div>
+    <div v-if="buttons.length" class="b-editor-seltoolbar__divider"></div>
 
     <button
       v-for="btn in buttons"
       :key="btn.command"
       type="button"
-      class="selection-toolbar__btn"
+      class="b-editor-seltoolbar__btn"
       :class="{ 'is-active': btn.active }"
       @mousedown.prevent="$emit('format', btn.command)"
     >
@@ -75,7 +75,7 @@ checkModelAvailability();
 </script>
 
 <style lang="less" scoped>
-.selection-toolbar {
+.b-editor-seltoolbar {
   display: flex;
   gap: 2px;
   align-items: center;
@@ -86,7 +86,7 @@ checkModelAvailability();
   box-shadow: var(--shadow-lg);
 }
 
-.selection-toolbar__ai-btn {
+.b-editor-seltoolbar__ai-btn {
   display: inline-flex;
   gap: 4px;
   align-items: center;
@@ -105,7 +105,7 @@ checkModelAvailability();
   }
 }
 
-.selection-toolbar__btn {
+.b-editor-seltoolbar__btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -130,7 +130,7 @@ checkModelAvailability();
   }
 }
 
-.selection-toolbar__divider {
+.b-editor-seltoolbar__divider {
   width: 1px;
   height: 16px;
   margin: 0 4px;

@@ -21,8 +21,8 @@ interface BScrollbarExposed {
   scrollTo: (options: ScrollToOptions) => void;
 }
 
-const RICH_HEADING_SELECTOR = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'].map((tag) => `.b-editor-content ${tag}`).join(', ');
-const SOURCE_HEADING_SELECTOR = '.source-editor-codemirror .cm-line[id]';
+const RICH_HEADING_SELECTOR = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'].map((tag) => `.b-editor-rich__content ${tag}`).join(', ');
+const SOURCE_HEADING_SELECTOR = '.b-editor-source__codemirror .cm-line[id]';
 const HEADING_SELECTOR = `${RICH_HEADING_SELECTOR}, ${SOURCE_HEADING_SELECTOR}`;
 
 export function useAnchors(layoutRef: Ref<HTMLElement | null>, scrollbarRef: Ref<InstanceType<typeof BScrollbar> | null>): UseBEditorAnchorsResult {
