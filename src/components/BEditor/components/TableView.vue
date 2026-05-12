@@ -90,7 +90,7 @@ const UI = {
   BUTTON_SIZE: 18,
   DIVIDER_THRESHOLD: 6,
   LINE_THICKNESS: 2,
-  OVERLAY_GUTTER: 32
+  OVERLAY_GUTTER: 0
 } as const;
 
 const FALLBACK = {
@@ -385,7 +385,6 @@ onBeforeUnmount(() => {
   position: relative;
   box-sizing: border-box;
   width: 100%;
-  padding: 32px;
   overflow: visible;
 }
 
@@ -401,52 +400,6 @@ onBeforeUnmount(() => {
   border-collapse: separate;
   border: 1px solid var(--editor-table-border);
   border-radius: 8px;
-
-  th {
-    min-width: 120px;
-    padding: 0.5em 0.75em;
-    font-weight: 600;
-    vertical-align: top;
-    color: var(--editor-text);
-    text-align: left;
-    background-color: var(--editor-table-header-bg);
-    border-right: 1px solid var(--editor-table-border);
-    border-bottom: 1px solid var(--editor-table-border);
-
-    &:last-child {
-      border-right: none;
-    }
-  }
-
-  td {
-    min-width: 120px;
-    padding: 0.5em 0.75em;
-    vertical-align: top;
-    color: var(--editor-text);
-    text-align: left;
-    background-color: var(--bg-primary);
-    border-right: 1px solid var(--editor-table-border);
-    border-bottom: 1px solid var(--editor-table-border);
-
-    &:last-child {
-      border-right: none;
-    }
-  }
-
-  tr:last-child td {
-    border-bottom: none;
-  }
-
-  tr:hover td {
-    background-color: var(--editor-table-even-bg);
-  }
-
-  th p,
-  td p {
-    min-height: auto;
-    margin: 0;
-    color: inherit;
-  }
 }
 
 .b-table-node-view__line-overlay,
