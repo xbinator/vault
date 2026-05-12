@@ -39,11 +39,28 @@ vi.mock('ant-design-vue', async () => {
   return {
     Dropdown: vue.defineComponent({
       name: 'DropdownStub',
-      setup(_, { slots }) {
+      props: {
+        open: {
+          type: Boolean,
+          default: false
+        }
+      },
+      emits: ['openChange'],
+      setup(props, { emit, slots }) {
         return () =>
           vue.h('div', { class: 'dropdown-stub' }, [
-            vue.h('div', { class: 'dropdown-stub__trigger' }, slots.default?.()),
-            vue.h('div', { class: 'dropdown-stub__overlay' }, slots.overlay?.())
+            vue.h(
+              'div',
+              {
+                class: 'dropdown-stub__trigger',
+                onContextmenu: (event: MouseEvent) => {
+                  event.preventDefault();
+                  emit('openChange', true);
+                }
+              },
+              slots.default?.()
+            ),
+            props.open ? vue.h('div', { class: 'dropdown-stub__overlay' }, slots.overlay?.()) : null
           ]);
       }
     })
@@ -138,6 +155,7 @@ async function mountHeaderTabs() {
 describe('HeaderTabs', () => {
   beforeEach(() => {
     vi.resetModules();
+    vi.useRealTimers();
     setActivePinia(createPinia());
     routerPushMock.mockReset();
     confirmMock.mockReset();
@@ -190,6 +208,9 @@ describe('HeaderTabs', () => {
     tabsStore.setDirty('tab-2');
     await wrapper.vm.$nextTick();
 
+    await wrapper.findAll('.dropdown-stub__trigger')[1]?.trigger('contextmenu');
+    await wrapper.vm.$nextTick();
+
     const menuItems = wrapper.findAll('.dropdown-stub')[1]?.findAll('.b-dropdown-menu-item') ?? [];
     const closeItem = menuItems.find((item) => item.text().trim() === '关闭');
     expect(closeItem).toBeTruthy();
@@ -206,6 +227,9 @@ describe('HeaderTabs', () => {
     tabsStore.setDirty('tab-2');
     await wrapper.vm.$nextTick();
 
+    await wrapper.findAll('.dropdown-stub__trigger')[1]?.trigger('contextmenu');
+    await wrapper.vm.$nextTick();
+
     const closeSavedItem = wrapper
       .findAll('.dropdown-stub')[1]
       ?.findAll('.b-dropdown-menu-item')
@@ -216,6 +240,45 @@ describe('HeaderTabs', () => {
 
     expect(confirmMock).not.toHaveBeenCalled();
     expect(tabsStore.tabs.map((tab) => tab.id)).toEqual(['tab-2']);
+    wrapper.unmount();
+  });
+
+  it('keeps only one context menu open at a time', async () => {
+    const wrapper = await mountHeaderTabs();
+    const dropdowns = wrapper.findAll('.dropdown-stub__trigger');
+
+    await dropdowns[0]?.trigger('contextmenu');
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.findAll('.dropdown-stub__overlay')).toHaveLength(1);
+    expect(wrapper.findAll('.dropdown-stub')[0]?.find('.dropdown-stub__overlay').exists()).toBe(true);
+    expect(wrapper.findAll('.dropdown-stub')[1]?.find('.dropdown-stub__overlay').exists()).toBe(false);
+
+    wrapper.unmount();
+  });
+
+  it('waits for the first menu close animation before opening the second menu', async () => {
+    vi.useFakeTimers();
+    const wrapper = await mountHeaderTabs();
+    const dropdowns = wrapper.findAll('.dropdown-stub__trigger');
+
+    await dropdowns[0]?.trigger('contextmenu');
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.findAll('.dropdown-stub')[0]?.find('.dropdown-stub__overlay').exists()).toBe(true);
+
+    await dropdowns[1]?.trigger('contextmenu');
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.findAll('.dropdown-stub__overlay')).toHaveLength(0);
+
+    vi.advanceTimersByTime(200);
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.findAll('.dropdown-stub__overlay')).toHaveLength(1);
+    expect(wrapper.findAll('.dropdown-stub')[0]?.find('.dropdown-stub__overlay').exists()).toBe(false);
+    expect(wrapper.findAll('.dropdown-stub')[1]?.find('.dropdown-stub__overlay').exists()).toBe(true);
+
     wrapper.unmount();
   });
 });

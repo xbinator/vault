@@ -13,19 +13,7 @@
       @open-in-browser="openInBrowser"
     />
 
-    <!-- eslint-disable-next-line vue/component-name-in-template-casing -->
-    <webview
-      ref="webviewElementRef"
-      class="webview-content"
-      :src="webview.state.value.url"
-      allowpopups="false"
-      @did-start-loading="webview.handleDidStartLoading"
-      @dom-ready="webview.handleDomReady"
-      @did-navigate="webview.handleDidNavigate"
-      @did-navigate-in-page="webview.handleDidNavigate"
-      @page-title-updated="webview.handleTitleUpdated"
-      @did-stop-loading="webview.handleDidStopLoading"
-    />
+    <div ref="webviewContainerRef" class="webview-content"></div>
   </div>
 </template>
 
@@ -34,15 +22,18 @@
  * @file index.vue
  * @description `<webview>` 标签页面入口。
  */
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { computed, onActivated, onBeforeUnmount, onDeactivated, onMounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
+import { useResizeObserver } from '@vueuse/core';
 import { native } from '@/shared/platform';
 import AddressBar from '@/views/webview/shared/components/AddressBar.vue';
 import { useWebviewTabTitle } from '@/views/webview/shared/hooks/useWebviewTabTitle';
 import { normalizeWebviewUrl } from '@/views/webview/shared/utils/url';
+import { ensureHostedWebviewElement, ensureWebviewHostLayer, hideWebviewHostLayer, showWebviewHostLayer } from './dom-host';
 import { useTagWebView } from './hooks/useTagWebView';
 
 const route = useRoute();
+const webviewContainerRef = ref<HTMLElement | null>(null);
 const webviewElementRef = ref<Electron.WebviewTag | null>(null);
 const initialUrl = computed(() => normalizeWebviewUrl(decodeURIComponent((route.query.url as string) || '')));
 const webview = useTagWebView(webviewElementRef);
@@ -74,16 +65,101 @@ function handleSubmitUrl(value: string): void {
   webview.navigate(normalizeWebviewUrl(value));
 }
 
+/**
+ * 绑定 `<webview>` 事件。
+ * @param element - `<webview>` 元素
+ */
+function bindWebviewEvents(element: Electron.WebviewTag): void {
+  element.addEventListener('did-start-loading', webview.handleDidStartLoading as EventListener);
+  element.addEventListener('dom-ready', webview.handleDomReady as EventListener);
+  element.addEventListener('did-navigate', webview.handleDidNavigate as EventListener);
+  element.addEventListener('did-navigate-in-page', webview.handleDidNavigate as EventListener);
+  element.addEventListener('page-title-updated', webview.handleTitleUpdated as EventListener);
+  element.addEventListener('did-stop-loading', webview.handleDidStopLoading as EventListener);
+}
+
+/**
+ * 解绑 `<webview>` 事件。
+ * @param element - `<webview>` 元素
+ */
+function unbindWebviewEvents(element: Electron.WebviewTag): void {
+  element.removeEventListener('did-start-loading', webview.handleDidStartLoading as EventListener);
+  element.removeEventListener('dom-ready', webview.handleDomReady as EventListener);
+  element.removeEventListener('did-navigate', webview.handleDidNavigate as EventListener);
+  element.removeEventListener('did-navigate-in-page', webview.handleDidNavigate as EventListener);
+  element.removeEventListener('page-title-updated', webview.handleTitleUpdated as EventListener);
+  element.removeEventListener('did-stop-loading', webview.handleDidStopLoading as EventListener);
+}
+
+/**
+ * 创建并缓存 `<webview>` 元素，只创建一次。
+ * `<webview>` 与宿主层始终挂在 `document.body` 下，不跟随页面 DOM 重挂载。
+ * @returns `<webview>` 元素
+ */
+function ensureWebviewElement(): Electron.WebviewTag {
+  const existing = webviewElementRef.value;
+  if (existing) {
+    return existing;
+  }
+
+  const hostLayer = ensureWebviewHostLayer(document);
+  const element = ensureHostedWebviewElement(hostLayer);
+  bindWebviewEvents(element);
+  webviewElementRef.value = element;
+  webview.create(initialUrl.value);
+  webview.attachInitialUrl(initialUrl.value);
+  return element;
+}
+
+/**
+ * 根据占位容器同步宿主层位置和尺寸。
+ */
+function syncHostLayerBounds(): void {
+  const container = webviewContainerRef.value;
+  if (!container) {
+    return;
+  }
+
+  const rect = container.getBoundingClientRect();
+  if (!rect.width || !rect.height) {
+    return;
+  }
+
+  showWebviewHostLayer(ensureWebviewHostLayer(document), {
+    x: rect.left,
+    y: rect.top,
+    width: rect.width,
+    height: rect.height
+  });
+}
+
 useWebviewTabTitle({
   routeFullPath: route.fullPath,
   title: computed(() => webview.state.value.title)
 });
 
 onMounted(() => {
-  webview.create(initialUrl.value);
+  ensureWebviewElement();
+  syncHostLayerBounds();
 });
 
+onActivated(() => {
+  syncHostLayerBounds();
+});
+
+onDeactivated(() => {
+  hideWebviewHostLayer(ensureWebviewHostLayer(document));
+});
+
+useResizeObserver(webviewContainerRef, syncHostLayerBounds);
+
 onBeforeUnmount(() => {
+  const element = webviewElementRef.value;
+  if (element) {
+    unbindWebviewEvents(element);
+    element.parentElement?.remove();
+    webviewElementRef.value = null;
+  }
   offAttachRejected?.();
 });
 </script>
@@ -101,6 +177,5 @@ onBeforeUnmount(() => {
 .webview-content {
   flex: 1;
   width: 100%;
-  border: 0;
 }
 </style>

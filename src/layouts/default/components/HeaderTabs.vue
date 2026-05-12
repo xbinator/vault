@@ -5,7 +5,14 @@
 <template>
   <div ref="scrollContainer" class="header-tabs" @wheel.prevent="handleWheel">
     <div v-if="dropIndicatorStyle" class="header-tabs__drop-indicator" :style="dropIndicatorStyle"></div>
-    <Dropdown v-for="tab in tabsStore.tabs" :key="tab.id" :trigger="['contextmenu']" placement="bottomLeft">
+    <Dropdown
+      v-for="tab in tabsStore.tabs"
+      :key="tab.id"
+      :open="openContextTabId === tab.id"
+      :trigger="['contextmenu']"
+      placement="bottomLeft"
+      @open-change="handleContextMenuOpenChange(tab.id, $event)"
+    >
       <div :ref="setTabRef(tab.id)" :data-tab-id="tab.id" class="header-tab" :class="getTabClassName(tab)" @click="handleClickTab(tab.path)">
         <div class="header-tab__title">
           <span v-if="tabsStore.isDirty(tab.id)" class="header-tab__dirty-mark">*</span>
@@ -18,7 +25,7 @@
       </div>
 
       <template #overlay>
-        <BDropdownMenu :value="''" :options="getContextMenuOptions(tab)" row-class="header-tab__menu-item" />
+        <BDropdownMenu :value="''" :width="200" :options="getContextMenuOptions(tab)" row-class="header-tab__menu-item" />
       </template>
     </Dropdown>
   </div>
@@ -43,12 +50,24 @@ import { useTabDragger } from '../hooks/useTabDragger';
 const tabsStore = useTabsStore();
 const route = useRoute();
 const router = useRouter();
+const CONTEXT_MENU_CLOSE_DELAY_MS = 200;
 
 /** 横向滚动容器 ref，供拖拽模块初始化 auto-scroll */
 const scrollContainer = shallowRef<HTMLElement | null>(null);
 
 /** 拖拽结束后最近一次的时间戳，用于抑制拖后误点击 */
 const lastDragEndedAt = shallowRef(0);
+
+/** 当前已打开的右键菜单所属标签 ID。 */
+const openContextTabId = shallowRef<string | null>(null);
+
+/** 前一个菜单关闭动画结束后，准备打开的下一个标签 ID。 */
+const pendingContextTabId = shallowRef<string | null>(null);
+
+/** 当前是否处于右键菜单关闭冷却阶段。 */
+const isContextMenuClosing = shallowRef(false);
+
+let contextMenuCloseTimer: number | null = null;
 
 /**
  * 拖拽排序回调：将拖拽结果传递给 store。
@@ -75,6 +94,16 @@ const dragModule = useTabDragger(scrollContainer, handleMoveTab, handleDragEnded
 const { draggingTabId, dropIndicatorOffset } = dragModule.state;
 
 /**
+ * 清理右键菜单关闭冷却计时器。
+ */
+function clearContextMenuCloseTimer(): void {
+  if (contextMenuCloseTimer !== null) {
+    window.clearTimeout(contextMenuCloseTimer);
+    contextMenuCloseTimer = null;
+  }
+}
+
+/**
  * Vue 模板 ref 函数：将 v-for 中的 DOM 元素传给拖拽模块注册。
  * @param tabId - 标签 ID
  * @returns ref 回调函数
@@ -93,6 +122,7 @@ function setTabRef(tabId: string): (el: unknown) => void {
 /** 组件卸载时清理所有拖拽注册 */
 onUnmounted(() => {
   dragModule.cleanup();
+  clearContextMenuCloseTimer();
 });
 
 /**
@@ -135,6 +165,68 @@ function getDropIndicatorStyle(): Record<string, string> | null {
 const dropIndicatorStyle = computed(() => getDropIndicatorStyle());
 
 /**
+ * 立即关闭当前右键菜单并清空等待状态。
+ */
+function resetContextMenuState(): void {
+  clearContextMenuCloseTimer();
+  openContextTabId.value = null;
+  pendingContextTabId.value = null;
+  isContextMenuClosing.value = false;
+}
+
+/**
+ * 启动“关闭动画完成后再打开下一个菜单”的冷却流程。
+ */
+function schedulePendingContextMenuOpen(): void {
+  clearContextMenuCloseTimer();
+  isContextMenuClosing.value = true;
+  contextMenuCloseTimer = window.setTimeout(() => {
+    openContextTabId.value = pendingContextTabId.value;
+    pendingContextTabId.value = null;
+    isContextMenuClosing.value = false;
+    contextMenuCloseTimer = null;
+  }, CONTEXT_MENU_CLOSE_DELAY_MS);
+}
+
+/**
+ * 处理单个标签右键菜单的受控打开状态。
+ * @param tabId - 对应标签 ID
+ * @param nextOpen - 下一个打开状态
+ */
+function handleContextMenuOpenChange(tabId: string, nextOpen: boolean): void {
+  if (!nextOpen) {
+    if (openContextTabId.value === tabId) {
+      openContextTabId.value = null;
+    }
+
+    if (!pendingContextTabId.value) {
+      clearContextMenuCloseTimer();
+      isContextMenuClosing.value = false;
+    }
+    return;
+  }
+
+  if (openContextTabId.value === tabId && !isContextMenuClosing.value) {
+    return;
+  }
+
+  if (isContextMenuClosing.value) {
+    pendingContextTabId.value = tabId;
+    return;
+  }
+
+  if (openContextTabId.value && openContextTabId.value !== tabId) {
+    pendingContextTabId.value = tabId;
+    openContextTabId.value = null;
+    schedulePendingContextMenuOpen();
+    return;
+  }
+
+  pendingContextTabId.value = null;
+  openContextTabId.value = tabId;
+}
+
+/**
  * 根据当前路由推导激活标签 ID。
  * @returns 当前激活标签 ID，不存在时返回 null
  */
@@ -164,6 +256,8 @@ function getContextClosePlans(tabId: string): Record<TabCloseAction, TabClosePla
  * @param plan - 待执行的关闭计划
  */
 async function executeClosePlan(plan: TabClosePlan): Promise<void> {
+  resetContextMenuState();
+
   if (plan.disabled) {
     return;
   }

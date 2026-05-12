@@ -24,6 +24,22 @@ const DEFAULT_STATE: WebviewPageState = {
  */
 export function useTagWebView(webviewRef: Ref<Electron.WebviewTag | null>) {
   const state = ref<WebviewPageState>({ ...DEFAULT_STATE });
+  let initialUrlAttached = false;
+  let isDomReady = false;
+
+  /**
+   * 首次把初始 URL 附着到 `<webview>` 实例。
+   * 同一个实例重复激活时不应再次触发加载。
+   * @param initialUrl - 初始 URL
+   */
+  function attachInitialUrl(initialUrl: string): void {
+    if (initialUrlAttached || !initialUrl) {
+      return;
+    }
+
+    webviewRef.value?.setAttribute('src', initialUrl);
+    initialUrlAttached = true;
+  }
 
   /**
    * 从当前 `<webview>` 实例同步导航状态。
@@ -52,7 +68,16 @@ export function useTagWebView(webviewRef: Ref<Electron.WebviewTag | null>) {
    */
   function navigate(url: string): void {
     state.value.url = url;
-    webviewRef.value?.loadURL(url);
+    if (!webviewRef.value) {
+      return;
+    }
+
+    if (isDomReady) {
+      webviewRef.value.loadURL(url);
+      return;
+    }
+
+    webviewRef.value.setAttribute('src', url);
   }
 
   /**
@@ -97,6 +122,7 @@ export function useTagWebView(webviewRef: Ref<Electron.WebviewTag | null>) {
    * 处理 DOM 就绪事件。
    */
   function handleDomReady(): void {
+    isDomReady = true;
     state.value.loadProgress = 0.7;
     syncNavigationState();
   }
@@ -148,6 +174,7 @@ export function useTagWebView(webviewRef: Ref<Electron.WebviewTag | null>) {
 
   return {
     ...controller,
+    attachInitialUrl,
     handleDidStartLoading,
     handleDomReady,
     handleDidNavigate,
