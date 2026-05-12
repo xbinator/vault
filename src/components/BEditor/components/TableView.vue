@@ -1,7 +1,7 @@
 <template>
   <NodeViewWrapper class="b-editor-table">
-    <div class="b-editor-table__viewport">
-      <div ref="scrollerRef" class="b-editor-table__scroller" @mousemove="handleMouseMove" @mouseleave="clearHoverState" @scroll="handleScroll">
+    <div ref="viewportRef" class="b-editor-table__viewport" @mouseleave="handleViewportMouseLeave">
+      <div ref="scrollerRef" class="b-editor-table__scroller" @mousemove="handleMouseMove" @mouseleave="handleScrollerMouseLeave" @scroll="handleScroll">
         <NodeViewContent as="table" class="b-editor-table__table" />
       </div>
 
@@ -96,6 +96,7 @@ type HoverState = { type: 'divider'; hit: DividerHit } | { type: 'segment'; hits
 const HOVER_NONE: HoverState = { type: 'none' };
 
 const hoverState = ref<HoverState>(HOVER_NONE);
+const viewportRef = ref<HTMLElement | null>(null);
 const scrollerRef = ref<HTMLElement | null>(null);
 
 function clearHoverState(): void {
@@ -146,11 +147,31 @@ function createFallbackGeometry(): { columnRects: DOMRectLike[]; rowRects: DOMRe
 }
 
 /**
+ * 读取首行各列的局部矩形，列高度拉伸到整个表格范围。
+ */
+function readColumnRects(rows: Element[], scroller: HTMLElement, scrollerRect: DOMRect): DOMRectLike[] {
+  const firstRow = rows[0];
+  if (!firstRow) return [];
+
+  const toLocal = (el: Element) => toLocalRect(el.getBoundingClientRect(), scrollerRect, scroller);
+  const rowRects = rows.map(toLocal);
+  const tableTop = rowRects[0]?.top ?? 0;
+  const tableBottom = rowRects[rowRects.length - 1]?.bottom ?? 0;
+
+  return Array.from(firstRow.querySelectorAll('th,td')).map((cell) => {
+    const cellRect = toLocal(cell);
+    // 列高度拉伸到整个表格范围
+    return { ...cellRect, top: tableTop, bottom: tableBottom, height: tableBottom - tableTop };
+  });
+}
+
+/**
  * 读取当前表格的行列几何，DOM 读取失败时降级为 fallback。
  */
 function readTableGeometry(): { columnRects: DOMRectLike[]; rowRects: DOMRectLike[] } {
   const scroller = scrollerRef.value;
   const tableElement = scroller?.querySelector('table');
+
   if (!scroller || !(tableElement instanceof HTMLTableElement)) {
     return createFallbackGeometry();
   }
@@ -160,20 +181,7 @@ function readTableGeometry(): { columnRects: DOMRectLike[]; rowRects: DOMRectLik
 
   const rows = Array.from(tableElement.querySelectorAll('tr'));
   const rowRects = rows.map(toLocal);
-  const columnRects = rows[0]
-    ? Array.from(rows[0].querySelectorAll('th,td')).map((cell) => {
-        const cellRect = toLocal(cell);
-        const top = rowRects[0]?.top ?? cellRect.top;
-        const bottom = rowRects[rowRects.length - 1]?.bottom ?? cellRect.bottom;
-
-        return {
-          ...cellRect,
-          top,
-          bottom,
-          height: bottom - top
-        };
-      })
-    : [];
+  const columnRects = readColumnRects(rows, scroller, scrollerRect);
 
   if (rowRects.length === 0 || columnRects.length === 0) {
     return createFallbackGeometry();
@@ -224,12 +232,40 @@ function updateHoverState(clientX: number, clientY: number): void {
   }
 
   const segment = findHoveredSegments(params);
-  hoverState.value = segment ? { type: 'segment', hits: segment } : HOVER_NONE;
+  if (segment) {
+    hoverState.value = { type: 'segment', hits: segment };
+    return;
+  }
+
+  hoverState.value = HOVER_NONE;
 }
 
 function handleMouseMove(event: MouseEvent): void {
   lastPointer.value = { clientX: event.clientX, clientY: event.clientY };
   updateHoverState(event.clientX, event.clientY);
+}
+
+/**
+ * 判断 relatedTarget 是否仍在当前表格控件的可交互区域内。
+ */
+function isInsideViewport(target: EventTarget | null): boolean {
+  return target instanceof Node && viewportRef.value?.contains(target) === true;
+}
+
+/**
+ * 鼠标离开 scroller 但仍在当前表格控件内部时，不应立即隐藏控件。
+ */
+function handleScrollerMouseLeave(event: MouseEvent): void {
+  if (isInsideViewport(event.relatedTarget)) return;
+  clearHoverState();
+}
+
+/**
+ * 只有真正离开整个表格控件时才清空 hover。
+ */
+function handleViewportMouseLeave(event: MouseEvent): void {
+  if (isInsideViewport(event.relatedTarget)) return;
+  clearHoverState();
 }
 
 function handleScroll(): void {
@@ -247,9 +283,7 @@ function handleScroll(): void {
  */
 function toViewportPosition(position: { top: number; left: number }): { top: number; left: number } {
   const scroller = scrollerRef.value;
-  if (!scroller) {
-    return position;
-  }
+  if (!scroller) return position;
 
   return {
     top: position.top - scroller.scrollTop + UI.OVERLAY_GUTTER,
@@ -281,6 +315,7 @@ function focusCellAt(position: { row: number; column: number }): boolean {
  */
 function getDimensions(): { rowCount: number; columnCount: number } {
   const tableInfo = findParentNodeClosestToPos(props.editor.state.selection.$from, (node) => node.type.name === 'table');
+
   if (!tableInfo) {
     return { rowCount: FALLBACK.ROW_COUNT, columnCount: FALLBACK.COLUMN_COUNT };
   }
@@ -289,7 +324,6 @@ function getDimensions(): { rowCount: number; columnCount: number } {
   return { rowCount: map.height, columnCount: map.width };
 }
 
-/** 编辑器操作上下文，避免每次操作时重新构建对象。 */
 const editorContext = { editor: props.editor, focusCellAt, getDimensions };
 
 function handleAdd(): void {
@@ -300,7 +334,6 @@ function handleAdd(): void {
 
 /**
  * 执行删除动作；行列按钮各自传入自己的命中目标。
- * @param hit - 当前点击的删除目标
  */
 function handleRemove(hit: SegmentHit | null): void {
   if (hit) {
@@ -310,51 +343,54 @@ function handleRemove(hit: SegmentHit | null): void {
 
 // ─── 样式计算 ────────────────────────────────────────────────────────────────
 
-const lineHighlightStyle = computed<CSSProperties>(() => {
-  if (hoverState.value.type !== 'divider') return {};
-
-  const { hit } = hoverState.value;
-  const { lineRect } = hit;
-  const t = UI.LINE_THICKNESS;
-  const viewportPosition = toViewportPosition({ top: lineRect.top, left: lineRect.left });
-
-  if (hit.type === 'column') {
-    return { left: `${viewportPosition.left - t / 2}px`, top: `${viewportPosition.top}px`, width: `${t}px`, height: `${lineRect.height}px` };
-  }
-  return { left: `${viewportPosition.left}px`, top: `${viewportPosition.top - t / 2}px`, width: `${lineRect.width}px`, height: `${t}px` };
-});
-
-const addButtonStyle = computed<CSSProperties>(() => {
-  if (hoverState.value.type !== 'divider') return {};
-  const position = getAddButtonPosition(hoverState.value.hit, UI.BUTTON_SIZE);
-  const viewportPosition = toViewportPosition(position);
-  return { top: `${viewportPosition.top}px`, left: `${viewportPosition.left}px` };
-});
-
 /**
  * 将删除按钮命中结果转换为视口坐标样式。
- * @param hit - 删除目标
- * @returns 视口样式；无命中时返回 null
  */
 function getRemoveStyle(hit: SegmentHit | null): CSSProperties | null {
-  if (!hit) {
-    return null;
-  }
+  if (!hit) return null;
 
   const position = getRemoveButtonPosition(hit, UI.BUTTON_SIZE);
   const viewportPosition = toViewportPosition(position);
   return { top: `${viewportPosition.top}px`, left: `${viewportPosition.left}px` };
 }
 
+const lineHighlightStyle = computed<CSSProperties>(() => {
+  if (hoverState.value.type !== 'divider') return {};
+
+  const { hit } = hoverState.value;
+  const { lineRect } = hit;
+  const t = UI.LINE_THICKNESS;
+  const vp = toViewportPosition({ top: lineRect.top, left: lineRect.left });
+
+  if (hit.type === 'column') {
+    return { left: `${vp.left - t / 2}px`, top: `${vp.top}px`, width: `${t}px`, height: `${lineRect.height}px` };
+  }
+
+  return { left: `${vp.left}px`, top: `${vp.top - t / 2}px`, width: `${lineRect.width}px`, height: `${t}px` };
+});
+
+const addButtonStyle = computed<CSSProperties>(() => {
+  if (hoverState.value.type !== 'divider') return {};
+
+  const position = getAddButtonPosition(hoverState.value.hit, UI.BUTTON_SIZE);
+  const viewportPosition = toViewportPosition(position);
+  return { top: `${viewportPosition.top}px`, left: `${viewportPosition.left}px` };
+});
+
 const addButtonVariantClass = computed(() => ({
   'b-editor-table__add-button--column': hoverState.value.type === 'divider' && hoverState.value.hit.type === 'column',
   'b-editor-table__add-button--row': hoverState.value.type === 'divider' && hoverState.value.hit.type === 'row'
 }));
 
-const removeRowButtonStyle = computed<CSSProperties | null>(() => (hoverState.value.type === 'segment' ? getRemoveStyle(hoverState.value.hits.row) : null));
-const removeColumnButtonStyle = computed<CSSProperties | null>(() =>
-  hoverState.value.type === 'segment' ? getRemoveStyle(hoverState.value.hits.column) : null
-);
+const removeRowButtonStyle = computed<CSSProperties | null>(() => {
+  if (hoverState.value.type !== 'segment') return null;
+  return getRemoveStyle(hoverState.value.hits.row);
+});
+
+const removeColumnButtonStyle = computed<CSSProperties | null>(() => {
+  if (hoverState.value.type !== 'segment') return null;
+  return getRemoveStyle(hoverState.value.hits.column);
+});
 
 // ─── 生命周期 ────────────────────────────────────────────────────────────────
 

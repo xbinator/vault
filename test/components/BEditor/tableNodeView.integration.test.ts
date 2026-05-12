@@ -104,7 +104,7 @@ function applyTableGeometry(wrapper: VueWrapper<PaneRichEditorVm>): void {
   }
 
   const table = wrapper.get('table').element as HTMLTableElement;
-  const scroller = wrapper.get('.b-table-node-view__scroller').element as HTMLElement;
+  const scroller = wrapper.get('.b-editor-table__scroller').element as HTMLElement;
   const rows = Array.from(table.querySelectorAll('tr'));
 
   defineElementRect(scroller, {
@@ -168,10 +168,10 @@ describe('table node view integration', () => {
     wrapper.vm.focusEditor();
     await flushEditorWork();
 
-    const scroller = wrapper.get('.b-table-node-view__scroller');
+    const scroller = wrapper.get('.b-editor-table__scroller');
     await scroller.trigger('mousemove', { clientX: 321, clientY: 120 });
-    expect(wrapper.get('.b-table-node-view__add-button').attributes('style')).toContain('left: 143px');
-    await wrapper.get('.b-table-node-view__add-button').trigger('click');
+    expect(wrapper.get('.b-editor-table__add-button').attributes('style')).toContain('left: 111px');
+    await wrapper.get('.b-editor-table__add-button').trigger('click');
     await flushEditorWork();
 
     const rows = wrapper.findAll('table tr');
@@ -192,11 +192,11 @@ describe('table node view integration', () => {
     wrapper.vm.focusEditor();
     await flushEditorWork();
 
-    const scroller = wrapper.get('.b-table-node-view__scroller');
+    const scroller = wrapper.get('.b-editor-table__scroller');
     await scroller.trigger('mousemove', { clientX: 260, clientY: 160 });
-    expect(wrapper.find('.b-table-node-view__remove-button--row').exists()).toBe(true);
-    expect(wrapper.find('.b-table-node-view__remove-button--column').exists()).toBe(true);
-    await wrapper.get('.b-table-node-view__remove-button--row').trigger('click');
+    expect(wrapper.find('.b-editor-table__remove-button--row').exists()).toBe(true);
+    expect(wrapper.find('.b-editor-table__remove-button--column').exists()).toBe(true);
+    await wrapper.get('.b-editor-table__remove-button--row').trigger('click');
     await flushEditorWork();
 
     const rows = wrapper.findAll('table tr');

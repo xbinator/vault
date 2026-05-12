@@ -62,15 +62,15 @@ describe('TableView', () => {
       props: createNodeViewProps()
     });
 
-    const scroller = wrapper.get('.b-table-node-view__scroller');
+    const scroller = wrapper.get('.b-editor-table__scroller');
     Object.defineProperty(scroller.element, 'scrollLeft', { value: 0, configurable: true });
 
     await scroller.trigger('mousemove', { clientX: 121, clientY: 20 });
 
-    expect(wrapper.find('.b-table-node-view__add-button').exists()).toBe(true);
-    expect(wrapper.find('.b-table-node-view__line-highlight').exists()).toBe(true);
-    expect(wrapper.find('.b-table-node-view__add-button--column').exists()).toBe(true);
-    expect(wrapper.get('.b-table-node-view__line-highlight').attributes('style')).toContain('left: 151px');
+    expect(wrapper.find('.b-editor-table__add-button').exists()).toBe(true);
+    expect(wrapper.find('.b-editor-table__line-highlight').exists()).toBe(true);
+    expect(wrapper.find('.b-editor-table__add-button--column').exists()).toBe(true);
+    expect(wrapper.get('.b-editor-table__line-highlight').attributes('style')).toContain('left: 119px');
   });
 
   it('renders divider overlays outside the scroller to avoid overflow clipping', async () => {
@@ -78,11 +78,11 @@ describe('TableView', () => {
       props: createNodeViewProps()
     });
 
-    const scroller = wrapper.get('.b-table-node-view__scroller');
+    const scroller = wrapper.get('.b-editor-table__scroller');
     await scroller.trigger('mousemove', { clientX: 121, clientY: 20 });
 
-    expect(wrapper.find('.b-table-node-view__line-overlay').exists()).toBe(true);
-    expect(scroller.find('.b-table-node-view__line-overlay').exists()).toBe(false);
+    expect(wrapper.find('.b-editor-table__line-overlay').exists()).toBe(true);
+    expect(scroller.find('.b-editor-table__line-overlay').exists()).toBe(false);
   });
 
   it('shows both row and column remove controls when hovering a cell segment away from dividers', async () => {
@@ -90,15 +90,15 @@ describe('TableView', () => {
       props: createNodeViewProps()
     });
 
-    const scroller = wrapper.get('.b-table-node-view__scroller');
+    const scroller = wrapper.get('.b-editor-table__scroller');
     await scroller.trigger('mousemove', { clientX: 180, clientY: 60 });
 
-    expect(wrapper.findAll('.b-table-node-view__segment-button-group')).toHaveLength(2);
-    expect(wrapper.findAll('.b-table-node-view__remove-button')).toHaveLength(2);
-    expect(wrapper.find('.b-table-node-view__remove-button--row').exists()).toBe(true);
-    expect(wrapper.find('.b-table-node-view__remove-button--column').exists()).toBe(true);
-    expect(wrapper.get('.b-table-node-view__segment-button-group--row').attributes('style')).toContain('left: 23px');
-    expect(wrapper.get('.b-table-node-view__segment-button-group--column').attributes('style')).toContain('top: 23px');
+    expect(wrapper.findAll('.b-editor-table__segment-button-group')).toHaveLength(2);
+    expect(wrapper.findAll('.b-editor-table__remove-button')).toHaveLength(2);
+    expect(wrapper.find('.b-editor-table__remove-button--row').exists()).toBe(true);
+    expect(wrapper.find('.b-editor-table__remove-button--column').exists()).toBe(true);
+    expect(wrapper.get('.b-editor-table__segment-button-group--row').attributes('style')).toContain('left: -9px');
+    expect(wrapper.get('.b-editor-table__segment-button-group--column').attributes('style')).toContain('top: -9px');
   });
 
   it('uses the row add-button variant when hovering a horizontal divider', async () => {
@@ -106,12 +106,12 @@ describe('TableView', () => {
       props: createNodeViewProps()
     });
 
-    const scroller = wrapper.get('.b-table-node-view__scroller');
+    const scroller = wrapper.get('.b-editor-table__scroller');
     await scroller.trigger('mousemove', { clientX: 80, clientY: 119 });
 
-    expect(wrapper.find('.b-table-node-view__add-button--row').exists()).toBe(true);
-    expect(wrapper.get('.b-table-node-view__line-highlight').attributes('style')).toContain('top: 151px');
-    expect(wrapper.get('.b-table-node-view__add-button').attributes('style')).toContain('left: 23px');
+    expect(wrapper.find('.b-editor-table__add-button--row').exists()).toBe(true);
+    expect(wrapper.get('.b-editor-table__line-highlight').attributes('style')).toContain('top: 119px');
+    expect(wrapper.get('.b-editor-table__add-button').attributes('style')).toContain('left: -9px');
   });
 
   it('keeps leading-edge add controls inside the reserved viewport gutter', async () => {
@@ -119,12 +119,26 @@ describe('TableView', () => {
       props: createNodeViewProps()
     });
 
-    const scroller = wrapper.get('.b-table-node-view__scroller');
+    const scroller = wrapper.get('.b-editor-table__scroller');
     await scroller.trigger('mousemove', { clientX: 1, clientY: 20 });
 
-    const style = wrapper.get('.b-table-node-view__add-button').attributes('style');
-    expect(style).toContain('top: 32px');
-    expect(style).toContain('left: 23px');
+    const style = wrapper.get('.b-editor-table__add-button').attributes('style');
+    expect(style).toContain('top: 0px');
+    expect(style).toContain('left: -9px');
+  });
+
+  it('keeps controls visible when the pointer leaves the scroller toward an overlay button', async () => {
+    const wrapper = mount(TableView, {
+      props: createNodeViewProps()
+    });
+
+    const scroller = wrapper.get('.b-editor-table__scroller');
+    await scroller.trigger('mousemove', { clientX: 121, clientY: 20 });
+
+    const addButton = wrapper.get('.b-editor-table__add-button');
+    await scroller.trigger('mouseleave', { relatedTarget: addButton.element });
+
+    expect(wrapper.find('.b-editor-table__add-button').exists()).toBe(true);
   });
 
   it('hides controls after mouseleave', async () => {
@@ -132,12 +146,12 @@ describe('TableView', () => {
       props: createNodeViewProps()
     });
 
-    const scroller = wrapper.get('.b-table-node-view__scroller');
+    const scroller = wrapper.get('.b-editor-table__scroller');
     await scroller.trigger('mousemove', { clientX: 121, clientY: 20 });
     await scroller.trigger('mouseleave');
 
-    expect(wrapper.find('.b-table-node-view__add-button').exists()).toBe(false);
-    expect(wrapper.find('.b-table-node-view__remove-button').exists()).toBe(false);
+    expect(wrapper.find('.b-editor-table__add-button').exists()).toBe(false);
+    expect(wrapper.find('.b-editor-table__remove-button').exists()).toBe(false);
   });
 
   it('does not show controls when the editor is not editable', async () => {
@@ -145,11 +159,11 @@ describe('TableView', () => {
       props: createNodeViewProps(false)
     });
 
-    const scroller = wrapper.get('.b-table-node-view__scroller');
+    const scroller = wrapper.get('.b-editor-table__scroller');
     await scroller.trigger('mousemove', { clientX: 121, clientY: 20 });
 
-    expect(wrapper.find('.b-table-node-view__add-button').exists()).toBe(false);
-    expect(wrapper.find('.b-table-node-view__remove-button').exists()).toBe(false);
+    expect(wrapper.find('.b-editor-table__add-button').exists()).toBe(false);
+    expect(wrapper.find('.b-editor-table__remove-button').exists()).toBe(false);
   });
 
   it('recomputes hover state after horizontal scrolling', async () => {
@@ -157,12 +171,12 @@ describe('TableView', () => {
       props: createNodeViewProps()
     });
 
-    const scroller = wrapper.get('.b-table-node-view__scroller');
+    const scroller = wrapper.get('.b-editor-table__scroller');
     Object.defineProperty(scroller.element, 'scrollLeft', { value: 120, configurable: true });
 
     await scroller.trigger('scroll');
     await scroller.trigger('mousemove', { clientX: 121, clientY: 20 });
 
-    expect(wrapper.find('.b-table-node-view__add-button').exists()).toBe(true);
+    expect(wrapper.find('.b-editor-table__add-button').exists()).toBe(true);
   });
 });
