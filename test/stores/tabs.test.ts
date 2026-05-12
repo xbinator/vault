@@ -137,4 +137,102 @@ describe('useTabsStore', () => {
       cachedKeys: ['legacy']
     });
   });
+
+  it('builds a disabled close plan for the last tab when allowCloseLastTab is false', async () => {
+    const { useTabsStore } = await import('@/stores/tabs');
+    const tabsStore = useTabsStore();
+
+    tabsStore.addTab({ id: 'solo', path: '/solo', title: 'Solo', cacheKey: 'cache:solo' });
+
+    const plan = tabsStore.getClosePlan('close', {
+      anchorTabId: 'solo',
+      activeTabId: 'solo'
+    });
+
+    expect(plan.disabled).toBe(true);
+    expect(plan.targetTabIds).toEqual([]);
+    expect(plan.requiresConfirm).toBe(false);
+    expect(plan.requiresNavigation).toBe(false);
+  });
+
+  it('allows the close button path to close the last tab when allowCloseLastTab is true', async () => {
+    const { useTabsStore } = await import('@/stores/tabs');
+    const tabsStore = useTabsStore();
+
+    tabsStore.addTab({ id: 'solo', path: '/solo', title: 'Solo', cacheKey: 'cache:solo' });
+
+    const plan = tabsStore.getClosePlan('close', {
+      anchorTabId: 'solo',
+      activeTabId: 'solo',
+      allowCloseLastTab: true
+    });
+
+    expect(plan.disabled).toBe(false);
+    expect(plan.targetTabIds).toEqual(['solo']);
+    expect(plan.requiresConfirm).toBe(false);
+    expect(plan.requiresNavigation).toBe(true);
+    expect(plan.nextActivePath).toBeNull();
+  });
+
+  it('marks closeOthers as requiring confirmation when another tab is dirty', async () => {
+    const { useTabsStore } = await import('@/stores/tabs');
+    const tabsStore = useTabsStore();
+
+    tabsStore.addTab({ id: 'left', path: '/left', title: 'Left', cacheKey: 'cache:left' });
+    tabsStore.addTab({ id: 'current', path: '/current', title: 'Current', cacheKey: 'cache:current' });
+    tabsStore.addTab({ id: 'right', path: '/right', title: 'Right', cacheKey: 'cache:right' });
+    tabsStore.setDirty('right');
+
+    const plan = tabsStore.getClosePlan('closeOthers', {
+      anchorTabId: 'current',
+      activeTabId: 'current'
+    });
+
+    expect(plan.disabled).toBe(false);
+    expect(plan.targetTabIds).toEqual(['left', 'right']);
+    expect(plan.dirtyTabIds).toEqual(['right']);
+    expect(plan.requiresConfirm).toBe(true);
+    expect(plan.requiresNavigation).toBe(false);
+  });
+
+  it('routes to the nearest surviving tab when closeSaved removes the active saved tab', async () => {
+    const { useTabsStore } = await import('@/stores/tabs');
+    const tabsStore = useTabsStore();
+
+    tabsStore.addTab({ id: 'left', path: '/left', title: 'Left', cacheKey: 'cache:left' });
+    tabsStore.addTab({ id: 'active', path: '/active', title: 'Active', cacheKey: 'cache:active' });
+    tabsStore.addTab({ id: 'right', path: '/right', title: 'Right', cacheKey: 'cache:right' });
+    tabsStore.setDirty('right');
+
+    const plan = tabsStore.getClosePlan('closeSaved', {
+      activeTabId: 'active'
+    });
+
+    expect(plan.disabled).toBe(false);
+    expect(plan.targetTabIds).toEqual(['left', 'active']);
+    expect(plan.requiresConfirm).toBe(false);
+    expect(plan.requiresNavigation).toBe(true);
+    expect(plan.nextActivePath).toBe('/right');
+  });
+
+  it('safely applies a stale close plan without recomputing confirmation state', async () => {
+    const { useTabsStore } = await import('@/stores/tabs');
+    const tabsStore = useTabsStore();
+
+    tabsStore.addTab({ id: 'alpha', path: '/alpha', title: 'Alpha', cacheKey: 'cache:alpha' });
+    tabsStore.addTab({ id: 'beta', path: '/beta', title: 'Beta', cacheKey: 'cache:beta' });
+    tabsStore.setDirty('beta');
+
+    const plan = tabsStore.getClosePlan('closeAll', {
+      activeTabId: 'alpha'
+    });
+
+    tabsStore.removeTab('beta');
+    setItemMock.mockClear();
+
+    tabsStore.applyClosePlan(plan);
+
+    expect(tabsStore.tabs).toEqual([]);
+    expect(setItemMock).toHaveBeenCalledTimes(1);
+  });
 });
