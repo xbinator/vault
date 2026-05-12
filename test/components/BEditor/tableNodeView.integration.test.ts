@@ -170,7 +170,7 @@ describe('table node view integration', () => {
 
     const scroller = wrapper.get('.b-editor-table__scroller');
     await scroller.trigger('mousemove', { clientX: 321, clientY: 120 });
-    expect(wrapper.get('.b-editor-table__add-button').attributes('style')).toContain('left: 111px');
+    expect(wrapper.get('.b-editor-table__add-button').attributes('style')).toContain('left: 120px');
     await wrapper.get('.b-editor-table__add-button').trigger('click');
     await flushEditorWork();
 

@@ -331,13 +331,13 @@ export function getAddButtonPosition(hit: DividerHit, buttonSize: number): Butto
   if (hit.type === 'column') {
     return {
       top: hit.lineRect.top,
-      left: hit.lineRect.left - buttonSize / 2
+      left: hit.lineRect.left
     };
   }
 
   return {
-    top: hit.lineRect.top - buttonSize / 2,
-    left: hit.lineRect.left - buttonSize / 2
+    top: hit.lineRect.top,
+    left: hit.lineRect.left
   };
 }
 
@@ -350,13 +350,13 @@ export function getAddButtonPosition(hit: DividerHit, buttonSize: number): Butto
 export function getRemoveButtonPosition(hit: SegmentHit, buttonSize: number): ButtonPosition {
   if (hit.type === 'column') {
     return {
-      top: hit.segmentRect.top - buttonSize / 2,
-      left: hit.segmentRect.left + hit.segmentRect.width / 2 - buttonSize / 2
+      top: hit.segmentRect.top,
+      left: hit.segmentRect.left + hit.segmentRect.width / 2
     };
   }
 
   return {
-    top: hit.segmentRect.top + hit.segmentRect.height / 2 - buttonSize / 2,
-    left: hit.segmentRect.left - buttonSize / 2
+    top: hit.segmentRect.top + hit.segmentRect.height / 2,
+    left: hit.segmentRect.left
   };
 }

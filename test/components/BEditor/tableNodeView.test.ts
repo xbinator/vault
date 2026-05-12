@@ -70,6 +70,7 @@ describe('TableView', () => {
     expect(wrapper.find('.b-editor-table__add-button').exists()).toBe(true);
     expect(wrapper.find('.b-editor-table__line-highlight').exists()).toBe(true);
     expect(wrapper.find('.b-editor-table__add-button--column').exists()).toBe(true);
+    expect(wrapper.find('.b-editor-table__button-icon').exists()).toBe(true);
     expect(wrapper.get('.b-editor-table__line-highlight').attributes('style')).toContain('left: 119px');
   });
 
@@ -97,8 +98,10 @@ describe('TableView', () => {
     expect(wrapper.findAll('.b-editor-table__remove-button')).toHaveLength(2);
     expect(wrapper.find('.b-editor-table__remove-button--row').exists()).toBe(true);
     expect(wrapper.find('.b-editor-table__remove-button--column').exists()).toBe(true);
-    expect(wrapper.get('.b-editor-table__segment-button-group--row').attributes('style')).toContain('left: -9px');
-    expect(wrapper.get('.b-editor-table__segment-button-group--column').attributes('style')).toContain('top: -9px');
+    expect(wrapper.get('.b-editor-table__segment-button-group--row').attributes('style')).toContain('left: 0px');
+    expect(wrapper.get('.b-editor-table__segment-button-group--row').attributes('style')).toContain('top: 60px');
+    expect(wrapper.get('.b-editor-table__segment-button-group--column').attributes('style')).toContain('left: 180px');
+    expect(wrapper.get('.b-editor-table__segment-button-group--column').attributes('style')).toContain('top: 0px');
   });
 
   it('uses the row add-button variant when hovering a horizontal divider', async () => {
@@ -111,7 +114,8 @@ describe('TableView', () => {
 
     expect(wrapper.find('.b-editor-table__add-button--row').exists()).toBe(true);
     expect(wrapper.get('.b-editor-table__line-highlight').attributes('style')).toContain('top: 119px');
-    expect(wrapper.get('.b-editor-table__add-button').attributes('style')).toContain('left: -9px');
+    expect(wrapper.get('.b-editor-table__add-button').attributes('style')).toContain('left: 0px');
+    expect(wrapper.get('.b-editor-table__add-button').attributes('style')).toContain('top: 120px');
   });
 
   it('keeps leading-edge add controls inside the reserved viewport gutter', async () => {
@@ -124,7 +128,7 @@ describe('TableView', () => {
 
     const style = wrapper.get('.b-editor-table__add-button').attributes('style');
     expect(style).toContain('top: 0px');
-    expect(style).toContain('left: -9px');
+    expect(style).toContain('left: 0px');
   });
 
   it('keeps controls visible when the pointer leaves the scroller toward an overlay button', async () => {

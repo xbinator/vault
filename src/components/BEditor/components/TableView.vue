@@ -9,8 +9,17 @@
       <template v-if="hoverState.type === 'divider'">
         <div class="b-editor-table__line-overlay" contenteditable="false">
           <div class="b-editor-table__line-highlight" :style="lineHighlightStyle"></div>
-          <button type="button" class="b-editor-table__add-button" :class="addButtonVariantClass" :style="addButtonStyle" @mousedown.prevent @click="handleAdd">
-            +
+          <button
+            type="button"
+            class="b-editor-table__add-button"
+            :class="addButtonVariantClass"
+            :style="addButtonStyle"
+            title="新增"
+            aria-label="新增"
+            @mousedown.prevent
+            @click="handleAdd"
+          >
+            <Icon class="b-editor-table__button-icon" :icon="ICONS.add" />
           </button>
         </div>
       </template>
@@ -22,10 +31,12 @@
             <button
               type="button"
               class="b-editor-table__remove-button b-editor-table__remove-button--row"
+              title="删除行"
+              aria-label="删除行"
               @mousedown.prevent
               @click="handleRemove(hoverState.hits.row)"
             >
-              −
+              <Icon class="b-editor-table__button-icon" :icon="ICONS.remove" />
             </button>
           </div>
           <div
@@ -36,10 +47,12 @@
             <button
               type="button"
               class="b-editor-table__remove-button b-editor-table__remove-button--column"
+              title="删除列"
+              aria-label="删除列"
               @mousedown.prevent
               @click="handleRemove(hoverState.hits.column)"
             >
-              −
+              <Icon class="b-editor-table__button-icon" :icon="ICONS.remove" />
             </button>
           </div>
         </div>
@@ -56,6 +69,7 @@
 
 import type { CSSProperties } from 'vue';
 import { computed, onBeforeUnmount, ref } from 'vue';
+import { Icon } from '@iconify/vue';
 import { findParentNodeClosestToPos } from '@tiptap/core';
 import { CellSelection, TableMap } from '@tiptap/pm/tables';
 import { NodeViewContent, NodeViewWrapper, nodeViewProps } from '@tiptap/vue-3';
@@ -76,10 +90,15 @@ import {
 const props = defineProps(nodeViewProps);
 
 const UI = {
-  BUTTON_SIZE: 18,
+  BUTTON_SIZE: 26,
   DIVIDER_THRESHOLD: 6,
   LINE_THICKNESS: 2,
   OVERLAY_GUTTER: 0
+} as const;
+
+const ICONS = {
+  add: 'mdi:plus',
+  remove: 'mdi:minus'
 } as const;
 
 const FALLBACK = {
@@ -438,8 +457,9 @@ onBeforeUnmount(() => {
   position: absolute;
   z-index: 1;
   pointer-events: none;
-  background-color: color-mix(in srgb, var(--editor-link) 72%, transparent);
+  background-color: color-mix(in srgb, var(--editor-link) 78%, transparent);
   border-radius: 999px;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--editor-link) 22%, transparent);
 }
 
 .b-editor-table__add-button,
@@ -447,67 +467,75 @@ onBeforeUnmount(() => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-weight: 500;
-  color: var(--editor-text);
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  color: var(--editor-link);
   cursor: pointer;
-  background: color-mix(in srgb, var(--bg-primary) 94%, white);
-  border: 1px solid color-mix(in srgb, var(--editor-table-border) 72%, white);
+  background: color-mix(in srgb, var(--bg-primary) 92%, var(--editor-link) 8%);
+  border: 1px solid color-mix(in srgb, var(--editor-table-border) 82%, var(--editor-link) 18%);
   border-radius: 999px;
-  box-shadow: 0 4px 14px rgb(15 23 42 / 14%), 0 1px 3px rgb(15 23 42 / 12%);
+  box-shadow: 0 2px 8px rgb(15 23 42 / 12%);
+  transition: background-color 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease, color 0.16s ease, transform 0.16s ease;
+
+  &:hover {
+    color: color-mix(in srgb, var(--editor-link) 82%, var(--editor-text));
+    background: color-mix(in srgb, var(--bg-primary) 84%, var(--editor-link) 16%);
+    border-color: color-mix(in srgb, var(--editor-link) 40%, var(--editor-table-border));
+    box-shadow: 0 4px 12px rgb(15 23 42 / 16%);
+  }
 }
 
 .b-editor-table__add-button {
   position: absolute;
   z-index: 2;
-  color: color-mix(in srgb, var(--editor-text) 72%, white);
   pointer-events: auto;
 }
 
 .b-editor-table__add-button--column {
-  width: 42px;
-  height: 32px;
-  padding: 0;
-  font-size: 28px;
-  line-height: 1;
-  transform: translate(-50%, -50%);
+  transform: translate(-50%, -100%);
+
+  &:active {
+    transform: translate(-50%, -100%) scale(0.96);
+  }
 }
 
 .b-editor-table__add-button--row {
-  width: 32px;
-  height: 42px;
-  padding: 0;
-  font-size: 28px;
-  line-height: 1;
-  transform: translate(-50%, -50%);
+  transform: translate(-100%, -50%);
+
+  &:active {
+    transform: translate(-100%, -50%) scale(0.96);
+  }
 }
 
 .b-editor-table__segment-button-group {
   position: absolute;
   z-index: 3;
-  display: flex;
-  gap: 6px;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 6px;
   pointer-events: auto;
-  background: var(--bg-primary);
-  border: 1px solid var(--editor-table-border);
-  border-radius: 10px;
-  box-shadow: 0 8px 20px rgb(15 23 42 / 14%), 0 2px 5px rgb(15 23 42 / 10%);
-  transform: translate(-50%, -50%);
+}
+
+.b-editor-table__segment-button-group--column {
+  transform: translate(-50%, -100%);
+}
+
+.b-editor-table__segment-button-group--row {
+  transform: translate(-100%, -50%);
 }
 
 .b-editor-table__remove-button {
-  width: 30px;
-  height: 30px;
-  padding: 0;
-  font-size: 20px;
-  line-height: 1;
-  color: var(--ant-color-error);
+  pointer-events: auto;
+
+  &:active {
+    transform: scale(0.96);
+  }
 }
 
-.b-editor-table__remove-button--row,
-.b-editor-table__remove-button--column {
-  min-width: 28px;
+.b-editor-table__button-icon {
+  width: 15px;
+  height: 15px;
+  pointer-events: none;
 }
 </style>

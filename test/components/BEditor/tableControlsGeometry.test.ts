@@ -158,7 +158,7 @@ describe('tableControlsGeometry', () => {
     );
 
     expect(position.top).toBe(0);
-    expect(position.left).toBe(111);
+    expect(position.left).toBe(120);
   });
 
   it('derives row add button coordinates from divider geometry at the left gutter edge', () => {
@@ -172,8 +172,8 @@ describe('tableControlsGeometry', () => {
       18
     );
 
-    expect(position.top).toBe(111);
-    expect(position.left).toBe(-9);
+    expect(position.top).toBe(120);
+    expect(position.left).toBe(0);
   });
 
   it('derives row remove button coordinates from segment geometry at the left gutter edge', () => {
@@ -186,8 +186,8 @@ describe('tableControlsGeometry', () => {
       18
     );
 
-    expect(position.top).toBe(51);
-    expect(position.left).toBe(-9);
+    expect(position.top).toBe(60);
+    expect(position.left).toBe(0);
   });
 
   it('derives column remove button coordinates from segment geometry at the top edge', () => {
@@ -200,7 +200,7 @@ describe('tableControlsGeometry', () => {
       18
     );
 
-    expect(position.top).toBe(-9);
-    expect(position.left).toBe(171);
+    expect(position.top).toBe(0);
+    expect(position.left).toBe(180);
   });
 });
