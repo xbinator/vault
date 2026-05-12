@@ -43,6 +43,14 @@ const webview: WebViewAPI = {
     };
     ipcRenderer.on('webview:open-in-new-tab', handler);
     return () => ipcRenderer.removeListener('webview:open-in-new-tab', handler);
+  },
+
+  onAttachRejected: (callback) => {
+    const handler = (_event: Electron.IpcRendererEvent, payload: { src: string; reason: string }) => {
+      callback(payload);
+    };
+    ipcRenderer.on('webview:attach-rejected', handler);
+    return () => ipcRenderer.removeListener('webview:attach-rejected', handler);
   }
 };
 

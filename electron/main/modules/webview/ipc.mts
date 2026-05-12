@@ -7,6 +7,40 @@ import { ipcMain, WebContentsView, BrowserWindow, shell } from 'electron';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+/**
+ * `<webview>` 独立持久化分区。
+ */
+export const WEBVIEW_TAG_PARTITION = 'persist:tibis-webview';
+
+/**
+ * 标准化待附加的 `<webview>` 地址。
+ * @param rawUrl - 原始地址
+ * @returns 标准化 URL
+ */
+export function normalizeAttachedWebviewUrl(rawUrl: string): string {
+  const parsed = new URL(rawUrl);
+  if (!['http:', 'https:'].includes(parsed.protocol)) {
+    throw new Error('Unsupported webview URL protocol');
+  }
+  return parsed.toString();
+}
+
+/**
+ * 清理 `<webview>` 附加时的宿主配置。
+ * @param preferences - 原始 webPreferences
+ * @returns 受控 webPreferences
+ */
+export function sanitizeAttachedWebPreferences(preferences: Record<string, unknown>): Record<string, unknown> {
+  return {
+    ...preferences,
+    preload: undefined,
+    nodeIntegration: false,
+    contextIsolation: true,
+    partition: WEBVIEW_TAG_PARTITION,
+    webSecurity: true
+  };
+}
+
 class WebViewManager {
   private views: Map<string, WebContentsView> = new Map();
 

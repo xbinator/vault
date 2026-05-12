@@ -2,6 +2,7 @@ import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { app, BrowserWindow } from 'electron';
 import { env } from './env.mjs';
+import { normalizeAttachedWebviewUrl, sanitizeAttachedWebPreferences } from './modules/webview/ipc.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -58,7 +59,8 @@ export function createWindow(): BrowserWindow {
       preload: getPreloadPath(),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false
+      sandbox: false,
+      webviewTag: true
     }
   };
 
@@ -67,6 +69,24 @@ export function createWindow(): BrowserWindow {
   }
 
   mainWindow = new BrowserWindow(windowOptions);
+
+  mainWindow.webContents.on('will-attach-webview', (event, webPreferences, params) => {
+    try {
+      params.src = normalizeAttachedWebviewUrl(params.src);
+      delete webPreferences.preload;
+
+      const mutableParams = params as Record<string, unknown>;
+      delete mutableParams.preload;
+
+      Object.assign(webPreferences, sanitizeAttachedWebPreferences(webPreferences as Record<string, unknown>));
+    } catch (error) {
+      event.preventDefault();
+      mainWindow?.webContents.send('webview:attach-rejected', {
+        src: String(params.src || ''),
+        reason: error instanceof Error ? error.message : 'Unknown webview attach error'
+      });
+    }
+  });
 
   if (isDev()) {
     mainWindow.loadURL(getDevServerUrl());

@@ -88,12 +88,7 @@ export function useNavigate() {
    * 使用应用内 webview 打开 URL。
    */
   function openInWebview(url: URL): void {
-    router.push({
-      name: 'webview',
-      query: {
-        url: encodeURIComponent(url.href)
-      }
-    });
+    router.push({ name: 'webview-web', query: { url: encodeURIComponent(url.href) } });
   }
 
   /**

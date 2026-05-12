@@ -132,6 +132,7 @@ export interface WebViewAPI {
   onTitleUpdated: (callback: (tabId: string, title: string) => void) => () => void; // 标题更新
   onNavigationStateChanged: (callback: (tabId: string, canGoBack: boolean, canGoForward: boolean) => void) => () => void; // 导航状态变化
   onOpenInNewTab: (callback: (url: string) => void) => () => void; // 在新标签页打开
+  onAttachRejected: (callback: (payload: { src: string; reason: string }) => void) => () => void; // `<webview>` 附加被拒绝
 }
 
 export interface PlatformRecentFile {

@@ -1,13 +1,15 @@
 <template>
   <div ref="webviewShellRef" class="webview-shell">
     <AddressBar
-      :url="initialUrl"
+      :url="webview.state.value.url"
       :can-go-back="webview.state.value.canGoBack"
       :can-go-forward="webview.state.value.canGoForward"
       :is-loading="webview.state.value.isLoading"
       @go-back="webview.goBack"
       @go-forward="webview.goForward"
       @reload="webview.reload"
+      @stop="webview.stop"
+      @submit-url="handleSubmitUrl"
       @open-in-browser="handleOpenInBrowser"
     />
 
@@ -27,97 +29,88 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onActivated, onDeactivated, onBeforeUnmount, watch } from 'vue';
+/**
+ * @file index.vue
+ * @description native WebContentsView 页面入口。
+ */
+import { computed, onActivated, onBeforeUnmount, onDeactivated, onMounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import { useResizeObserver } from '@vueuse/core';
 import { native } from '@/shared/platform';
 import { hashString } from '@/shared/utils/hash';
-import { useTabsStore } from '@/stores/tabs';
-import AddressBar from './components/AddressBar.vue';
-import { useWebView } from './hooks/useWebView';
+import AddressBar from '@/views/webview/shared/components/AddressBar.vue';
+import { useWebviewTabTitle } from '@/views/webview/shared/hooks/useWebviewTabTitle';
+import { normalizeWebviewUrl } from '@/views/webview/shared/utils/url';
+import { useNativeWebView } from './hooks/useNativeWebView';
 
 const route = useRoute();
-const tabsStore = useTabsStore();
 
 /**
  * 使用路由完整路径的哈希值作为主进程 WebContentsView 的唯一标识。
- * 直接使用 fullPath 作为 tabId 会导致 IPC 日志中打印过长 URL 字符串，
- * 使用短哈希同时保证唯一性和可读性。
  */
 const tabId = computed(() => hashString(route.fullPath));
-const initialUrl = computed(() => decodeURIComponent((route.query.url as string) || ''));
-
+const initialUrl = computed(() => normalizeWebviewUrl(decodeURIComponent((route.query.url as string) || '')));
 const webviewContainerRef = ref<HTMLElement | null>(null);
-/** webview 外层容器引用，用于监听大小变化 */
 const webviewShellRef = ref<HTMLElement | null>(null);
-
-const webview = useWebView(tabId);
-
-/**
- * 更新 webview 的边界位置和尺寸
- * 根据容器的 getBoundingClientRect 计算并设置 webview 的 bounds
- */
-function updateBounds() {
-  if (!webviewContainerRef.value) return;
-  const rect = webviewContainerRef.value.getBoundingClientRect();
-  // 跳过未完成渲染的初始状态（宽高为 0）
-  if (!rect.width || !rect.height) return;
-
-  webview.setBounds({ x: rect.left, y: rect.top, width: rect.width, height: rect.height });
-}
+const webview = useNativeWebView(tabId);
 
 /**
- * 在系统默认浏览器中打开当前页面 URL
+ * 更新 native WebContentsView 的边界位置和尺寸。
  */
-async function handleOpenInBrowser() {
-  if (!initialUrl.value) return;
-
-  await native.openExternal(initialUrl.value);
-}
-
-// 使用 VueUse 的 useResizeObserver 监听外层容器大小变化，自动更新 webview bounds
-useResizeObserver(webviewShellRef, updateBounds);
-
-// 监听 webview title 变化，更新 tabsStore 中的标签页标题
-watch(
-  () => webview.state.value.title,
-  (title) => {
-    if (!title) return;
-
-    const { fullPath } = route;
-    tabsStore.updateTabTitle({ id: fullPath, title });
+function updateBounds(): void {
+  if (!webviewContainerRef.value) {
+    return;
   }
-);
+
+  const rect = webviewContainerRef.value.getBoundingClientRect();
+  if (!rect.width || !rect.height) {
+    return;
+  }
+
+  webview.setBounds({
+    x: rect.left,
+    y: rect.top,
+    width: rect.width,
+    height: rect.height
+  });
+}
 
 /**
- * 组件挂载时初始化 webview
- * 创建 webview 实例、更新边界位置并显示
+ * 在系统默认浏览器中打开当前页面 URL。
  */
+async function handleOpenInBrowser(): Promise<void> {
+  if (!webview.state.value.url) {
+    return;
+  }
+
+  await native.openExternal(webview.state.value.url);
+}
+
+/**
+ * 处理地址栏提交的 URL。
+ * @param value - 用户输入的 URL
+ */
+async function handleSubmitUrl(value: string): Promise<void> {
+  await webview.navigate(normalizeWebviewUrl(value));
+}
+
+useResizeObserver(webviewShellRef, updateBounds);
+useWebviewTabTitle({
+  routeFullPath: route.fullPath,
+  title: computed(() => webview.state.value.title)
+});
+
 onMounted(async () => {
   await webview.create(initialUrl.value);
-  // updateBounds();
-
+  updateBounds();
   await webview.show();
 });
 
-/**
- * 组件激活时（keep-alive 缓存恢复）
- * 显示 webview、更新边界位置，并恢复标签页标题
- */
 onActivated(async () => {
+  updateBounds();
   await webview.show();
-  // updateBounds();
-  // 切回已缓存的 tab 时，afterEach 会用路由 meta title 覆盖已有标题，从 webview 状态恢复
-  const currentTitle = webview.state.value.title;
-  if (currentTitle) {
-    tabsStore.updateTabTitle({ id: route.fullPath, title: currentTitle });
-  }
 });
 
-/**
- * 组件停用时（keep-alive 缓存）
- * 隐藏 webview 以节省资源
- */
 onDeactivated(async () => {
   await webview.hide();
 });

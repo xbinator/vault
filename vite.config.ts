@@ -37,6 +37,16 @@ const COMPONENT_DIRS = [
 ];
 
 /**
+ * 判断标签是否应按原生自定义元素处理。
+ * `webview` 由 Electron 宿主提供，不能交给 Vue 当组件解析。
+ * @param tag - 模板标签名
+ * @returns 是否为自定义元素
+ */
+function isNativeCustomElement(tag: string): boolean {
+  return tag === 'webview';
+}
+
+/**
  * 第三方依赖拆包分组。
  *
  * 按运行时职责拆分大型依赖，避免编辑器、源码编辑器、图表渲染和 UI 组件库
@@ -98,7 +108,13 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [
-      vue(),
+      vue({
+        template: {
+          compilerOptions: {
+            isCustomElement: isNativeCustomElement
+          }
+        }
+      }),
       vueJsx(),
       UnoCSS(),
       Components({
