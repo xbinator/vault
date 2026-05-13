@@ -4,11 +4,11 @@
  * @vitest-environment jsdom
  */
 
-import type { SelectionAssistantAdapter, SelectionAssistantPosition } from '@/components/BEditor/adapters/selectionAssistant';
-import { createPinia, setActivePinia } from 'pinia';
 import { defineComponent, nextTick } from 'vue';
+import { createPinia, setActivePinia } from 'pinia';
 import { mount } from '@vue/test-utils';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
+import type { SelectionAssistantAdapter, SelectionAssistantPosition } from '@/components/BEditor/adapters/selectionAssistant';
 import SelectionAIInput from '@/components/BEditor/components/SelectionAIInput.vue';
 
 vi.mock('@/hooks/useChat', () => ({
@@ -83,7 +83,8 @@ const InputStub = defineComponent({
     });
     return {};
   },
-  template: '<input class="mock-ai-input" :value="value" :disabled="disabled" :placeholder="placeholder" @input="$emit(\'update:value\', $event.target.value)" @keydown="$emit(\'keydown\', $event)" />'
+  template:
+    '<input class="mock-ai-input" :value="value" :disabled="disabled" :placeholder="placeholder" @input="$emit(\'update:value\', $event.target.value)" @keydown="$emit(\'keydown\', $event)" />'
 });
 
 /**
@@ -201,7 +202,7 @@ describe('SelectionAIInput', () => {
 
     await nextTick();
 
-    const panel = wrapper.get('.ai-input-wrapper').element as HTMLElement;
+    const panel = wrapper.get('.b-editor-selai').element as HTMLElement;
 
     expect(panel.style.visibility).toBe('hidden');
   });
@@ -225,7 +226,7 @@ describe('SelectionAIInput', () => {
 
     await nextTick();
 
-    const panel = wrapper.get('.ai-input-wrapper').element as HTMLElement;
+    const panel = wrapper.get('.b-editor-selai').element as HTMLElement;
     Object.defineProperty(panel, 'offsetWidth', {
       configurable: true,
       get(): number {
@@ -266,7 +267,7 @@ describe('SelectionAIInput', () => {
 
     await nextTick();
 
-    const panel = wrapper.get('.ai-input-wrapper').element as HTMLElement;
+    const panel = wrapper.get('.b-editor-selai').element as HTMLElement;
     Object.defineProperty(panel, 'offsetWidth', {
       configurable: true,
       get(): number {
@@ -308,7 +309,7 @@ describe('SelectionAIInput', () => {
 
     await nextTick();
 
-    const panel = wrapper.get('.ai-input-wrapper').element as HTMLElement;
+    const panel = wrapper.get('.b-editor-selai').element as HTMLElement;
     Object.defineProperty(panel, 'offsetWidth', {
       configurable: true,
       get(): number {

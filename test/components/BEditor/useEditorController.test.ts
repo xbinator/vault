@@ -51,6 +51,9 @@ function createController(tag: string): EditorController {
       void content;
       void tag;
     },
+    selectLineRange(): boolean {
+      return false;
+    },
     getSearchState(): ReturnType<EditorController['getSearchState']> {
       return EMPTY_SEARCH_STATE;
     },

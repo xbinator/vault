@@ -6,6 +6,27 @@ import { reactive } from 'vue';
 import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+// Mock localStorage
+const localStorageMock = {
+  getItem: vi.fn(() => null),
+  setItem: vi.fn(() => undefined),
+  removeItem: vi.fn(() => undefined),
+  clear: vi.fn(() => undefined)
+};
+Object.defineProperty(global, 'localStorage', {
+  value: localStorageMock,
+  writable: true
+});
+
+// Mock window.dispatchEvent
+Object.defineProperty(global, 'window', {
+  value: {
+    ...global.window,
+    dispatchEvent: vi.fn(() => true)
+  },
+  writable: true
+});
+
 // Module-level reactive state（getter 延迟访问，mock 工厂执行时不需要已初始化）
 let serviceModelState: ReturnType<typeof createServiceModelState>;
 let providerState: ReturnType<typeof createProviderState>;

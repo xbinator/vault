@@ -6,10 +6,36 @@
 
 import type { Editor } from '@tiptap/vue-3';
 import { defineComponent, nextTick } from 'vue';
+import { createPinia, setActivePinia } from 'pinia';
 import { mount } from '@vue/test-utils';
-import { afterEach, describe, expect, test, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import type { SelectionAssistantPosition } from '@/components/BEditor/adapters/selectionAssistant';
 import SelectionToolbarRich from '@/components/BEditor/components/SelectionToolbarRich.vue';
+
+vi.mock('@/hooks/useChat', () => ({
+  useChat: () => ({
+    agent: {
+      abort: vi.fn(),
+      stream: vi.fn()
+    }
+  })
+}));
+
+vi.mock('@/hooks/useShortcuts', () => ({
+  useShortcuts: () => ({
+    registerShortcut: () => (): void => {}
+  })
+}));
+
+vi.mock('@/stores/serviceModel', () => ({
+  useServiceModelStore: () => ({
+    getAvailableServiceConfig: vi.fn().mockResolvedValue({
+      providerId: 'provider',
+      modelId: 'model',
+      customPrompt: '{{SELECTED_TEXT}} {{USER_INPUT}}'
+    })
+  })
+}));
 
 /**
  * 模拟工具栏内容组件。
@@ -122,7 +148,7 @@ function readPx(element: HTMLElement, property: 'top' | 'left'): number {
  * @returns 工具栏宿主元素
  */
 function getToolbarElement(): HTMLElement {
-  const element = document.body.querySelector('.rich-selection-toolbar');
+  const element = document.body.querySelector('.b-editor-selrich');
   if (!(element instanceof HTMLElement)) {
     throw new Error('Selection toolbar element was not rendered.');
   }
@@ -130,6 +156,10 @@ function getToolbarElement(): HTMLElement {
 }
 
 describe('SelectionToolbarRich', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia());
+  });
+
   afterEach(() => {
     document.body.innerHTML = '';
   });

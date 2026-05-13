@@ -19,7 +19,7 @@ describe('PaneSourceEditor AI selection highlight regression', () => {
   test('forces markdown syntax tokens inside AI selection highlight to use selection foreground color', (): void => {
     const sourceEditorPaneSource = readSource('src/components/BEditor/components/PaneSourceEditor.vue');
 
-    expect(sourceEditorPaneSource).toContain('.source-ai-selection-highlight');
+    expect(sourceEditorPaneSource).toContain('b-editor-source__ai-highlight');
     expect(sourceEditorPaneSource).toContain('color: var(--selection-color);');
     expect(sourceEditorPaneSource).toContain('& *');
     expect(sourceEditorPaneSource).toContain('color: var(--selection-color) !important;');

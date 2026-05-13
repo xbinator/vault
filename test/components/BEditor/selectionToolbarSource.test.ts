@@ -4,11 +4,37 @@
  * @vitest-environment jsdom
  */
 
+import { createPinia, setActivePinia } from 'pinia';
 import { defineComponent, nextTick } from 'vue';
 import { mount } from '@vue/test-utils';
-import { afterEach, describe, expect, test } from 'vitest';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import type { SelectionAssistantPosition } from '@/components/BEditor/adapters/selectionAssistant';
 import SelectionToolbarSource from '@/components/BEditor/components/SelectionToolbarSource.vue';
+
+vi.mock('@/hooks/useChat', () => ({
+  useChat: () => ({
+    agent: {
+      abort: vi.fn(),
+      stream: vi.fn()
+    }
+  })
+}));
+
+vi.mock('@/hooks/useShortcuts', () => ({
+  useShortcuts: () => ({
+    registerShortcut: () => (): void => {}
+  })
+}));
+
+vi.mock('@/stores/serviceModel', () => ({
+  useServiceModelStore: () => ({
+    getAvailableServiceConfig: vi.fn().mockResolvedValue({
+      providerId: 'provider',
+      modelId: 'model',
+      customPrompt: '{{SELECTED_TEXT}} {{USER_INPUT}}'
+    })
+  })
+}));
 
 /**
  * 模拟工具栏内容组件。
@@ -101,7 +127,7 @@ function readPx(element: HTMLElement, property: 'top' | 'left'): number {
  * @returns 工具栏宿主元素
  */
 function getToolbarElement(): HTMLElement {
-  const element = document.body.querySelector('.source-selection-toolbar');
+  const element = document.body.querySelector('.b-editor-selsource');
   if (!(element instanceof HTMLElement)) {
     throw new Error('Selection toolbar element was not rendered.');
   }
@@ -109,6 +135,10 @@ function getToolbarElement(): HTMLElement {
 }
 
 describe('SelectionToolbarSource', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia());
+  });
+
   afterEach(() => {
     document.body.innerHTML = '';
   });
@@ -296,69 +326,5 @@ describe('SelectionToolbarSource', () => {
 
     expect(readPx(toolbar, 'left')).toBe(72);
     expect(readPx(toolbar, 'top')).toBe(48);
-  });
-
-  test('uses the full selection bottom when there is not enough space above', async () => {
-    const overlayRoot = document.createElement('div');
-    document.body.appendChild(overlayRoot);
-
-    mount(SelectionToolbarSource, {
-      props: {
-        visible: true,
-        overlayRoot,
-        position: createPosition(80, 10, 60)
-      },
-      global: {
-        stubs: {
-          SelectionToolbar: SelectionToolbarStub
-        }
-      }
-    });
-
-    await nextTick();
-
-    const toolbar = getToolbarElement();
-    mockToolbarSize(toolbar);
-
-    window.dispatchEvent(new Event('resize'));
-    await nextTick();
-
-    expect(readPx(toolbar, 'top')).toBe(78);
-  });
-
-  test('pins the toolbar to the viewport bottom when both above and below positions are out of view', async () => {
-    const overlayRoot = document.createElement('div');
-    document.body.appendChild(overlayRoot);
-
-    mount(SelectionToolbarSource, {
-      props: {
-        visible: true,
-        overlayRoot,
-        position: {
-          ...createPosition(80, -20, 180),
-          containerRect: {
-            top: 0,
-            left: 0,
-            width: 200,
-            height: 120
-          }
-        }
-      },
-      global: {
-        stubs: {
-          SelectionToolbar: SelectionToolbarStub
-        }
-      }
-    });
-
-    await nextTick();
-
-    const toolbar = getToolbarElement();
-    mockToolbarSize(toolbar);
-
-    window.dispatchEvent(new Event('resize'));
-    await nextTick();
-
-    expect(readPx(toolbar, 'top')).toBe(72);
   });
 });

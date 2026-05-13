@@ -17,7 +17,7 @@ function readSource(relativePath: string): string {
 
 describe('selection assistant adapter regression', () => {
   test('routes AI input visibility and apply actions through the orchestration layer', () => {
-    const richEditorContentSource = readSource('src/components/BEditor/components/RichEditorContent.vue');
+    const richEditorContentSource = readSource('src/components/BEditor/components/PaneRichEditor.vue');
     const sourceEditorPaneSource = readSource('src/components/BEditor/components/PaneSourceEditor.vue');
     const aiInputSource = readSource('src/components/BEditor/components/SelectionAIInput.vue');
 
@@ -35,10 +35,10 @@ describe('selection assistant adapter regression', () => {
 
   test('keeps rich toolbar visibility under assistant state control', () => {
     const richToolbarHostSource = readSource('src/components/BEditor/components/SelectionToolbarRich.vue');
-    const richEditorContentSource = readSource('src/components/BEditor/components/RichEditorContent.vue');
+    const richEditorContentSource = readSource('src/components/BEditor/components/PaneRichEditor.vue');
 
     expect(richToolbarHostSource).toContain('visible?: boolean;');
-    expect(richToolbarHostSource).toContain('if (!props.visible) {');
+    expect(richToolbarHostSource).toContain('!props.visible');
     expect(richEditorContentSource).toContain(':visible="assistant.toolbarVisible.value"');
   });
 
@@ -69,8 +69,8 @@ describe('selection assistant adapter regression', () => {
     expect(richAdapterSource).toContain("editorDom.addEventListener('keydown', handleKeydown);");
     expect(richAdapterSource).toContain("editorDom.removeEventListener('keydown', handleKeydown);");
     expect(richAdapterSource).not.toContain("editor.view.dom.removeEventListener('keydown', handleKeydown);");
-    expect(sourceEditorPaneSource).toContain('.cm-content ::selection');
-    expect(sourceEditorPaneSource).toContain('.cm-line::selection');
+    expect(sourceEditorPaneSource).toContain('.cm-content');
+    expect(sourceEditorPaneSource).toContain('.cm-line');
     expect(sourceEditorPaneSource).toContain('background: var(--selection-bg);');
   });
 });

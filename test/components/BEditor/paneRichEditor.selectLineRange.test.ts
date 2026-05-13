@@ -5,8 +5,8 @@
  */
 
 import type { ComponentPublicInstance } from 'vue';
-import { createPinia, setActivePinia } from 'pinia';
 import { ref } from 'vue';
+import { createPinia, setActivePinia } from 'pinia';
 import { mount, type VueWrapper } from '@vue/test-utils';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 import PaneRichEditor from '@/components/BEditor/components/PaneRichEditor.vue';
@@ -21,8 +21,8 @@ vi.mock('vue-router', () => ({
   })
 }));
 
-vi.mock('@/components/BEditor/extensions/AISelectionHighlight', async () => {
-  const actual = await vi.importActual<typeof import('@/components/BEditor/extensions/AISelectionHighlight')>('@/components/BEditor/extensions/AISelectionHighlight');
+vi.mock('@/components/BEditor/extensions/aiRangeHighlight', async () => {
+  const actual = await vi.importActual<typeof import('@/components/BEditor/extensions/aiRangeHighlight')>('@/components/BEditor/extensions/aiRangeHighlight');
   return {
     ...actual,
     setAISelectionHighlight: setAISelectionHighlightMock
