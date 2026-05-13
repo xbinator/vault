@@ -127,6 +127,15 @@ const FALLBACK = {
   COLUMN_COUNT: 3
 } as const;
 
+// ─── Refs ────────────────────────────────────────────────────────────────────
+
+const viewportRef = ref<HTMLElement | null>(null);
+const scrollerRef = ref<HTMLElement | null>(null);
+const addColumnButtonRef = ref<HTMLButtonElement | null>(null);
+const addRowButtonRef = ref<HTMLButtonElement | null>(null);
+const removeRowButtonRef = ref<HTMLButtonElement | null>(null);
+const removeColumnButtonRef = ref<HTMLButtonElement | null>(null);
+
 // ─── hover 状态 ─────────────────────────────────────────────────────────────
 
 /**
@@ -141,14 +150,11 @@ const segmentHover = ref<SegmentHover | null>(null);
  * 当前实际显示的 overlay 类型。
  */
 const activeOverlay = ref<'none' | 'divider' | 'segment'>('none');
-const viewportRef = ref<HTMLElement | null>(null);
-const scrollerRef = ref<HTMLElement | null>(null);
-const addColumnButtonRef = ref<HTMLButtonElement | null>(null);
-const addRowButtonRef = ref<HTMLButtonElement | null>(null);
-const removeRowButtonRef = ref<HTMLButtonElement | null>(null);
-const removeColumnButtonRef = ref<HTMLButtonElement | null>(null);
+const lastPointer = ref<{ clientX: number; clientY: number } | null>(null);
+
 let segmentHideTimer = 0;
 let overlayHideTimer = 0;
+let scrollFrame = 0;
 
 /**
  * 清理区段 overlay 的延时关闭定时器。
@@ -171,20 +177,6 @@ function clearOverlayHideTimer(): void {
 }
 
 /**
- * 延迟关闭区段 overlay，让快速移动到分割线时不至于闪烁。
- */
-function scheduleSegmentHide(): void {
-  if (segmentHideTimer !== 0) {
-    return;
-  }
-
-  segmentHideTimer = window.setTimeout(() => {
-    segmentHideTimer = 0;
-    activeOverlay.value = addHover.value?.row || addHover.value?.column ? 'divider' : 'none';
-  }, UI.SEGMENT_HIDE_DELAY);
-}
-
-/**
  * 清空全部 hover 命中状态。
  */
 function clearHoverState(): void {
@@ -194,13 +186,21 @@ function clearHoverState(): void {
 }
 
 /**
+ * 延迟关闭区段 overlay，让快速移动到分割线时不至于闪烁。
+ */
+function scheduleSegmentHide(): void {
+  if (segmentHideTimer !== 0) return;
+  segmentHideTimer = window.setTimeout(() => {
+    segmentHideTimer = 0;
+    activeOverlay.value = addHover.value?.row || addHover.value?.column ? 'divider' : 'none';
+  }, UI.SEGMENT_HIDE_DELAY);
+}
+
+/**
  * 延迟关闭全部 overlay，给鼠标移向外层按钮留出缓冲时间。
  */
 function scheduleOverlayHide(): void {
-  if (overlayHideTimer !== 0) {
-    return;
-  }
-
+  if (overlayHideTimer !== 0) return;
   overlayHideTimer = window.setTimeout(() => {
     overlayHideTimer = 0;
     clearHoverState();
@@ -221,6 +221,52 @@ function toLocalRect(rect: DOMRect, scrollerRect: DOMRect, scroller: HTMLElement
     width: rect.width,
     height: rect.height
   };
+}
+
+/**
+ * 将 DOMRect 标准化为纯数据矩形，便于命中区复用。
+ */
+function toRectLike(rect: DOMRect): DOMRectLike {
+  return {
+    top: rect.top,
+    right: rect.right,
+    bottom: rect.bottom,
+    left: rect.left,
+    width: rect.width,
+    height: rect.height
+  };
+}
+
+/**
+ * 判断当前指针是否处于给定矩形范围内。
+ */
+function isPointInsideRect(rect: DOMRectLike, clientX: number, clientY: number): boolean {
+  return clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom;
+}
+
+/**
+ * 为命中矩形增加缓冲边距，提升外侧悬挂按钮的容错范围。
+ */
+function expandRect(rect: DOMRectLike, padding: number): DOMRectLike {
+  return {
+    top: rect.top - padding,
+    right: rect.right + padding,
+    bottom: rect.bottom + padding,
+    left: rect.left - padding,
+    width: rect.width + padding * 2,
+    height: rect.height + padding * 2
+  };
+}
+
+/**
+ * 合并两个矩形，生成覆盖二者的连续交互区。
+ */
+function mergeRects(first: DOMRectLike, second: DOMRectLike): DOMRectLike {
+  const left = Math.min(first.left, second.left);
+  const right = Math.max(first.right, second.right);
+  const top = Math.min(first.top, second.top);
+  const bottom = Math.max(first.bottom, second.bottom);
+  return { top, right, bottom, left, width: right - left, height: bottom - top };
 }
 
 /**
@@ -282,7 +328,6 @@ function readTableGeometry(): { columnRects: DOMRectLike[]; rowRects: DOMRectLik
 
   const scrollerRect = scroller.getBoundingClientRect();
   const toLocal = (el: Element) => toLocalRect(el.getBoundingClientRect(), scrollerRect, scroller);
-
   const rows = Array.from(tableElement.querySelectorAll('tr'));
   const rowRects = rows.map(toLocal);
   const columnRects = readColumnRects(rows, scroller, scrollerRect);
@@ -294,120 +339,98 @@ function readTableGeometry(): { columnRects: DOMRectLike[]; rowRects: DOMRectLik
   return { columnRects, rowRects };
 }
 
-// ─── 指针 & 滚动处理 ─────────────────────────────────────────────────────────
-
-const lastPointer = ref<{ clientX: number; clientY: number } | null>(null);
-let scrollFrame = 0;
-
-/**
- * 将 DOMRect 标准化为纯数据矩形，便于命中区复用。
- */
-function toRectLike(rect: DOMRect): DOMRectLike {
-  return {
-    top: rect.top,
-    right: rect.right,
-    bottom: rect.bottom,
-    left: rect.left,
-    width: rect.width,
-    height: rect.height
-  };
-}
-
-/**
- * 判断当前指针是否处于给定矩形范围内。
- */
-function isPointInsideRect(rect: DOMRectLike, clientX: number, clientY: number): boolean {
-  return clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom;
-}
-
-/**
- * 为命中矩形增加缓冲边距，提升外侧悬挂按钮的容错范围。
- */
-function expandRect(rect: DOMRectLike, padding: number): DOMRectLike {
-  return {
-    top: rect.top - padding,
-    right: rect.right + padding,
-    bottom: rect.bottom + padding,
-    left: rect.left - padding,
-    width: rect.width + padding * 2,
-    height: rect.height + padding * 2
-  };
-}
-
-/**
- * 合并两个矩形，生成覆盖二者的连续交互区。
- */
-function mergeRects(first: DOMRectLike, second: DOMRectLike): DOMRectLike {
-  const left = Math.min(first.left, second.left);
-  const right = Math.max(first.right, second.right);
-  const top = Math.min(first.top, second.top);
-  const bottom = Math.max(first.bottom, second.bottom);
-
-  return {
-    top,
-    right,
-    bottom,
-    left,
-    width: right - left,
-    height: bottom - top
-  };
-}
+// ─── 滚动区域矩形工具 ────────────────────────────────────────────────────────
 
 /**
  * 读取当前表格可视滚动区域的 client 坐标矩形。
  */
 function getScrollerClientRect(): DOMRectLike | null {
-  const scrollerRect = scrollerRef.value?.getBoundingClientRect();
-  return scrollerRect ? toRectLike(scrollerRect) : null;
+  const rect = scrollerRef.value?.getBoundingClientRect();
+  return rect ? toRectLike(rect) : null;
 }
 
 /**
- * 读取指向上侧悬挂按钮的顶边交互带。
+ * 构造边缘过渡带：沿滚动区域某条边缘的零高度/宽度矩形。
+ * column 按钮悬挂在顶边，row 按钮悬挂在左边。
  */
-function getTopEdgeTransitionRect(): DOMRectLike | null {
-  const scrollerRect = getScrollerClientRect();
-  if (!scrollerRect) {
-    return null;
-  }
+function getEdgeTransitionRect(type: 'row' | 'column'): DOMRectLike | null {
+  const r = getScrollerClientRect();
+  if (!r) return null;
 
-  return {
-    top: scrollerRect.top,
-    right: scrollerRect.right,
-    bottom: scrollerRect.top,
-    left: scrollerRect.left,
-    width: scrollerRect.width,
-    height: 0
-  };
+  if (type === 'column') {
+    // 顶边：零高度横带
+    return { top: r.top, right: r.right, bottom: r.top, left: r.left, width: r.width, height: 0 };
+  }
+  // 左边：零宽度竖带
+  return { top: r.top, right: r.left, bottom: r.bottom, left: r.left, width: 0, height: r.height };
 }
+
+// ─── 新增按钮可见性 ──────────────────────────────────────────────────────────
 
 /**
- * 读取指向左侧悬挂按钮的左边交互带。
+ * 判断新增按钮（行/列）是否应保持可见。
+ * 指针在 scroller 内部，或仍在沿边缘通道内时，返回 true。
+ * - type === 'row'：对应原 shouldShowRowAddButton，通道为左侧竖带
+ * - type === 'column'：对应原 shouldShowColumnAddButton，通道为顶部横带
  */
-function getLeftEdgeTransitionRect(): DOMRectLike | null {
-  const scrollerRect = getScrollerClientRect();
-  if (!scrollerRect) {
-    return null;
-  }
+function shouldShowAddButton(type: 'row' | 'column'): boolean {
+  const hit = type === 'row' ? addHover.value?.row : addHover.value?.column;
+  if (!hit) return false;
 
-  return {
-    top: scrollerRect.top,
-    right: scrollerRect.left,
-    bottom: scrollerRect.bottom,
-    left: scrollerRect.left,
-    width: 0,
-    height: scrollerRect.height
-  };
+  const pointer = lastPointer.value;
+  const scrollerRect = getScrollerClientRect();
+  if (!pointer || !scrollerRect || scrollerRect.width === 0 || scrollerRect.height === 0) return true;
+
+  const p = UI.DIVIDER_THRESHOLD;
+  const insideScroller = isPointInsideRect(scrollerRect, pointer.clientX, pointer.clientY);
+  if (insideScroller) return true;
+
+  if (type === 'row') {
+    return pointer.clientX <= scrollerRect.left + p && pointer.clientY >= scrollerRect.top - p && pointer.clientY <= scrollerRect.bottom + p;
+  }
+  return pointer.clientY <= scrollerRect.top + p && pointer.clientX >= scrollerRect.left - p && pointer.clientX <= scrollerRect.right + p;
 }
+
+// ─── 过渡区命中检测 ──────────────────────────────────────────────────────────
+
+type TransitionTarget = { button: HTMLButtonElement | null; sourceRect: DOMRectLike | null };
+
+/**
+ * 按当前 activeOverlay 返回需要检测的按钮与来源矩形对列表。
+ */
+function getTransitionTargets(): TransitionTarget[] {
+  if (activeOverlay.value === 'divider') {
+    return [
+      { button: addColumnButtonRef.value, sourceRect: addHover.value?.column ? getEdgeTransitionRect('column') : null },
+      { button: addRowButtonRef.value, sourceRect: addHover.value?.row ? getEdgeTransitionRect('row') : null }
+    ];
+  }
+  if (activeOverlay.value === 'segment') {
+    return [
+      { button: removeRowButtonRef.value, sourceRect: segmentHover.value?.row ? getEdgeTransitionRect('row') : null },
+      { button: removeColumnButtonRef.value, sourceRect: segmentHover.value?.column ? getEdgeTransitionRect('column') : null }
+    ];
+  }
+  return [];
+}
+
+function isPointerWithinOverlayTransitionZone(clientX: number, clientY: number): boolean {
+  const padding = 8;
+  return getTransitionTargets().some(({ button, sourceRect }) => {
+    if (!button || !sourceRect) return false;
+    const buttonRect = toRectLike(button.getBoundingClientRect());
+    return isPointInsideRect(expandRect(mergeRects(sourceRect, buttonRect), padding), clientX, clientY);
+  });
+}
+
+// ─── 指针 & 滚动处理 ─────────────────────────────────────────────────────────
 
 /**
  * 将视口坐标转为 scroller 局部坐标。
  */
 function toLocalPointer(clientX: number, clientY: number, scroller: HTMLElement): { x: number; y: number } {
   const rect = scroller.getBoundingClientRect();
-  return {
-    x: clientX - rect.left + scroller.scrollLeft,
-    y: clientY - rect.top + scroller.scrollTop
-  };
+  return { x: clientX - rect.left + scroller.scrollLeft, y: clientY - rect.top + scroller.scrollTop };
 }
 
 /**
@@ -437,7 +460,6 @@ function updateHoverState(clientX: number, clientY: number): void {
       scheduleSegmentHide();
       return;
     }
-
     clearSegmentHideTimer();
     activeOverlay.value = 'divider';
     segmentHover.value = null;
@@ -497,71 +519,9 @@ function handleOverlayControlMouseEnter(): void {
  * 判断指针是否仍在 viewport 可见边界内。
  */
 function isPointerInsideViewportBounds(clientX: number, clientY: number): boolean {
-  const viewportRect = viewportRef.value?.getBoundingClientRect();
-  if (!viewportRect) {
-    return false;
-  }
-
-  return clientX >= viewportRect.left && clientX <= viewportRect.right && clientY >= viewportRect.top && clientY <= viewportRect.bottom;
-}
-
-/**
- * 判断指针是否仍在表格边缘与外侧按钮之间的过渡交互带内。
- */
-function isPointerWithinOverlayTransitionZone(clientX: number, clientY: number): boolean {
-  const transitionPadding = 8;
-
-  if (activeOverlay.value === 'divider') {
-    const targets: Array<{ button: HTMLButtonElement | null; sourceRect: DOMRectLike | null }> = [
-      {
-        button: addColumnButtonRef.value,
-        sourceRect: addHover.value?.column ? getTopEdgeTransitionRect() : null
-      },
-      {
-        button: addRowButtonRef.value,
-        sourceRect: addHover.value?.row ? getLeftEdgeTransitionRect() : null
-      }
-    ];
-
-    for (const target of targets) {
-      if (!target.button || !target.sourceRect) {
-        continue;
-      }
-
-      const buttonRect = toRectLike(target.button.getBoundingClientRect());
-      const bridgeRect = expandRect(mergeRects(target.sourceRect, buttonRect), transitionPadding);
-      if (isPointInsideRect(bridgeRect, clientX, clientY)) {
-        return true;
-      }
-    }
-  }
-
-  if (activeOverlay.value === 'segment') {
-    const targets: Array<{ button: HTMLButtonElement | null; sourceRect: DOMRectLike | null }> = [
-      {
-        button: removeRowButtonRef.value,
-        sourceRect: segmentHover.value?.row ? getLeftEdgeTransitionRect() : null
-      },
-      {
-        button: removeColumnButtonRef.value,
-        sourceRect: segmentHover.value?.column ? getTopEdgeTransitionRect() : null
-      }
-    ];
-
-    for (const target of targets) {
-      if (!target.button || !target.sourceRect) {
-        continue;
-      }
-
-      const buttonRect = toRectLike(target.button.getBoundingClientRect());
-      const bridgeRect = expandRect(mergeRects(target.sourceRect, buttonRect), transitionPadding);
-      if (isPointInsideRect(bridgeRect, clientX, clientY)) {
-        return true;
-      }
-    }
-  }
-
-  return false;
+  const rect = viewportRef.value?.getBoundingClientRect();
+  if (!rect) return false;
+  return clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom;
 }
 
 /**
@@ -569,10 +529,7 @@ function isPointerWithinOverlayTransitionZone(clientX: number, clientY: number):
  */
 function handleWindowMouseMove(event: MouseEvent): void {
   lastPointer.value = { clientX: event.clientX, clientY: event.clientY };
-
-  if (activeOverlay.value === 'none') {
-    return;
-  }
+  if (activeOverlay.value === 'none') return;
 
   if (isPointerInsideViewportBounds(event.clientX, event.clientY) || isPointerWithinOverlayTransitionZone(event.clientX, event.clientY)) {
     clearOverlayHideTimer();
@@ -582,6 +539,9 @@ function handleWindowMouseMove(event: MouseEvent): void {
   scheduleOverlayHide();
 }
 
+/**
+ * 滚动时用 rAF 节流，重新计算 hover 命中。
+ */
 function handleScroll(): void {
   cancelAnimationFrame(scrollFrame);
   scrollFrame = requestAnimationFrame(() => {
@@ -590,19 +550,6 @@ function handleScroll(): void {
       updateHoverState(lastPointer.value.clientX, lastPointer.value.clientY);
     }
   });
-}
-
-/**
- * 将内容坐标投影到可见视口坐标，供外层 overlay 使用。
- */
-function toViewportPosition(position: { top: number; left: number }): { top: number; left: number } {
-  const scroller = scrollerRef.value;
-  if (!scroller) return position;
-
-  return {
-    top: position.top - scroller.scrollTop + UI.OVERLAY_GUTTER,
-    left: position.left - scroller.scrollLeft + UI.OVERLAY_GUTTER
-  };
 }
 
 // ─── 编辑器操作 ──────────────────────────────────────────────────────────────
@@ -629,10 +576,7 @@ function focusCellAt(position: { row: number; column: number }): boolean {
  */
 function getDimensions(): { rowCount: number; columnCount: number } {
   const tableInfo = findParentNodeClosestToPos(props.editor.state.selection.$from, (node) => node.type.name === 'table');
-
-  if (!tableInfo) {
-    return { rowCount: FALLBACK.ROW_COUNT, columnCount: FALLBACK.COLUMN_COUNT };
-  }
+  if (!tableInfo) return { rowCount: FALLBACK.ROW_COUNT, columnCount: FALLBACK.COLUMN_COUNT };
 
   const map = TableMap.get(tableInfo.node);
   return { rowCount: map.height, columnCount: map.width };
@@ -644,47 +588,37 @@ const editorContext = { editor: props.editor, focusCellAt, getDimensions };
  * 执行新增动作；行列按钮各自传入自己的命中目标。
  */
 function handleAdd(hit: DividerHit | null): void {
-  if (hit) {
-    applyAddAction(editorContext, hit);
-  }
+  if (hit) applyAddAction(editorContext, hit);
 }
 
 /**
  * 执行删除动作；行列按钮各自传入自己的命中目标。
  */
 function handleRemove(hit: SegmentHit | null): void {
-  if (hit) {
-    applyRemoveAction(editorContext, hit);
-  }
+  if (hit) applyRemoveAction(editorContext, hit);
 }
 
 // ─── 样式计算 ────────────────────────────────────────────────────────────────
 
 /**
- * 将删除按钮命中结果转换为视口坐标样式。
+ * 将内容坐标投影到可见视口坐标，供外层 overlay 使用。
  */
-function getRemoveStyle(hit: SegmentHit | null): CSSProperties | null {
-  if (!hit) return null;
-
-  const position = getRemoveButtonPosition(hit);
-  const viewportPosition = toViewportPosition(position);
-  return { top: `${viewportPosition.top}px`, left: `${viewportPosition.left}px` };
+function toViewportPosition(position: { top: number; left: number }): { top: number; left: number } {
+  const scroller = scrollerRef.value;
+  if (!scroller) return position;
+  return {
+    top: position.top - scroller.scrollTop + UI.OVERLAY_GUTTER,
+    left: position.left - scroller.scrollLeft + UI.OVERLAY_GUTTER
+  };
 }
 
-/**
- * 当前是否显示分割线 overlay。
- */
-const showDividerOverlay = computed<boolean>(() => {
-  return activeOverlay.value === 'divider' && Boolean(addHover.value && (addHover.value.row || addHover.value.column));
-});
-/**
- * 当前是否显示区段 overlay。
- */
-const showSegmentOverlay = computed<boolean>(() => activeOverlay.value === 'segment' && segmentHover.value !== null);
+function toViewportStyle(position: { top: number; left: number }): CSSProperties {
+  const vp = toViewportPosition(position);
+  return { top: `${vp.top}px`, left: `${vp.left}px` };
+}
 
 function getLineHighlightStyle(hit: DividerHit | null): CSSProperties {
   if (!hit) return {};
-
   const { lineRect } = hit;
   const t = UI.LINE_THICKNESS;
   const vp = toViewportPosition({ top: lineRect.top, left: lineRect.left });
@@ -692,51 +626,53 @@ function getLineHighlightStyle(hit: DividerHit | null): CSSProperties {
   if (hit.type === 'column') {
     return { left: `${vp.left - t / 2}px`, top: `${vp.top}px`, width: `${t}px`, height: `${lineRect.height}px` };
   }
-
   return { left: `${vp.left}px`, top: `${vp.top - t / 2}px`, width: `${lineRect.width}px`, height: `${t}px` };
 }
 
-const columnLineHighlightStyle = computed<CSSProperties>(() => {
-  return getLineHighlightStyle(addHover.value?.column ?? null);
-});
-
-const rowLineHighlightStyle = computed<CSSProperties>(() => {
-  return getLineHighlightStyle(addHover.value?.row ?? null);
-});
-
-function getAddStyle(hit: DividerHit | null): CSSProperties | null {
-  if (!hit) return null;
-
-  const position = getAddButtonPosition(hit);
-  const viewportPosition = toViewportPosition(position);
-  return { top: `${viewportPosition.top}px`, left: `${viewportPosition.left}px` };
-}
-
-const addRowButtonStyle = computed<CSSProperties | null>(() => {
-  return getAddStyle(addHover.value?.row ?? null);
-});
+const columnLineHighlightStyle = computed<CSSProperties>(() => getLineHighlightStyle(addHover.value?.column ?? null));
+const rowLineHighlightStyle = computed<CSSProperties>(() => getLineHighlightStyle(addHover.value?.row ?? null));
 
 const addColumnButtonStyle = computed<CSSProperties | null>(() => {
-  return getAddStyle(addHover.value?.column ?? null);
+  const hit = addHover.value?.column ?? null;
+  return hit ? toViewportStyle(getAddButtonPosition(hit)) : null;
 });
+
+const addRowButtonStyle = computed<CSSProperties | null>(() => {
+  const hit = addHover.value?.row ?? null;
+  return hit ? toViewportStyle(getAddButtonPosition(hit)) : null;
+});
+
+const removeRowButtonStyle = computed<CSSProperties | null>(() => {
+  const hit = segmentHover.value?.row ?? null;
+  return hit ? toViewportStyle(getRemoveButtonPosition(hit)) : null;
+});
+
+const removeColumnButtonStyle = computed<CSSProperties | null>(() => {
+  const hit = segmentHover.value?.column ?? null;
+  return hit ? toViewportStyle(getRemoveButtonPosition(hit)) : null;
+});
+
+/**
+ * 当前是否显示分割线 overlay。
+ */
+const showDividerOverlay = computed<boolean>(() => {
+  return activeOverlay.value === 'divider' && Boolean(addHover.value?.row || addHover.value?.column);
+});
+
+/**
+ * 当前是否显示区段 overlay。
+ */
+const showSegmentOverlay = computed<boolean>(() => activeOverlay.value === 'segment' && segmentHover.value !== null);
 
 /**
  * 当前是否显示新增行按钮。
  */
-const showAddRowButton = computed<boolean>(() => addRowButtonStyle.value !== null);
+const showAddRowButton = computed<boolean>(() => addRowButtonStyle.value !== null && shouldShowAddButton('row'));
 
 /**
  * 当前是否显示新增列按钮。
  */
-const showAddColumnButton = computed<boolean>(() => addColumnButtonStyle.value !== null);
-
-const removeRowButtonStyle = computed<CSSProperties | null>(() => {
-  return getRemoveStyle(segmentHover.value?.row ?? null);
-});
-
-const removeColumnButtonStyle = computed<CSSProperties | null>(() => {
-  return getRemoveStyle(segmentHover.value?.column ?? null);
-});
+const showAddColumnButton = computed<boolean>(() => addColumnButtonStyle.value !== null && shouldShowAddButton('column'));
 
 /**
  * 当前是否显示删除行按钮。

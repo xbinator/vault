@@ -142,6 +142,86 @@ describe('TableView', () => {
     expect(wrapper.get('.b-editor-table__line-highlight--row').isVisible()).toBe(true);
   });
 
+  it('keeps only the column add control when the pointer leaves the intersection upward', async () => {
+    const wrapper = mount(TableView, {
+      props: createNodeViewProps()
+    });
+
+    const scroller = wrapper.get('.b-editor-table__scroller');
+    const viewport = wrapper.get('.b-editor-table__viewport');
+    vi.spyOn(viewport.element, 'getBoundingClientRect').mockReturnValue({
+      x: 200,
+      y: 100,
+      top: 100,
+      left: 200,
+      right: 560,
+      bottom: 340,
+      width: 360,
+      height: 240,
+      toJSON: () => ({})
+    } as DOMRect);
+    vi.spyOn(scroller.element, 'getBoundingClientRect').mockReturnValue({
+      x: 200,
+      y: 100,
+      top: 100,
+      left: 200,
+      right: 560,
+      bottom: 340,
+      width: 360,
+      height: 240,
+      toJSON: () => ({})
+    } as DOMRect);
+
+    await scroller.trigger('mousemove', { clientX: 320, clientY: 140 });
+    expect(countVisible(wrapper, '.b-editor-table__add-button')).toBe(2);
+
+    window.dispatchEvent(new MouseEvent('mousemove', { clientX: 320, clientY: 92 }));
+    await nextTick();
+
+    expect(getAddColumnButton(wrapper).element.parentElement?.getAttribute('style')).not.toContain('display: none;');
+    expect(getAddRowButton(wrapper).element.parentElement?.getAttribute('style')).toContain('display: none;');
+  });
+
+  it('keeps only the row add control when the pointer leaves the intersection to the left', async () => {
+    const wrapper = mount(TableView, {
+      props: createNodeViewProps()
+    });
+
+    const scroller = wrapper.get('.b-editor-table__scroller');
+    const viewport = wrapper.get('.b-editor-table__viewport');
+    vi.spyOn(viewport.element, 'getBoundingClientRect').mockReturnValue({
+      x: 200,
+      y: 100,
+      top: 100,
+      left: 200,
+      right: 560,
+      bottom: 340,
+      width: 360,
+      height: 240,
+      toJSON: () => ({})
+    } as DOMRect);
+    vi.spyOn(scroller.element, 'getBoundingClientRect').mockReturnValue({
+      x: 200,
+      y: 100,
+      top: 100,
+      left: 200,
+      right: 560,
+      bottom: 340,
+      width: 360,
+      height: 240,
+      toJSON: () => ({})
+    } as DOMRect);
+
+    await scroller.trigger('mousemove', { clientX: 320, clientY: 140 });
+    expect(countVisible(wrapper, '.b-editor-table__add-button')).toBe(2);
+
+    window.dispatchEvent(new MouseEvent('mousemove', { clientX: 192, clientY: 140 }));
+    await nextTick();
+
+    expect(getAddColumnButton(wrapper).element.parentElement?.getAttribute('style')).toContain('display: none;');
+    expect(getAddRowButton(wrapper).element.parentElement?.getAttribute('style')).not.toContain('display: none;');
+  });
+
   it('renders divider overlays outside the scroller to avoid overflow clipping', async () => {
     const wrapper = mount(TableView, {
       props: createNodeViewProps()
