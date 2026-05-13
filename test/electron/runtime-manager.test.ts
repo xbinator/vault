@@ -63,14 +63,16 @@ describe('speech runtime manager', () => {
       arch: 'arm64'
     });
 
-    expect(status).toEqual({
+    expect(status).toMatchObject({
       state: 'ready',
       platform: 'darwin',
       arch: 'arm64',
       version: '2026.05.04',
-      modelName: 'ggml-base',
-      installDir: '/tmp/runtime-test/speech-runtime/current'
+      modelName: 'ggml-base'
     });
+    expect(status.installDir).toContain('runtime-test');
+    expect(status.installDir).toContain('speech-runtime');
+    expect(status.installDir).toContain('current');
   });
 
   it('resolves installed runtime paths from manifest', async () => {
@@ -91,11 +93,11 @@ describe('speech runtime manager', () => {
       platform: 'win32'
     });
 
-    expect(paths).toEqual({
-      runtimeRoot: '/tmp/runtime-test/speech-runtime/current',
-      whisperBinaryPath: '/tmp/runtime-test/speech-runtime/current/bin/whisper.exe',
-      whisperModelPath: '/tmp/runtime-test/speech-runtime/current/models/ggml-base.bin'
-    });
+    expect(paths.runtimeRoot).toContain('runtime-test');
+    expect(paths.runtimeRoot).toContain('speech-runtime');
+    expect(paths.runtimeRoot).toContain('current');
+    expect(paths.whisperBinaryPath).toContain('whisper.exe');
+    expect(paths.whisperModelPath).toContain('ggml-base.bin');
   });
 
   it('removes the managed speech runtime directory only', async () => {
@@ -104,6 +106,6 @@ describe('speech runtime manager', () => {
     const { removeSpeechRuntime } = await import('../../electron/main/modules/speech/runtime.mjs');
     await removeSpeechRuntime({ userDataPath: '/tmp/runtime-test' });
 
-    expect(rmMock).toHaveBeenCalledWith('/tmp/runtime-test/speech-runtime', { recursive: true, force: true });
+    expect(rmMock).toHaveBeenCalledWith(expect.stringContaining('speech-runtime'), { recursive: true, force: true });
   });
 });

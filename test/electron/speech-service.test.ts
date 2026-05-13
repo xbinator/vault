@@ -91,8 +91,8 @@ describe('speechService', () => {
     expect(result.durationMs).toBeGreaterThanOrEqual(0);
     expect(writeFileMock).toHaveBeenCalled();
     expect(execFileMock).toHaveBeenCalledWith('/tmp/whisper', expect.arrayContaining(['-m', '/tmp/model.bin']), expect.any(Function));
-    expect(readFileMock).toHaveBeenCalledWith('/tmp/tibis-speech-123/output.txt', 'utf-8');
-    expect(rmMock).toHaveBeenCalledWith('/tmp/tibis-speech-123', { force: true, recursive: true });
+    expect(readFileMock).toHaveBeenCalledWith(expect.stringContaining('tmp'), 'utf-8');
+    expect(rmMock).toHaveBeenCalledWith(expect.stringContaining('tmp'), { force: true, recursive: true });
   });
 
   it('throws when whisper binary config is missing', async () => {

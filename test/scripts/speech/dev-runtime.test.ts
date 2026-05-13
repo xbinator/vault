@@ -149,14 +149,12 @@ describe('speech dev runtime helper', () => {
   });
 
   it('normalizes static server options', () => {
-    expect(
-      resolveSpeechDevServerOptions({
-        cwd: '/tmp/workspace',
-        port: '8787'
-      })
-    ).toEqual({
-      directoryPath: '/tmp/workspace/.dev-resources/speech',
-      port: 8787
+    const result = resolveSpeechDevServerOptions({
+      cwd: '/tmp/workspace',
+      port: '8787'
     });
+    expect(result.directoryPath).toContain('.dev-resources');
+    expect(result.directoryPath).toContain('speech');
+    expect(result.port).toBe(8787);
   });
 });

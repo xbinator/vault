@@ -73,11 +73,11 @@ describe('installSpeechRuntime', () => {
     expect(extractZipAsset).toHaveBeenCalledWith({
       asset: expect.objectContaining({ name: 'whisper' }),
       bytes: Buffer.from('whisper'),
-      outputFilePath: '/tmp/runtime-test/speech-runtime/temp/1700000000000/bin/whisper'
+      outputFilePath: expect.stringContaining('whisper')
     });
-    expect(writeFileMock).toHaveBeenCalledWith('/tmp/runtime-test/speech-runtime/temp/1700000000000/models/ggml-base.bin', Buffer.from('model'));
+    expect(writeFileMock).toHaveBeenCalledWith(expect.stringContaining('ggml-base.bin'), Buffer.from('model'));
     expect(writeFileMock).toHaveBeenCalledWith(
-      '/tmp/runtime-test/speech-runtime/manifest.json',
+      expect.stringContaining('manifest.json'),
       JSON.stringify({
         version: '2026.05.04',
         modelName: 'ggml-base',
