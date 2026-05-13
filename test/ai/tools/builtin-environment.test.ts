@@ -4,7 +4,7 @@
  */
 import type { AIToolContext } from 'types/ai';
 import { describe, expect, it } from 'vitest';
-import { createBuiltinEnvironmentTools } from '@/ai/tools/builtin/environment';
+import { createBuiltinEnvironmentTools } from '@/ai/tools/builtin/EnvironmentTool';
 
 /**
  * 创建环境工具测试上下文。

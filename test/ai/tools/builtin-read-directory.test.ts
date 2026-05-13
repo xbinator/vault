@@ -3,7 +3,7 @@
  * @description 内置 read_directory 工具测试。
  */
 import { describe, expect, it } from 'vitest';
-import { createBuiltinReadDirectoryTool, READ_DIRECTORY_TOOL_NAME } from '@/ai/tools/builtin/fileRead';
+import { createBuiltinReadDirectoryTool, READ_DIRECTORY_TOOL_NAME } from '@/ai/tools/builtin/FileReadTool';
 import type { ReadWorkspaceDirectoryOptions, ReadWorkspaceDirectoryResult } from '@/shared/platform/native/types';
 
 /**

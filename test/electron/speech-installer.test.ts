@@ -73,9 +73,9 @@ describe('installSpeechRuntime', () => {
     expect(extractZipAsset).toHaveBeenCalledWith({
       asset: expect.objectContaining({ name: 'whisper' }),
       bytes: Buffer.from('whisper'),
-      outputFilePath: '/tmp/runtime-test/speech-runtime/tmp/1700000000000/bin/whisper'
+      outputFilePath: '/tmp/runtime-test/speech-runtime/temp/1700000000000/bin/whisper'
     });
-    expect(writeFileMock).toHaveBeenCalledWith('/tmp/runtime-test/speech-runtime/tmp/1700000000000/models/ggml-base.bin', Buffer.from('model'));
+    expect(writeFileMock).toHaveBeenCalledWith('/tmp/runtime-test/speech-runtime/temp/1700000000000/models/ggml-base.bin', Buffer.from('model'));
     expect(writeFileMock).toHaveBeenCalledWith(
       '/tmp/runtime-test/speech-runtime/manifest.json',
       JSON.stringify({
@@ -93,33 +93,36 @@ describe('installSpeechRuntime', () => {
 
     const { resolveSpeechRuntimeManifest } = await import('../../electron/main/modules/speech/installer.mjs');
     const manifest = await resolveSpeechRuntimeManifest('darwin', 'arm64', {
-      downloadUrl: async () => Buffer.from(JSON.stringify({
-        currentVersion: '2026.05.04',
-        platforms: {
-          'darwin-arm64': {
-            platform: 'darwin',
-            arch: 'arm64',
-            version: '2026.05.04',
-            modelName: 'ggml-base',
-            assets: [
-              {
-                name: 'whisper',
-                url: 'https://download.example.com/speech-runtime/2026.05.04/darwin-arm64/whisper',
-                sha256: 'sha-whisper',
-                archiveType: 'file',
-                targetRelativePath: 'bin/whisper'
-              },
-              {
-                name: 'model',
-                url: 'https://download.example.com/speech-runtime/2026.05.04/models/ggml-base.bin',
-                sha256: 'sha-model',
-                archiveType: 'file',
-                targetRelativePath: 'models/ggml-base.bin'
+      downloadUrl: async () =>
+        Buffer.from(
+          JSON.stringify({
+            currentVersion: '2026.05.04',
+            platforms: {
+              'darwin-arm64': {
+                platform: 'darwin',
+                arch: 'arm64',
+                version: '2026.05.04',
+                modelName: 'ggml-base',
+                assets: [
+                  {
+                    name: 'whisper',
+                    url: 'https://download.example.com/speech-runtime/2026.05.04/darwin-arm64/whisper',
+                    sha256: 'sha-whisper',
+                    archiveType: 'file',
+                    targetRelativePath: 'bin/whisper'
+                  },
+                  {
+                    name: 'model',
+                    url: 'https://download.example.com/speech-runtime/2026.05.04/models/ggml-base.bin',
+                    sha256: 'sha-model',
+                    archiveType: 'file',
+                    targetRelativePath: 'models/ggml-base.bin'
+                  }
+                ]
               }
-            ]
-          }
-        }
-      }))
+            }
+          })
+        )
     });
 
     expect(manifest).toEqual({

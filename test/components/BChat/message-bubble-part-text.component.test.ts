@@ -1,10 +1,9 @@
 /**
  * @file message-bubble-part-text.component.test.ts
- * @description BubblePartText file-reference 渲染行为测试。
+ * @description BubblePartText 渲染行为测试。
  */
 /* @vitest-environment jsdom */
 
-import type { ChatMessageFileReference, ChatMessageTextPart } from 'types/chat';
 import { defineComponent } from 'vue';
 import { mount, type VueWrapper } from '@vue/test-utils';
 import { describe, expect, it } from 'vitest';
@@ -61,40 +60,14 @@ const IconStub = defineComponent({
 });
 
 /**
- * 创建测试用文件引用。
- * @param overrides - 覆盖字段。
- * @returns 文件引用对象。
- */
-function createReference(overrides: Partial<ChatMessageFileReference> = {}): ChatMessageFileReference {
-  return {
-    id: 'reference-1',
-    token: '{{@demo.ts:12-14}}',
-    documentId: 'document-1',
-    fileName: 'demo.ts',
-    line: '12-14',
-    path: 'src/demo.ts',
-    snapshotId: 'snapshot-1',
-    ...overrides
-  };
-}
-
-/**
  * 挂载文本片段组件。
  * @param options - 挂载参数。
  * @returns 挂载结果。
  */
-function mountTextPart(options: {
-  part: ChatMessageTextPart;
-  loading?: boolean;
-  enableFileReferenceChips?: boolean;
-  references?: ChatMessageFileReference[];
-}): VueWrapper {
+function mountTextPart(options: { part: { type: 'text'; text: string } | { type: 'error'; text: string } }): VueWrapper {
   return mount(BubblePartText, {
     props: {
-      loading: false,
-      enableFileReferenceChips: false,
-      references: [],
-      ...options
+      part: options.part
     },
     global: {
       stubs: {
@@ -122,40 +95,37 @@ function mountBubble(message: Message): VueWrapper {
         BubblePartToolCall: true,
         BubblePartToolResult: true,
         AskUserChoiceCard: true,
-        ConfirmationCard: true
+        ConfirmationCard: true,
+        BubblePartUserInput: true,
+        BubblePartCompression: true
       }
     }
   });
 }
 
-describe('BubblePartText file references', () => {
-  it('renders matched user file-reference placeholders as read-only chips', () => {
+describe('BubblePartText', () => {
+  it('renders text part using BMessage component', () => {
     const wrapper = mountTextPart({
-      part: { type: 'text', text: '请查看 {{@demo.ts:12-14}} 的实现' },
-      enableFileReferenceChips: true,
-      references: [createReference()]
+      part: { type: 'text', text: 'Hello world' }
     });
 
-    const chip = wrapper.get('.message-bubble__part-tag');
-
-    expect(chip.text()).toBe('demo.ts:12-14');
-    expect(chip.attributes('data-value')).toBe('file-reference');
-    expect(wrapper.find('.message-stub').exists()).toBe(false);
-    expect(wrapper.text()).toContain('请查看');
-    expect(wrapper.text()).toContain('的实现');
+    const message = wrapper.get('.message-stub');
+    expect(message.text()).toBe('Hello world');
+    expect(message.attributes('data-type')).toBe('markdown');
   });
 
-  it('falls back to file name when no reference mapping is available', () => {
+  it('renders error part with error styling', () => {
     const wrapper = mountTextPart({
-      part: { type: 'text', text: '请查看 {{@missing.ts:5}} 的实现' },
-      enableFileReferenceChips: true,
-      references: [createReference()]
+      part: { type: 'error', text: 'Error message' }
     });
 
-    const chip = wrapper.get('.message-bubble__part-tag');
-    expect(chip.text()).toBe('missing.ts:5');
+    expect(wrapper.classes()).toContain('message-bubble-text--error');
+    const message = wrapper.get('.message-stub');
+    expect(message.text()).toBe('Error message');
   });
+});
 
+describe('MessageBubble assistant rendering', () => {
   it('keeps assistant text on the existing markdown rendering path', () => {
     const wrapper = mountBubble({
       id: 'assistant-1',
@@ -163,13 +133,12 @@ describe('BubblePartText file references', () => {
       content: '请查看 {{@demo.ts:12-14}}',
       createdAt: '2026-04-25T00:00:00.000Z',
       parts: [{ type: 'text', text: '请查看 {{@demo.ts:12-14}}' }],
-      references: [createReference()]
+      references: []
     });
 
     const message = wrapper.get('.message-stub');
 
     expect(message.attributes('data-type')).toBe('markdown');
     expect(message.text()).toContain('{{@demo.ts:12-14}}');
-    expect(wrapper.find('.message-bubble__part-tag').exists()).toBe(false);
   });
 });

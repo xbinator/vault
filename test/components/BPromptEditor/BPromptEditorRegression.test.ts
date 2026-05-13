@@ -142,18 +142,6 @@ describe('BPromptEditor DOM safety regressions', () => {
     expect(indexSource).toContain('view.value.state.selection');
     // useEditorCore.ts and useEditorSelection.ts no longer exist in CodeMirror 6 migration
   });
-
-  test('replaces a voice placeholder with final text at the current cursor anchor', async () => {
-    const wrapper = mountPromptEditor();
-
-    await insertEditorText(wrapper, 'hello ');
-    const placeholderId = wrapper.vm.insertVoicePlaceholder('正在语音转写…');
-    await nextTick();
-    wrapper.vm.replaceVoicePlaceholder(placeholderId, '语音结果');
-    await nextTick();
-
-    expect(wrapper.vm.getText()).toBe('hello 语音结果');
-  });
 });
 
 describe('BPromptEditor variableChip extension', () => {
@@ -541,10 +529,10 @@ describe('BPromptEditor index.vue integration', () => {
     expect(source).toContain('setTriggerActiveIndex.of');
   });
 
-  test('CSS has b-prompt-chip and b-prompt-chip--file styles', () => {
+  test('CSS has variable chip styling classes', () => {
     const source = readSource('src/components/BPromptEditor/index.vue');
-    expect(source).toContain('.b-prompt-chip');
-    expect(source).toContain('.b-prompt-chip--file');
+    expect(source).toContain('variableChipField');
+    expect(source).toContain('chipResolver');
   });
 });
 

@@ -366,17 +366,6 @@ describe('create.userMessage', () => {
   });
 });
 
-describe('create.systemMessage', () => {
-  it('creates system message with content', () => {
-    const message = create.systemMessage('System instruction');
-    expect(message.role).toBe('system');
-    expect(message.content).toBe('System instruction');
-    expect(message.parts).toEqual([{ type: 'text', text: 'System instruction' }]);
-    expect(message.finished).toBe(true);
-    expect(message.id).toBeDefined();
-  });
-});
-
 describe('userChoice.findPending', () => {
   it('returns null when no pending user choice', () => {
     const messages: Message[] = [create.userMessage('Hello'), create.assistantPlaceholder()];
@@ -547,7 +536,15 @@ describe('convert.toModelMessages', () => {
   });
 
   it('filters out non-model messages', () => {
-    const messages: Message[] = [create.systemMessage('System instruction'), create.userMessage('Hello')];
+    const systemMessage: Message = {
+      id: 'system-id',
+      role: 'system',
+      content: 'System instruction',
+      parts: [{ type: 'text', text: 'System instruction' }],
+      loading: false,
+      createdAt: new Date().toISOString()
+    };
+    const messages: Message[] = [systemMessage, create.userMessage('Hello')];
     const modelMessages = convert.toModelMessages(messages);
     expect(modelMessages).toHaveLength(1);
     expect(modelMessages[0].role).toBe('user');

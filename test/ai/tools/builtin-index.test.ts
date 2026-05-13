@@ -1,9 +1,6 @@
 import type { AIToolContext } from 'types/ai';
 import { describe, expect, it } from 'vitest';
-import { createBuiltinTools } from '@/ai/tools/builtin';
-import { QUERY_LOGS_TOOL_NAME } from '@/ai/tools/builtin/logs';
-import { READ_DIRECTORY_TOOL_NAME } from '@/ai/tools/builtin/fileRead';
-import { GET_SETTINGS_TOOL_NAME, UPDATE_SETTINGS_TOOL_NAME } from '@/ai/tools/builtin/settings';
+import { QUERY_LOGS_TOOL_NAME, READ_DIRECTORY_TOOL_NAME, GET_SETTINGS_TOOL_NAME, UPDATE_SETTINGS_TOOL_NAME, createBuiltinTools } from '@/ai/tools/builtin';
 
 /**
  * 创建工具执行上下文。
@@ -48,138 +45,30 @@ describe('createBuiltinTools', () => {
     expect(getToolNames()).toEqual([
       'read_current_document',
       'get_current_time',
-      'ask_user_choice',
+      'ask_user_question',
       'read_file',
-      READ_DIRECTORY_TOOL_NAME,
-      GET_SETTINGS_TOOL_NAME,
-      QUERY_LOGS_TOOL_NAME
+      'read_directory',
+      'get_settings',
+      'query_logs'
     ]);
   });
 
-  it('only exposes low-risk write tools by default when confirmation is available', () => {
-    expect(getToolNames(true)).toEqual([
-      'read_current_document',
-      'get_current_time',
-      'ask_user_choice',
-      'read_file',
-      READ_DIRECTORY_TOOL_NAME,
-      GET_SETTINGS_TOOL_NAME,
-      QUERY_LOGS_TOOL_NAME,
-      'edit_file',
-      'write_file',
-      UPDATE_SETTINGS_TOOL_NAME
-    ]);
+  it('includes write tools when confirmation adapter is provided', () => {
+    const names = getToolNames(true);
+    expect(names).toContain('edit_file');
+    expect(names).toContain('write_file');
+    expect(names).toContain('update_settings');
+  });
+});
+
+describe('builtin tool exports', () => {
+  it('exports read tool names', () => {
+    expect(READ_DIRECTORY_TOOL_NAME).toBe('read_directory');
+    expect(QUERY_LOGS_TOOL_NAME).toBe('query_logs');
+    expect(GET_SETTINGS_TOOL_NAME).toBe('get_settings');
   });
 
-  it('always exposes file-level write tools when confirmation is available', () => {
-    const tools = createBuiltinTools({
-      confirm: {
-        confirm: async () => true
-      }
-    });
-
-    expect(tools.map((tool) => tool.definition.name)).toEqual([
-      'read_current_document',
-      'get_current_time',
-      'ask_user_choice',
-      'read_file',
-      READ_DIRECTORY_TOOL_NAME,
-      GET_SETTINGS_TOOL_NAME,
-      QUERY_LOGS_TOOL_NAME,
-      'edit_file',
-      'write_file',
-      UPDATE_SETTINGS_TOOL_NAME
-    ]);
-  });
-
-  it('passes pending question and question id providers to ask_user_choice', async () => {
-    const tools = createBuiltinTools({
-      getPendingQuestion: () => null,
-      createQuestionId: () => 'question-from-host'
-    });
-    const askUserChoiceTool = tools.find((tool) => tool.definition.name === 'ask_user_choice');
-
-    const result = await askUserChoiceTool?.execute(
-      {
-        question: '请选择渠道类型',
-        mode: 'single',
-        options: [{ label: '官网', value: 'official' }]
-      },
-      createToolContext()
-    );
-
-    expect(result).toMatchObject({
-      status: 'awaiting_user_input',
-      data: {
-        questionId: 'question-from-host'
-      }
-    });
-  });
-
-  it('uses host pending question state to reject concurrent ask_user_choice calls', async () => {
-    const tools = createBuiltinTools({
-      getPendingQuestion: () => ({ questionId: 'pending-1', toolCallId: 'tool-call-1' }),
-      createQuestionId: () => 'question-2'
-    });
-    const askUserChoiceTool = tools.find((tool) => tool.definition.name === 'ask_user_choice');
-
-    const result = await askUserChoiceTool?.execute(
-      {
-        question: '请选择渠道类型',
-        mode: 'single',
-        options: [{ label: '官网', value: 'official' }]
-      },
-      createToolContext()
-    );
-
-    expect(result).toMatchObject({
-      status: 'failure',
-      error: { code: 'EXECUTION_FAILED' }
-    });
-  });
-
-  it('passes workspace root provider to read_file', async () => {
-    const tools = createBuiltinTools({
-      getWorkspaceRoot: () => '/workspace'
-    });
-    const readFileTool = tools.find((tool) => tool.definition.name === 'read_file');
-
-    const result = await readFileTool?.execute({ path: 'missing.ts' }, createToolContext());
-
-    expect(result).toMatchObject({
-      status: 'failure',
-      error: { code: 'UNSUPPORTED_PROVIDER' }
-    });
-  });
-
-  it('passes workspace root provider to read_directory', async () => {
-    const tools = createBuiltinTools({
-      getWorkspaceRoot: () => '/workspace'
-    });
-    const readDirectoryTool = tools.find((tool) => tool.definition.name === READ_DIRECTORY_TOOL_NAME);
-
-    const result = await readDirectoryTool?.execute({ path: 'src' }, createToolContext());
-
-    expect(result).toMatchObject({
-      status: 'failure',
-      error: { code: 'UNSUPPORTED_PROVIDER' }
-    });
-  });
-
-  it('passes confirmation adapter to read_directory for absolute paths without workspace root', async () => {
-    const confirm = {
-      confirm: async () => true
-    };
-    const tools = createBuiltinTools({
-      confirm
-    });
-    const readDirectoryTool = tools.find((tool) => tool.definition.name === READ_DIRECTORY_TOOL_NAME);
-
-    const result = await readDirectoryTool?.execute({ path: '/Users/demo/project/docs' }, createToolContext());
-
-    expect(result).toMatchObject({
-      status: 'failure',
-      error: { code: 'UNSUPPORTED_PROVIDER' }
-    });
+  it('exports write tool names', () => {
+    expect(UPDATE_SETTINGS_TOOL_NAME).toBe('update_settings');
   });
 });

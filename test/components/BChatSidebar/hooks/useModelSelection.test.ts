@@ -3,6 +3,7 @@
  * @description 验证模型选择 hook 的 computed 派生逻辑和 store 委托
  */
 import { reactive } from 'vue';
+import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Module-level reactive state（getter 延迟访问，mock 工厂执行时不需要已初始化）
@@ -40,7 +41,9 @@ const setChatModelMock = vi.fn();
 
 vi.mock('@/stores/service-model', () => ({
   useServiceModelStore: () => ({
-    get chatModel() { return serviceModelState?.chatModel; },
+    get chatModel() {
+      return serviceModelState?.chatModel;
+    },
     loadChatModel: loadChatModelMock,
     setChatModel: setChatModelMock
   })
@@ -48,13 +51,16 @@ vi.mock('@/stores/service-model', () => ({
 
 vi.mock('@/stores/provider', () => ({
   useProviderStore: () => ({
-    get providers() { return providerState?.providers ?? []; }
+    get providers() {
+      return providerState?.providers ?? [];
+    }
   })
 }));
 
 describe('useModelSelection', () => {
   beforeEach(async () => {
     vi.resetModules();
+    setActivePinia(createPinia());
     serviceModelState = createServiceModelState();
     providerState = createProviderState();
     loadChatModelMock.mockReset();
@@ -70,9 +76,7 @@ describe('useModelSelection', () => {
 
     it('选中模型声明 supportsVision 时返回 true', async () => {
       serviceModelState.chatModel = { providerId: 'openai', modelId: 'gpt-4' };
-      providerState.providers = [
-        { id: 'openai', name: 'OpenAI', models: [{ id: 'gpt-4', name: 'GPT-4', supportsVision: true }] }
-      ];
+      providerState.providers = [{ id: 'openai', name: 'OpenAI', models: [{ id: 'gpt-4', name: 'GPT-4', supportsVision: true }] }];
 
       const { useModelSelection } = await import('@/components/BChatSidebar/hooks/useModelSelection');
       const { supportsVision } = useModelSelection();
@@ -81,9 +85,7 @@ describe('useModelSelection', () => {
 
     it('选中模型未声明 supportsVision 时返回 false', async () => {
       serviceModelState.chatModel = { providerId: 'openai', modelId: 'gpt-basic' };
-      providerState.providers = [
-        { id: 'openai', name: 'OpenAI', models: [{ id: 'gpt-basic', name: 'GPT Basic', supportsVision: false }] }
-      ];
+      providerState.providers = [{ id: 'openai', name: 'OpenAI', models: [{ id: 'gpt-basic', name: 'GPT Basic', supportsVision: false }] }];
 
       const { useModelSelection } = await import('@/components/BChatSidebar/hooks/useModelSelection');
       const { supportsVision } = useModelSelection();
@@ -92,9 +94,7 @@ describe('useModelSelection', () => {
 
     it('服务商不存在时返回 false', async () => {
       serviceModelState.chatModel = { providerId: 'missing', modelId: 'gpt-4' };
-      providerState.providers = [
-        { id: 'openai', name: 'OpenAI', models: [] }
-      ];
+      providerState.providers = [{ id: 'openai', name: 'OpenAI', models: [] }];
 
       const { useModelSelection } = await import('@/components/BChatSidebar/hooks/useModelSelection');
       const { supportsVision } = useModelSelection();
@@ -103,9 +103,7 @@ describe('useModelSelection', () => {
 
     it('模型不在服务商列表中时返回 false', async () => {
       serviceModelState.chatModel = { providerId: 'openai', modelId: 'nonexistent' };
-      providerState.providers = [
-        { id: 'openai', name: 'OpenAI', models: [{ id: 'gpt-4', name: 'GPT-4', supportsVision: true }] }
-      ];
+      providerState.providers = [{ id: 'openai', name: 'OpenAI', models: [{ id: 'gpt-4', name: 'GPT-4', supportsVision: true }] }];
 
       const { useModelSelection } = await import('@/components/BChatSidebar/hooks/useModelSelection');
       const { supportsVision } = useModelSelection();
@@ -122,9 +120,7 @@ describe('useModelSelection', () => {
       expect(supportsVision.value).toBe(false);
 
       // 设置服务商和模型
-      providerState.providers = [
-        { id: 'openai', name: 'OpenAI', models: [{ id: 'gpt-4', name: 'GPT-4', supportsVision: true }] }
-      ];
+      providerState.providers = [{ id: 'openai', name: 'OpenAI', models: [{ id: 'gpt-4', name: 'GPT-4', supportsVision: true }] }];
       serviceModelState.chatModel = { providerId: 'openai', modelId: 'gpt-4' };
 
       // computed 同步更新
@@ -142,9 +138,7 @@ describe('useModelSelection', () => {
 
     it('编辑模型能力后 computed 自动更新（核心场景）', async () => {
       serviceModelState.chatModel = { providerId: 'openai', modelId: 'gpt-4' };
-      providerState.providers = [
-        { id: 'openai', name: 'OpenAI', models: [{ id: 'gpt-4', name: 'GPT-4', supportsVision: false }] }
-      ];
+      providerState.providers = [{ id: 'openai', name: 'OpenAI', models: [{ id: 'gpt-4', name: 'GPT-4', supportsVision: false }] }];
 
       const { useModelSelection } = await import('@/components/BChatSidebar/hooks/useModelSelection');
       const { supportsVision } = useModelSelection();

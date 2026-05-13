@@ -4,7 +4,7 @@
  */
 import type { AIToolContext } from 'types/ai';
 import { describe, expect, it } from 'vitest';
-import { createAskUserChoiceTool } from '@/ai/tools/builtin/askUserChoice';
+import { createAskUserQuestionTool } from '@/ai/tools/builtin/AskUserQuestionTool';
 
 /**
  * Creates a stable tool execution context for ask_user_choice tests.
@@ -27,9 +27,9 @@ function createContext(): AIToolContext {
   };
 }
 
-describe('createAskUserChoiceTool', () => {
+describe('createAskUserQuestionTool', () => {
   it('does not require an active editor document', () => {
-    const tool = createAskUserChoiceTool({
+    const tool = createAskUserQuestionTool({
       getPendingQuestion: () => null,
       createQuestionId: () => 'question-global'
     });
@@ -38,7 +38,7 @@ describe('createAskUserChoiceTool', () => {
   });
 
   it('returns awaiting user input for a valid single-choice question', async () => {
-    const tool = createAskUserChoiceTool({
+    const tool = createAskUserQuestionTool({
       getPendingQuestion: () => null,
       createQuestionId: () => 'question-1'
     });
@@ -56,7 +56,7 @@ describe('createAskUserChoiceTool', () => {
     );
 
     expect(result).toEqual({
-      toolName: 'ask_user_choice',
+      toolName: 'ask_user_question',
       status: 'awaiting_user_input',
       data: {
         questionId: 'question-1',
@@ -73,7 +73,7 @@ describe('createAskUserChoiceTool', () => {
   });
 
   it('keeps allowOther and maxSelections for valid multiple-choice questions', async () => {
-    const tool = createAskUserChoiceTool({
+    const tool = createAskUserQuestionTool({
       getPendingQuestion: () => null,
       createQuestionId: () => 'question-2'
     });
@@ -110,7 +110,7 @@ describe('createAskUserChoiceTool', () => {
   });
 
   it('rejects a second pending question before creating a new one', async () => {
-    const tool = createAskUserChoiceTool({
+    const tool = createAskUserQuestionTool({
       getPendingQuestion: () => ({
         questionId: 'pending-1',
         toolCallId: 'tool-call-1'
@@ -128,7 +128,7 @@ describe('createAskUserChoiceTool', () => {
     );
 
     expect(result).toEqual({
-      toolName: 'ask_user_choice',
+      toolName: 'ask_user_question',
       status: 'failure',
       error: {
         code: 'EXECUTION_FAILED',
@@ -138,7 +138,7 @@ describe('createAskUserChoiceTool', () => {
   });
 
   it('rejects maxSelections for single-choice questions', async () => {
-    const tool = createAskUserChoiceTool({
+    const tool = createAskUserQuestionTool({
       getPendingQuestion: () => null,
       createQuestionId: () => 'question-4'
     });
@@ -157,7 +157,7 @@ describe('createAskUserChoiceTool', () => {
     );
 
     expect(result).toEqual({
-      toolName: 'ask_user_choice',
+      toolName: 'ask_user_question',
       status: 'failure',
       error: {
         code: 'INVALID_INPUT',
@@ -167,7 +167,7 @@ describe('createAskUserChoiceTool', () => {
   });
 
   it('rejects invalid maxSelections for multiple-choice questions', async () => {
-    const tool = createAskUserChoiceTool({
+    const tool = createAskUserQuestionTool({
       getPendingQuestion: () => null,
       createQuestionId: () => 'question-5'
     });
@@ -186,7 +186,7 @@ describe('createAskUserChoiceTool', () => {
     );
 
     expect(result).toEqual({
-      toolName: 'ask_user_choice',
+      toolName: 'ask_user_question',
       status: 'failure',
       error: {
         code: 'INVALID_INPUT',
@@ -196,7 +196,7 @@ describe('createAskUserChoiceTool', () => {
   });
 
   it('rejects invalid runtime mode values', async () => {
-    const tool = createAskUserChoiceTool({
+    const tool = createAskUserQuestionTool({
       getPendingQuestion: () => null,
       createQuestionId: () => 'question-6'
     });
@@ -214,7 +214,7 @@ describe('createAskUserChoiceTool', () => {
     );
 
     expect(result).toEqual({
-      toolName: 'ask_user_choice',
+      toolName: 'ask_user_question',
       status: 'failure',
       error: {
         code: 'INVALID_INPUT',
@@ -224,7 +224,7 @@ describe('createAskUserChoiceTool', () => {
   });
 
   it('rejects inputs whose options exceed the executor limit', async () => {
-    const tool = createAskUserChoiceTool({
+    const tool = createAskUserQuestionTool({
       getPendingQuestion: () => null,
       createQuestionId: () => 'question-7'
     });
@@ -242,7 +242,7 @@ describe('createAskUserChoiceTool', () => {
     );
 
     expect(result).toEqual({
-      toolName: 'ask_user_choice',
+      toolName: 'ask_user_question',
       status: 'failure',
       error: {
         code: 'INVALID_INPUT',
@@ -252,7 +252,7 @@ describe('createAskUserChoiceTool', () => {
   });
 
   it('rejects invalid options before returning an awaiting result', async () => {
-    const tool = createAskUserChoiceTool({
+    const tool = createAskUserQuestionTool({
       getPendingQuestion: () => null,
       createQuestionId: () => 'question-8'
     });
@@ -270,7 +270,7 @@ describe('createAskUserChoiceTool', () => {
     );
 
     expect(result).toEqual({
-      toolName: 'ask_user_choice',
+      toolName: 'ask_user_question',
       status: 'failure',
       error: {
         code: 'INVALID_INPUT',

@@ -32,7 +32,7 @@ describe('BChat stream busy state', () => {
     const sessionHookSource = readSource('src/components/BChatSidebar/hooks/useSession.ts');
 
     expect(sidebarSource).not.toContain(':disabled="chatBusy"');
-    expect(sidebarSource).toContain(':disabled="chatStream.loading.value"');
+    expect(sidebarSource).toContain(':disabled="loading"');
     expect(sessionHookSource).toContain('if (options.isStreamLoading()) return;');
     expect(sessionHistorySource).toContain('disabled?: boolean;');
   });

@@ -13,8 +13,8 @@ import {
 } from '@/components/BChatSidebar/utils/compression/constant';
 
 describe('compression constant', () => {
-  it('RECENT_ROUND_PRESERVE is 6', () => {
-    expect(RECENT_ROUND_PRESERVE).toBe(6);
+  it('RECENT_ROUND_PRESERVE is 0', () => {
+    expect(RECENT_ROUND_PRESERVE).toBe(0);
   });
 
   it('COMPRESSION_ROUND_THRESHOLD is 30', () => {

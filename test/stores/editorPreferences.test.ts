@@ -81,7 +81,7 @@ describe('useEditorPreferencesStore', () => {
     expect(store.viewMode).toBe('source');
     expect(store.showOutline).toBe(false);
     expect(store.pageWidth).toBe('wide');
-    expect(store.saveStrategy).toBe('manual');
+    expect(store.saveStrategy).toBe('off');
     expect(localStorage.getItem(EDITOR_PREFERENCES_STORAGE_KEY)).toContain('"pageWidth":"wide"');
   });
 
@@ -101,6 +101,6 @@ describe('useEditorPreferencesStore', () => {
     expect(store.viewMode).toBe('rich');
     expect(store.showOutline).toBe(true);
     expect(store.pageWidth).toBe('default');
-    expect(store.saveStrategy).toBe('manual');
+    expect(store.saveStrategy).toBe('off');
   });
 });

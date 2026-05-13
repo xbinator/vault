@@ -4,7 +4,7 @@
  */
 import type { AIToolContext } from 'types/ai';
 import { describe, expect, it } from 'vitest';
-import { createBuiltinReadFileTool } from '@/ai/tools/builtin/fileRead';
+import { createBuiltinReadFileTool } from '@/ai/tools/builtin/FileReadTool';
 import type { ReadWorkspaceFileOptions, ReadWorkspaceFileResult as NativeReadWorkspaceFileResult } from '@/shared/platform/native/types';
 
 /**

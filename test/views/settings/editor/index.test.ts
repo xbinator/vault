@@ -7,8 +7,8 @@
 import { createPinia, setActivePinia } from 'pinia';
 import { mount } from '@vue/test-utils';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import EditorSettingsView from '@/views/settings/editor/index.vue';
 import { useEditorPreferencesStore } from '@/stores/editorPreferences';
+import EditorSettingsView from '@/views/settings/editor/index.vue';
 
 const storage = new Map<string, string>();
 
@@ -56,6 +56,14 @@ describe('EditorSettingsView', () => {
     const wrapper = mount(EditorSettingsView, {
       global: {
         stubs: {
+          BSettingsPage: {
+            props: ['title'],
+            template: '<div class="settings-page-stub"><slot /></div>'
+          },
+          BSettingsSection: {
+            props: ['title'],
+            template: '<div class="settings-section-stub"><div class="section-title">{{ title }}</div><slot /></div>'
+          },
           BSelect: {
             props: ['value'],
             emits: ['update:value'],
@@ -71,7 +79,7 @@ describe('EditorSettingsView', () => {
     });
 
     expect(wrapper.text()).toContain('默认视图模式');
-    expect(wrapper.text()).toContain('保存策略');
-    expect(wrapper.text()).toContain('自动保存策略仅对已有磁盘路径的文档生效');
+    expect(wrapper.text()).toContain('自动保存');
+    expect(wrapper.text()).toContain('常用设置');
   });
 });

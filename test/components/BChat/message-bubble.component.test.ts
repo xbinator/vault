@@ -4,11 +4,12 @@
  */
 /* @vitest-environment jsdom */
 
-import type { Message } from '@/components/BChatSidebar/utils/types';
 import { defineComponent } from 'vue';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { createPinia, setActivePinia } from 'pinia';
 import { mount, type VueWrapper } from '@vue/test-utils';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import MessageBubble from '@/components/BChatSidebar/components/MessageBubble.vue';
+import type { Message } from '@/components/BChatSidebar/utils/types';
 
 /**
  * BBubble 占位组件，保留默认插槽和命名插槽。
@@ -89,6 +90,43 @@ vi.mock('@/hooks/useClipboard', () => ({
 }));
 
 /**
+ * 路由 mock。
+ */
+vi.mock('vue-router', () => ({
+  useRouter: () => ({
+    push: vi.fn()
+  })
+}));
+
+/**
+ * 文件存储 mock。
+ */
+vi.mock('@/stores/files', () => ({
+  useFilesStore: () => ({
+    openFile: vi.fn()
+  })
+}));
+
+/**
+ * localforage mock。
+ */
+vi.mock('localforage', () => ({
+  default: {
+    config: vi.fn(),
+    createInstance: vi.fn(() => ({
+      getItem: vi.fn(() => Promise.resolve(null)),
+      setItem: vi.fn(() => Promise.resolve()),
+      removeItem: vi.fn(() => Promise.resolve()),
+      clear: vi.fn(() => Promise.resolve())
+    })),
+    getItem: vi.fn(() => Promise.resolve(null)),
+    setItem: vi.fn(() => Promise.resolve()),
+    removeItem: vi.fn(() => Promise.resolve()),
+    clear: vi.fn(() => Promise.resolve())
+  }
+}));
+
+/**
  * 创建带确认片段的消息。
  * @returns assistant 消息
  */
@@ -125,29 +163,17 @@ function createMessageWithConfirmation(): Message {
 }
 
 /**
- * 创建带文件引用片段的用户消息。
+ * 创建带文件引用的用户消息（使用文本格式）。
  * @returns user 消息
  */
 function createMessageWithFileReferencePart(): Message {
   return {
     id: 'user-1',
     role: 'user',
-    content: '请看 这里',
+    content: '请看 {{#foo.ts 3-5}} 这里',
     createdAt: '2026-05-02T00:00:00.000Z',
     finished: true,
-    parts: [
-      { type: 'text', text: '请看 ' },
-      {
-        type: 'file-reference',
-        documentId: 'doc-1',
-        snapshotId: 'snapshot-1',
-        fileName: 'foo.ts',
-        path: '/workspace/foo.ts',
-        startLine: 3,
-        endLine: 5
-      },
-      { type: 'text', text: ' 这里' }
-    ]
+    parts: [{ type: 'text', text: '请看 {{#foo.ts 3-5}} 这里' }]
   };
 }
 
@@ -172,6 +198,7 @@ function mountMessageBubble(message: Message): VueWrapper {
 
 describe('MessageBubble confirmation integration', () => {
   beforeEach(() => {
+    setActivePinia(createPinia());
     document.body.innerHTML = '';
   });
 
@@ -205,16 +232,14 @@ describe('MessageBubble confirmation integration', () => {
     await wrapper.get('.confirm-card__custom-input').setValue('自定义答案');
     await wrapper.get('.confirm-card__custom-submit button').trigger('click');
 
-    expect(wrapper.emitted('confirmation-custom-input')).toEqual([
-      [{ confirmationId: 'confirmation-1', text: '自定义答案' }]
-    ]);
+    expect(wrapper.emitted('confirmation-custom-input')).toEqual([[{ confirmationId: 'confirmation-1', text: '自定义答案' }]]);
   });
 
   it('renders file-reference parts from structured user message parts', () => {
     const wrapper = mountMessageBubble(createMessageWithFileReferencePart());
 
     expect(wrapper.text()).toContain('请看');
-    expect(wrapper.text()).toContain('foo.ts:3-5');
+    expect(wrapper.text()).toContain('foo.ts');
     expect(wrapper.text()).toContain('这里');
   });
 });

@@ -8,9 +8,10 @@ import { resolve } from 'node:path';
 import type { VueWrapper } from '@vue/test-utils';
 import type { ComponentPublicInstance, Ref } from 'vue';
 import { ref } from 'vue';
+import { createPinia, setActivePinia } from 'pinia';
 import { Editor } from '@tiptap/core';
 import { mount } from '@vue/test-utils';
-import { describe, expect, test, vi } from 'vitest';
+import { beforeEach, describe, expect, test, vi } from 'vitest';
 import PaneRichEditor from '@/components/BEditor/components/PaneRichEditor.vue';
 import { useExtensions } from '@/components/BEditor/hooks/useExtensions';
 
@@ -18,6 +19,28 @@ vi.mock('vue-router', () => ({
   useRouter: () => ({
     push: vi.fn()
   })
+}));
+
+vi.mock('@/stores/files', () => ({
+  useFilesStore: () => ({
+    openFile: vi.fn()
+  })
+}));
+
+vi.mock('localforage', () => ({
+  default: {
+    config: vi.fn(),
+    createInstance: vi.fn(() => ({
+      getItem: vi.fn(() => Promise.resolve(null)),
+      setItem: vi.fn(() => Promise.resolve()),
+      removeItem: vi.fn(() => Promise.resolve()),
+      clear: vi.fn(() => Promise.resolve())
+    })),
+    getItem: vi.fn(() => Promise.resolve(null)),
+    setItem: vi.fn(() => Promise.resolve()),
+    removeItem: vi.fn(() => Promise.resolve()),
+    clear: vi.fn(() => Promise.resolve())
+  }
 }));
 
 if (!Range.prototype.getClientRects) {
@@ -115,6 +138,10 @@ function mountPaneRichEditor(value: string): VueWrapper<PaneRichEditorVm> {
 }
 
 describe('session history virtual scroll focus diagnostic', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia());
+  });
+
   test('keeps the reported markdown file stable through rich-editor round trip', () => {
     const markdown = readFixtureMarkdown();
     const roundTrippedMarkdown = roundTripMarkdown(markdown);

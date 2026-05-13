@@ -5,14 +5,37 @@
  */
 import type { VueWrapper } from '@vue/test-utils';
 import type { ComponentPublicInstance } from 'vue';
+import { createPinia, setActivePinia } from 'pinia';
 import { mount } from '@vue/test-utils';
-import { describe, expect, test, vi } from 'vitest';
+import { beforeEach, describe, expect, test, vi } from 'vitest';
 import PaneRichEditor from '@/components/BEditor/components/PaneRichEditor.vue';
 
 vi.mock('vue-router', () => ({
   useRouter: () => ({
     push: vi.fn()
   })
+}));
+
+vi.mock('@/stores/files', () => ({
+  useFilesStore: () => ({
+    openFile: vi.fn()
+  })
+}));
+
+vi.mock('localforage', () => ({
+  default: {
+    config: vi.fn(),
+    createInstance: vi.fn(() => ({
+      getItem: vi.fn(() => Promise.resolve(null)),
+      setItem: vi.fn(() => Promise.resolve()),
+      removeItem: vi.fn(() => Promise.resolve()),
+      clear: vi.fn(() => Promise.resolve())
+    })),
+    getItem: vi.fn(() => Promise.resolve(null)),
+    setItem: vi.fn(() => Promise.resolve()),
+    removeItem: vi.fn(() => Promise.resolve()),
+    clear: vi.fn(() => Promise.resolve())
+  }
 }));
 
 /**
@@ -61,6 +84,10 @@ function mountPaneRichEditor(value: string): VueWrapper<PaneRichEditorVm> {
 }
 
 describe('PaneRichEditor focus regression', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia());
+  });
+
   test('does not emit update:value on mount or focus without user text edits', async () => {
     const wrapper = mountPaneRichEditor('<!-- comment -->');
 

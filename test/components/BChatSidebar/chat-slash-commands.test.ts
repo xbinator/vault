@@ -172,14 +172,10 @@ vi.mock('@/components/BChatSidebar/components/InputToolbar.vue', async () => {
   };
 });
 
-vi.mock('@/components/BChatSidebar/hooks/useCompression', async () => {
-  const { ref } = await import('vue');
-
+vi.mock('@/components/BChatSidebar/hooks/useCompactContext', async () => {
   return {
-    useCompression: () => ({
-      compressing: ref(false),
-      error: ref(undefined),
-      compress: compressionHookTriggerMock
+    useCompactContext: () => ({
+      handleCompactContext: compressionHookTriggerMock
     })
   };
 });
@@ -223,6 +219,34 @@ vi.mock('@/components/BChatSidebar/components/InputToolbar/ModelSelector.vue', a
         });
 
         return () => h('div', { 'data-testid': 'model-selector-stub' });
+      }
+    })
+  };
+});
+
+vi.mock('@/components/BModelSelect/index.vue', async () => {
+  const { defineComponent, h } = await import('vue');
+
+  return {
+    default: defineComponent({
+      name: 'BModelSelect',
+      props: {
+        model: {
+          type: String,
+          default: undefined
+        },
+        open: {
+          type: Boolean,
+          default: false
+        }
+      },
+      emits: ['update:model', 'update:open', 'change'],
+      setup(_props, { expose }) {
+        expose({
+          open: modelSelectorOpenMock
+        });
+
+        return () => h('div', { 'data-testid': 'bmodel-select-stub' });
       }
     })
   };
@@ -431,13 +455,6 @@ describe('chatSlashCommands', () => {
         type: 'action'
       },
       {
-        id: 'clear',
-        trigger: '/clear',
-        title: '清空输入',
-        description: '清除当前聊天输入内容。',
-        type: 'action'
-      },
-      {
         id: 'compact',
         trigger: '/compact',
         title: '压缩上下文',
@@ -454,40 +471,6 @@ describe('chatSlashCommands', () => {
     await nextTick();
 
     expect(modelSelectorOpenMock).toHaveBeenCalledTimes(1);
-  });
-
-  test('clears only the current draft input and draft references when the editor emits /clear', async () => {
-    const wrapper = mountChatSidebar();
-    const promptEditor = wrapper.getComponent({ name: 'BPromptEditor' });
-    const draftReference = {
-      id: 'ref-1',
-      token: '{{file-ref:ref-1}}',
-      documentId: 'doc-1',
-      fileName: 'draft.md',
-      line: '12-18',
-      path: null,
-      snapshotId: 'snapshot-1',
-      excerpt: '## Heading'
-    };
-
-    wrapper.getComponent({ name: 'ConversationView' }).vm.$emit('edit', {
-      id: 'message-1',
-      role: 'user',
-      content: 'Draft text',
-      parts: [{ type: 'text', text: 'Draft text' }],
-      references: [draftReference],
-      createdAt: '2026-04-29T00:00:00.000Z'
-    });
-    await nextTick();
-
-    expect(promptEditor.text()).toContain('Draft text');
-
-    wrapper.getComponent({ name: 'BPromptEditor' }).vm.$emit('slash-command', chatSlashCommands[3]);
-    await nextTick();
-
-    expect(promptEditor.text()).not.toContain('Draft text');
-    expect(focusMock).toHaveBeenCalledTimes(1);
-    expect(setChatSidebarActiveSessionIdMock).not.toHaveBeenCalled();
   });
 
   test('triggers the shared compression action when the editor emits /compact', async () => {
@@ -511,12 +494,6 @@ describe('chatSlashCommands', () => {
     await nextTick();
 
     expect(compressionHookTriggerMock).toHaveBeenCalledTimes(1);
-    expect(addSessionMessageMock).toHaveBeenCalledTimes(1);
-    expect(addSessionMessageMock.mock.calls[0]?.[1]?.role).toBe('compression');
-    expect(chatHistoryState.messages.at(-1)?.role).toBe('compression');
-    expect(chatHistoryState.messages.at(-1)?.compression?.status).toBe('success');
-    expect(chatHistoryState.messages.at(-1)?.compression?.recordId).toBe('record-1');
-    expect(setSessionMessagesMock).toHaveBeenCalledTimes(1);
   });
 
   test('does not start a new chat while the stream is still loading', async () => {

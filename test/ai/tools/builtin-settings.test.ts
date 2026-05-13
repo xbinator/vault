@@ -5,7 +5,7 @@
 import type { AIToolContext } from 'types/ai';
 import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { createBuiltinSettingsTools } from '@/ai/tools/builtin/settings';
+import { createBuiltinSettingsTools } from '@/ai/tools/builtin/SettingsTool';
 import { useSettingStore } from '@/stores/setting';
 
 const storage = new Map<string, string>();
@@ -101,11 +101,10 @@ describe('built-in settings tools', () => {
     const tools = createBuiltinSettingsTools({ confirm });
     const settingStore = useSettingStore();
 
-    settingStore.setShowOutline(true);
-    const result = await tools.updateSettings.execute({ key: 'showOutline', value: false }, createToolContext());
+    const result = await tools.updateSettings.execute({ key: 'theme', value: 'dark' }, createToolContext());
 
     expect(result.status).toBe('cancelled');
-    expect(settingStore.showOutline).toBe(true);
+    expect(settingStore.theme).toBe('system');
   });
 
   it('rejects invalid theme values before confirmation', async () => {
@@ -152,10 +151,10 @@ describe('built-in settings tools', () => {
     const settingStore = useSettingStore();
 
     settingStore.grantToolPermission('update_settings', 'session');
-    const result = await tools.updateSettings.execute({ key: 'showOutline', value: false }, createToolContext());
+    const result = await tools.updateSettings.execute({ key: 'theme', value: 'dark' }, createToolContext());
 
     expect(result.status).toBe('success');
-    expect(settingStore.showOutline).toBe(false);
+    expect(settingStore.theme).toBe('dark');
     expect(confirm).not.toHaveBeenCalled();
   });
 
@@ -164,49 +163,21 @@ describe('built-in settings tools', () => {
     const tools = createBuiltinSettingsTools({ confirm });
     const settingStore = useSettingStore();
 
-    const result = await tools.updateSettings.execute({ key: 'showOutline', value: false }, createToolContext());
+    const result = await tools.updateSettings.execute({ key: 'theme', value: 'dark' }, createToolContext());
 
     expect(result.status).toBe('success');
     expect(settingStore.alwaysToolPermissionGrants.update_settings).toBe(true);
   });
 
-  it('updates editor page width after confirmation', async () => {
-    const confirm = vi.fn(async () => ({ approved: true }));
-    const tools = createBuiltinSettingsTools({ confirm });
-    const settingStore = useSettingStore();
-
-    const result = await tools.updateSettings.execute({ key: 'editorPageWidth', value: 'wide' }, createToolContext());
-
-    expect(result.status).toBe('success');
-    expect(settingStore.editorPageWidth).toBe('wide');
-    expect(confirm).toHaveBeenCalledWith(
-      expect.objectContaining({
-        beforeText: 'editorPageWidth: default',
-        afterText: 'editorPageWidth: wide'
-      })
-    );
-  });
-
-  it('rejects invalid editor page width values before confirmation', async () => {
-    const confirm = vi.fn(async () => ({ approved: true }));
-    const tools = createBuiltinSettingsTools({ confirm });
-
-    const result = await tools.updateSettings.execute({ key: 'editorPageWidth', value: 'ultra' }, createToolContext());
-
-    expect(result.status).toBe('failure');
-    expect(result.error?.code).toBe('INVALID_INPUT');
-    expect(confirm).not.toHaveBeenCalled();
-  });
-
-  it('returns editor page width from get_settings', async () => {
+  it('returns current theme from get_settings', async () => {
     const tools = createBuiltinSettingsTools({ confirm: vi.fn(async () => ({ approved: true })) });
     const settingStore = useSettingStore();
 
-    settingStore.setEditorPageWidth('full');
+    settingStore.setTheme('dark');
 
-    const result = await tools.getSettings.execute({ keys: 'editorPageWidth' }, createToolContext());
+    const result = await tools.getSettings.execute({ keys: 'theme' }, createToolContext());
 
     expect(result.status).toBe('success');
-    expect(result.data?.settings.editorPageWidth).toBe('full');
+    expect(result.data?.settings.theme).toBe('dark');
   });
 });

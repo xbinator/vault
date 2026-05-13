@@ -52,9 +52,8 @@ function mountFilterBar(
           name: 'BSelect',
           inheritAttrs: false,
           props: ['value', 'placeholder', 'allowClear'],
-          emits: ['update:value'],
-          template:
-            '<button type="button" class="b-select-stub" :data-value="value" v-bind="$attrs" @click="$emit(\'update:value\', \'ERROR\')"><slot /></button>'
+          emits: ['change'],
+          template: '<button type="button" class="b-select-stub" :data-value="value" v-bind="$attrs" @click="$emit(\'change\', \'ERROR\')"><slot /></button>'
         }),
         ASelectOption: defineComponent({
           name: 'ASelectOption',
@@ -64,7 +63,7 @@ function mountFilterBar(
           name: 'ADatePicker',
           inheritAttrs: false,
           props: ['value', 'placeholder', 'disabledDate', 'allowClear'],
-          emits: ['update:value'],
+          emits: ['change'],
           template: `
             <button
               type="button"
@@ -72,7 +71,7 @@ function mountFilterBar(
               :data-value="value"
               :data-allow-clear="String(allowClear)"
               v-bind="$attrs"
-              @click="$emit('update:value', '2026-04-30')"
+              @click="$emit('change', '2026-04-30')"
             ></button>
           `
         }),
@@ -80,8 +79,9 @@ function mountFilterBar(
           name: 'AInput',
           inheritAttrs: false,
           props: ['value', 'placeholder', 'allowClear'],
-          emits: ['update:value'],
-          template: '<button type="button" class="input-stub" :data-value="value" v-bind="$attrs" @click="$emit(\'update:value\', \'timeout\')"></button>'
+          emits: ['change'],
+          template:
+            '<button type="button" class="input-stub" :data-value="value" v-bind="$attrs" @click="$emit(\'change\', { target: { value: \'timeout\' } })"></button>'
         })
       }
     }

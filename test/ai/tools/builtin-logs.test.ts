@@ -41,7 +41,7 @@ describe('createBuiltinLogTools', () => {
   });
 
   it('exposes query_logs as a global readonly tool', async () => {
-    const { createBuiltinLogTools, QUERY_LOGS_TOOL_NAME } = await import('@/ai/tools/builtin/logs');
+    const { createBuiltinLogTools, QUERY_LOGS_TOOL_NAME } = await import('@/ai/tools/builtin/LogsTool');
     const tools = createBuiltinLogTools();
 
     expect(tools.queryLogs.definition.name).toBe(QUERY_LOGS_TOOL_NAME);
@@ -60,7 +60,7 @@ describe('createBuiltinLogTools', () => {
     ];
     getLogsMock.mockResolvedValue(items);
 
-    const { createBuiltinLogTools, QUERY_LOGS_TOOL_NAME } = await import('@/ai/tools/builtin/logs');
+    const { createBuiltinLogTools, QUERY_LOGS_TOOL_NAME } = await import('@/ai/tools/builtin/LogsTool');
     const result = await createBuiltinLogTools().queryLogs.execute({
       keyword: '   ',
       level: 'ERROR',
@@ -98,7 +98,7 @@ describe('createBuiltinLogTools', () => {
   it('treats blank date as omitted and falls back to the default daily query', async () => {
     getLogsMock.mockResolvedValue([]);
 
-    const { createBuiltinLogTools } = await import('@/ai/tools/builtin/logs');
+    const { createBuiltinLogTools } = await import('@/ai/tools/builtin/LogsTool');
     await createBuiltinLogTools().queryLogs.execute({
       date: '   '
     });
@@ -118,7 +118,7 @@ describe('createBuiltinLogTools', () => {
       electronAPI: undefined
     });
 
-    const { createBuiltinLogTools, QUERY_LOGS_TOOL_NAME } = await import('@/ai/tools/builtin/logs');
+    const { createBuiltinLogTools, QUERY_LOGS_TOOL_NAME } = await import('@/ai/tools/builtin/LogsTool');
     const result = await createBuiltinLogTools().queryLogs.execute({});
 
     expect(result).toEqual({

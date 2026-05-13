@@ -16,6 +16,16 @@ import { createBuiltinWriteFileTool, WRITE_FILE_TOOL_NAME } from './FileWriteToo
 import { createBuiltinLogTools, QUERY_LOGS_TOOL_NAME } from './LogsTool';
 import { createBuiltinSettingsTools, GET_SETTINGS_TOOL_NAME, UPDATE_SETTINGS_TOOL_NAME } from './SettingsTool';
 
+// 重新导出工具名称
+export { ASK_USER_QUESTION_TOOL_NAME } from './AskUserQuestionTool';
+export { READ_CURRENT_DOCUMENT_TOOL_NAME } from './DocumentTool';
+export { GET_CURRENT_TIME_TOOL_NAME } from './EnvironmentTool';
+export { EDIT_FILE_TOOL_NAME } from './FileEditTool';
+export { READ_DIRECTORY_TOOL_NAME, READ_FILE_TOOL_NAME } from './FileReadTool';
+export { WRITE_FILE_TOOL_NAME } from './FileWriteTool';
+export { QUERY_LOGS_TOOL_NAME } from './LogsTool';
+export { GET_SETTINGS_TOOL_NAME, UPDATE_SETTINGS_TOOL_NAME } from './SettingsTool';
+
 /**
  * 默认开放的只读内置工具名称列表。
  */

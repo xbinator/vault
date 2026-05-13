@@ -3,6 +3,7 @@
  * @description 校验聊天流在用户主动中止时会正确收尾助手消息并触发持久化回调。
  */
 import { ref } from 'vue';
+import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useChatStream } from '@/components/BChatSidebar/hooks/useChatStream';
 import { create } from '@/components/BChatSidebar/utils/messageHelper';
@@ -61,6 +62,16 @@ vi.mock('@/stores/serviceModel', () => ({
   })
 }));
 
+vi.mock('@/stores/toolSettings', () => ({
+  /**
+   * 模拟工具设置 store，避免测试初始化时依赖真实 store。
+   */
+  useToolSettingsStore: () => ({
+    getEnabledToolNames: () => [],
+    isToolEnabled: () => true
+  })
+}));
+
 /**
  * 创建一个已经收到部分流式内容、但仍处于 loading 的助手消息。
  * @returns 可用于中止测试的助手消息。
@@ -75,6 +86,7 @@ function createStreamingAssistantMessage(): Message {
 
 describe('useChatStream abort', () => {
   beforeEach(() => {
+    setActivePinia(createPinia());
     capturedCallbacks = null;
     abortSpy.mockClear();
     streamSpy.mockClear();
@@ -115,9 +127,7 @@ describe('useChatStream abort', () => {
       providerId: 'openai',
       modelId: 'gpt-4o',
       toolSupport: {
-        supported: false,
-        mode: 'none',
-        multiStepLoop: false
+        supported: false
       }
     };
 
@@ -136,9 +146,7 @@ describe('useChatStream abort', () => {
       providerId: 'openai',
       modelId: 'gpt-4o',
       toolSupport: {
-        supported: false,
-        mode: 'none',
-        multiStepLoop: false
+        supported: false
       }
     } satisfies ServiceConfig);
 

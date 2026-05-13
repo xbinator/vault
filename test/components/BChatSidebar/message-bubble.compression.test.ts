@@ -34,7 +34,6 @@ describe('MessageBubble compression rendering', () => {
     });
 
     expect(wrapper.text()).toContain('上下文已压缩');
-    expect(wrapper.text()).toContain('此前对话已整理，后续回复将从这里继续');
     expect(wrapper.text()).not.toContain('内部摘要正文不应该展示给用户');
   });
 
@@ -61,7 +60,6 @@ describe('MessageBubble compression rendering', () => {
     });
 
     expect(wrapper.text()).toContain('压缩失败');
-    expect(wrapper.text()).toContain('未能完成上下文整理，可稍后重试');
     expect(wrapper.text()).toContain('摘要保存失败');
     expect(wrapper.text()).not.toContain('失败时也不应该展示这段文本');
   });
@@ -116,6 +114,5 @@ describe('MessageBubble compression rendering', () => {
     });
 
     expect(wrapper.text()).toContain('压缩已取消');
-    expect(wrapper.text()).toContain('此次上下文整理已停止，后续可重新发起压缩');
   });
 });

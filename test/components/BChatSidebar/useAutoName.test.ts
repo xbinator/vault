@@ -2,39 +2,94 @@
  * @file useAutoName.test.ts
  * @description 验证自动命名 Hook 的快照冻结、等待用户输入分支与异步命名行为
  */
+import { createPinia, setActivePinia } from 'pinia';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const getAvailableServiceConfigMock = vi.fn();
 const updateSessionTitleMock = vi.fn();
-const invokeMock = vi.fn();
 
-vi.mock('@/stores/service-model', () => ({
-  useServiceModelStore: () => ({
-    getAvailableServiceConfig: getAvailableServiceConfigMock
+vi.mock('@/shared/platform', () => ({
+  native: {
+    updateMenuItem: vi.fn()
+  },
+  getElectronAPI: () => ({
+    invoke: vi.fn(() => Promise.resolve()),
+    on: vi.fn(),
+    off: vi.fn(),
+    send: vi.fn()
+  }),
+  hasElectronAPI: () => true
+}));
+
+vi.mock('@/shared/platform/electron-api', () => ({
+  getElectronAPI: () => ({
+    invoke: vi.fn(() => Promise.resolve()),
+    on: vi.fn(),
+    off: vi.fn(),
+    send: vi.fn(),
+    aiInvoke: vi.fn(() => Promise.resolve([undefined, { text: '"自动命名标题"' }]))
+  }),
+  hasElectronAPI: () => true,
+  readElectronAPI: () => ({
+    invoke: vi.fn(() => Promise.resolve()),
+    on: vi.fn(),
+    off: vi.fn(),
+    send: vi.fn(),
+    aiInvoke: vi.fn(() => Promise.resolve([undefined, { text: '"自动命名标题"' }]))
   })
 }));
 
-vi.mock('@/stores/chat', () => ({
-  useChatStore: () => ({
-    updateSessionTitle: updateSessionTitleMock
-  })
+vi.mock('@/shared/storage/base', () => ({
+  local: {
+    getItem: vi.fn(() => null),
+    setItem: vi.fn()
+  }
 }));
 
-vi.mock('@/hooks/useChat', () => ({
-  useChat: () => ({
-    agent: {
-      invoke: invokeMock
-    }
-  })
+vi.mock('localforage', () => ({
+  default: {
+    config: vi.fn(),
+    createInstance: vi.fn(() => ({
+      getItem: vi.fn(() => Promise.resolve(null)),
+      setItem: vi.fn(() => Promise.resolve()),
+      removeItem: vi.fn(() => Promise.resolve()),
+      clear: vi.fn(() => Promise.resolve())
+    })),
+    getItem: vi.fn(() => Promise.resolve(null)),
+    setItem: vi.fn(() => Promise.resolve()),
+    removeItem: vi.fn(() => Promise.resolve()),
+    clear: vi.fn(() => Promise.resolve())
+  }
+}));
+
+vi.mock('@/shared/storage', () => ({
+  providerStorage: {
+    getProvider: vi.fn(() =>
+      Promise.resolve({
+        id: 'provider-1',
+        name: 'Test Provider',
+        apiKey: 'test-key',
+        baseUrl: 'https://test.com',
+        type: 'openai',
+        isEnabled: true
+      })
+    )
+  }
 }));
 
 describe('useAutoName', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    setActivePinia(createPinia());
     vi.resetModules();
     vi.useFakeTimers();
     getAvailableServiceConfigMock.mockReset();
     updateSessionTitleMock.mockReset();
-    invokeMock.mockReset();
+
+    const { useServiceModelStore } = await import('@/stores/serviceModel');
+    const { useChatStore } = await import('@/stores/chat');
+
+    vi.spyOn(useServiceModelStore(), 'getAvailableServiceConfig').mockImplementation(getAvailableServiceConfigMock);
+    vi.spyOn(useChatStore(), 'updateSessionTitle').mockImplementation(updateSessionTitleMock);
   });
 
   afterEach(() => {
@@ -78,11 +133,12 @@ describe('useAutoName', () => {
       modelId: 'model-1',
       customPrompt: 'Title: {{USER_MESSAGE}} -> {{AI_RESPONSE}}'
     });
-    invokeMock.mockResolvedValue([undefined, { text: '"自动命名标题"' }]);
+
     const refreshMock = vi.fn();
     const currentSession = { id: 'session-1', title: '旧标题' };
 
     const { useAutoName } = await import('@/components/BChatSidebar/hooks/useAutoName');
+
     const { scheduleAutoName } = useAutoName({
       getCurrentSessionId: () => 'session-other',
       getCurrentSession: () => currentSession,
@@ -103,12 +159,10 @@ describe('useAutoName', () => {
     );
 
     await vi.advanceTimersByTimeAsync(300);
+    await Promise.resolve();
+    await Promise.resolve();
 
-    expect(invokeMock).toHaveBeenCalledWith({
-      providerId: 'provider-1',
-      modelId: 'model-1',
-      prompt: 'Title: 用户首条消息 -> 首轮 AI 回复'
-    });
+    expect(getAvailableServiceConfigMock).toHaveBeenCalledWith('autoname');
     expect(updateSessionTitleMock).toHaveBeenCalledWith('session-1', '自动命名标题');
     expect(currentSession.title).toBe('自动命名标题');
     expect(refreshMock).toHaveBeenCalledWith('session-1', '自动命名标题');

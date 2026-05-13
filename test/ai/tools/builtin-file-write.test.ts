@@ -4,7 +4,7 @@
  */
 import type { AIToolContext } from 'types/ai';
 import { describe, expect, it, vi } from 'vitest';
-import { createBuiltinWriteFileTool } from '@/ai/tools/builtin/fileWrite';
+import { createBuiltinWriteFileTool } from '@/ai/tools/builtin/FileWriteTool';
 import type { FileReadSnapshot } from '@/ai/tools/shared/fileTypes';
 
 /**

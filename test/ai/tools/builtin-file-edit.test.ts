@@ -4,7 +4,7 @@
  */
 import type { AIToolContext } from 'types/ai';
 import { describe, expect, it, vi } from 'vitest';
-import { createBuiltinEditFileTool } from '@/ai/tools/builtin/fileEdit';
+import { createBuiltinEditFileTool } from '@/ai/tools/builtin/FileEditTool';
 import type { FileReadSnapshot } from '@/ai/tools/shared/fileTypes';
 import type { ReadWorkspaceFileResult } from '@/shared/platform/native/types';
 
@@ -297,11 +297,14 @@ describe('createBuiltinEditFileTool', () => {
     const context = createToolContext('/workspace/src/example.ts');
     context.editor.replaceDocument = replaceDocument;
 
-    const result = await tool.execute({
-      path: 'src/example.ts',
-      oldString: 'value = 1',
-      newString: 'value = 2'
-    }, context);
+    const result = await tool.execute(
+      {
+        path: 'src/example.ts',
+        oldString: 'value = 1',
+        newString: 'value = 2'
+      },
+      context
+    );
 
     expect(result.status).toBe('success');
     expect(replaceDocument).toHaveBeenCalledWith('const value = 2;\n');

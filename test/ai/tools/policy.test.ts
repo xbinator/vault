@@ -4,7 +4,7 @@
  */
 import type { AIProvider } from 'types/ai';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { getDefaultBuiltinChatToolNames } from '@/ai/tools/builtinCatalog';
+import { getDefaultBuiltinChatToolNames } from '@/ai/tools/builtin';
 import { getDefaultChatToolNames, getModelToolSupport } from '@/ai/tools/policy';
 
 type GetProviderMock = (providerId: string) => Promise<AIProvider | null>;
