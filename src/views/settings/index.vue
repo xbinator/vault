@@ -1,10 +1,13 @@
 <template>
   <div class="settings-container">
     <div class="settings-sidebar" :class="{ 'settings-sidebar--collapsed': sidebarCollapsed }">
-      <RouterLink v-for="item in menuItems" :key="item.key" :to="item.path" class="sidebar-item" :class="{ active: isActive(item.key) }">
-        <Icon :icon="item.icon" class="sidebar-item__icon" />
-        <span class="sidebar-item__label">{{ item.label }}</span>
-      </RouterLink>
+      <template v-for="(group, gi) in menuGroups" :key="gi">
+        <div v-if="gi > 0" class="sidebar-divider"></div>
+        <RouterLink v-for="item in group.items" :key="item.key" :to="item.path" class="sidebar-item" :class="{ active: isActive(item.key) }">
+          <Icon :icon="item.icon" class="sidebar-item__icon" />
+          <span class="sidebar-item__label">{{ item.label }}</span>
+        </RouterLink>
+      </template>
 
       <button type="button" class="sidebar-collapse-btn" @click="toggleSidebarCollapsed">
         <Icon :icon="sidebarCollapsed ? 'lucide:panel-right-open' : 'lucide:panel-right-close'" width="14" height="14" />
@@ -22,7 +25,7 @@ import { useRoute } from 'vue-router';
 import { storeToRefs } from 'pinia';
 import { Icon } from '@iconify/vue';
 import { useSettingStore } from '@/stores/setting';
-import { menuItems, type SettingsMenuKey } from './constants';
+import { menuGroups, type SettingsMenuKey } from './constants';
 
 const route = useRoute();
 const settingStore = useSettingStore();
@@ -88,6 +91,16 @@ function isActive(key: SettingsMenuKey): boolean {
   &:hover {
     color: var(--color-primary);
   }
+}
+
+.sidebar-divider {
+  height: 1px;
+  margin: 4px 12px 8px;
+  background: var(--border-primary);
+}
+
+.settings-sidebar--collapsed .sidebar-divider {
+  display: none;
 }
 
 .sidebar-item {

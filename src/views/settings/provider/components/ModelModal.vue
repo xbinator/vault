@@ -135,7 +135,7 @@ function handleCancel(): void {
 
 async function createModel(model: AIProviderModel): Promise<{ success: boolean; message?: string }> {
   if (!props.providerId) {
-    return { success: false, message: '服务商不存在' };
+    return { success: false, message: '模型平台不存在' };
   }
   const exists = props.models.some((item: AIProviderModel) => item.id === model.id);
   if (exists) {
@@ -151,7 +151,7 @@ async function createModel(model: AIProviderModel): Promise<{ success: boolean; 
 
 async function updateModel(model: AIProviderModel): Promise<{ success: boolean; message?: string }> {
   if (!props.providerId) {
-    return { success: false, message: '服务商不存在' };
+    return { success: false, message: '模型平台不存在' };
   }
   const nextModels = props.models.map((item: AIProviderModel) => (item.id === model.id ? { ...item, ...model } : item));
 

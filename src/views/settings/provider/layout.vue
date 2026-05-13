@@ -43,15 +43,15 @@
           <SidebarSection
             v-model:section-collapsed="customCollapsed"
             action-icon="lucide:plus"
-            action-title="添加服务商"
+            action-title="添加模型平台"
             :collapsed="sidebarCollapsed"
             collapsible
-            title="自定义服务商"
+            title="自定义"
             @action="handleAddProvider"
           >
             <div v-if="!customProviders.length" class="empty-state">
               <Icon icon="lucide:inbox" width="24" height="24" />
-              <span class="item-label">暂无自定义服务商</span>
+              <span class="item-label">暂无自定义模型平台</span>
             </div>
             <SidebarItem
               v-for="provider in customProviders"
@@ -84,7 +84,7 @@
             </SidebarItem>
           </SidebarSection>
 
-          <SidebarSection v-model:section-collapsed="defaultCollapsed" :collapsed="sidebarCollapsed" collapsible title="服务商">
+          <SidebarSection v-model:section-collapsed="defaultCollapsed" :collapsed="sidebarCollapsed" collapsible title="模型平台">
             <SidebarItem
               v-for="provider in defaultProviders"
               :key="provider.value"
@@ -238,7 +238,7 @@ async function handleDeleteProvider(providerId: string): Promise<void> {
   const provider = providerMap.value[providerId];
   if (!provider || !provider.isCustom) return;
 
-  const [, confirmed] = await Modal.delete(`确定要删除服务商 "${provider.name}" 吗？`);
+  const [, confirmed] = await Modal.delete(`确定要删除模型平台 "${provider.name}" 吗？`);
   if (!confirmed) return;
 
   const success = await providerStore.deleteCustomProvider(providerId);

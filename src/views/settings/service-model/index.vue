@@ -1,5 +1,5 @@
 <template>
-  <BSettingsPage title="模型服务">
+  <BSettingsPage title="默认模型">
     <ServiceConfig service-type="chat" title="智能对话助手" description="指定用于智能对话的模型" :options="CHAT_SERVICE_CONFIG_OPTIONS" :show-prompt="false" />
 
     <ServiceConfig

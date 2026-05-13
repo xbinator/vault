@@ -46,7 +46,7 @@
 
 <script lang="ts" setup>
 import type { SelectOption } from './types';
-import { computed, ref, onMounted, defineComponent } from 'vue';
+import { computed, ref, onMounted, defineComponent, Ref } from 'vue';
 import { Icon } from '@iconify/vue';
 import { useVModel } from '@vueuse/core';
 
@@ -60,7 +60,7 @@ const VNodes = defineComponent({
 
 interface Props {
   placeholder?: string;
-  value?: string | number;
+  value?: string | number | null;
   showArrow?: boolean;
   showSearch?: boolean;
   options?: SelectOption[];
@@ -93,7 +93,7 @@ const emit = defineEmits<{
   change: [value: string | number, option?: unknown];
 }>();
 
-const selected = useVModel(props, 'value', emit);
+const selected = useVModel(props, 'value', emit) as Ref<string | number>;
 
 // Tips of the currently hovered option
 const hoveredTips = ref<string | undefined>(undefined);

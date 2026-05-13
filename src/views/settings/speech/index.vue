@@ -3,14 +3,14 @@
   @description 语音组件设置页，负责展示当前运行时状态并提供安装、重装和删除入口。
 -->
 <template>
-  <BSettingsPage title="语音组件">
+  <BSettingsPage title="语音服务">
     <div class="speech-settings__overview">
       <div class="speech-settings__overview-icon">
         <Icon icon="lucide:mic-2" />
       </div>
 
       <div class="speech-settings__overview-content">
-        <div class="speech-settings__overview-title">本地语音组件</div>
+        <div class="speech-settings__overview-title">本地语音服务</div>
         <div class="speech-settings__overview-desc">用于本地语音转写、模型运行和音频处理</div>
       </div>
 

@@ -1,17 +1,17 @@
 <template>
-  <BModal v-model:open="visible" :width="560" :title="isEditMode ? '编辑服务商' : '新建服务商'">
+  <BModal v-model:open="visible" :width="560" :title="isEditMode ? '编辑模型平台' : '新建模型平台'">
     <AForm layout="vertical">
       <div class="dataItem-section">
         <div class="section-title">基本信息</div>
-        <AFormItem label="服务商 ID" required v-bind="validateInfos.id">
+        <AFormItem label="模型平台 ID" required v-bind="validateInfos.id">
           <AInput v-model:value="dataItem.id" :disabled="isEditMode" placeholder="例如: my-provider" @blur="handleProviderIdBlur" />
         </AFormItem>
 
-        <AFormItem label="服务商名称" required v-bind="validateInfos.name">
-          <AInput v-model:value="dataItem.name" placeholder="请输入服务商名称" />
+        <AFormItem label="模型平台名称" required v-bind="validateInfos.name">
+          <AInput v-model:value="dataItem.name" placeholder="请输入模型平台名称" />
         </AFormItem>
 
-        <AFormItem label="服务商 Logo">
+        <AFormItem label="模型平台 Logo">
           <AInput v-model:value="dataItem.logo" placeholder="请输入 Logo 图片 URL" />
         </AFormItem>
       </div>
@@ -80,22 +80,22 @@ const providerMap = computed<Record<string, AIProvider>>(() => {
 
 const rules = reactive<Record<string, Rule[]>>({
   id: [
-    { required: true, message: '请输入服务商 ID' },
+    { required: true, message: '请输入模型平台 ID' },
     {
       pattern: /^[a-z0-9][a-z0-9-_]*$/,
-      message: '服务商 ID 仅支持小写字母、数字、中划线和下划线'
+      message: '模型平台 ID 仅支持小写字母、数字、中划线和下划线'
     },
     {
       validator: (_rule: Rule, value: string) => {
         if (!isEditMode.value && providerMap.value[value]) {
           // eslint-disable-next-line prefer-promise-reject-errors
-          return Promise.reject('服务商 ID 已存在，请更换');
+          return Promise.reject('模型平台 ID 已存在，请更换');
         }
         return Promise.resolve();
       }
     }
   ],
-  name: [{ required: true, message: '请输入服务商名称' }],
+  name: [{ required: true, message: '请输入模型平台名称' }],
   type: [{ required: true, message: '请选择请求格式' }]
 });
 
@@ -127,7 +127,7 @@ async function handleSubmit(): Promise<void> {
   const provider = await providerStore.saveCustomProvider({
     id,
     name: dataItem.name.trim(),
-    description: '自定义服务商',
+    description: '自定义模型平台',
     logo: dataItem.logo.trim(),
     type: dataItem.type,
     baseUrl: dataItem.baseUrl.trim(),
@@ -135,12 +135,12 @@ async function handleSubmit(): Promise<void> {
   });
 
   if (!provider) {
-    message.error(isEditMode.value ? '编辑服务商失败' : '创建服务商失败');
+    message.error(isEditMode.value ? '编辑模型平台失败' : '创建模型平台失败');
     return;
   }
 
   visible.value = false;
-  message.success(isEditMode.value ? '服务商已更新' : '服务商已创建');
+  message.success(isEditMode.value ? '模型平台已更新' : '模型平台已创建');
   emit('success', provider);
   await router.push(`/settings/provider/${provider.id}`);
 

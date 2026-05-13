@@ -55,9 +55,9 @@ interface Category {
 }
 
 interface Props {
-  // 服务商 ID
+  // 模型平台 ID
   providerId: string;
-  // 服务商模型列表
+  // 模型平台模型列表
   models: AIProviderModel[];
   // 模型分类
   categories?: Category[];

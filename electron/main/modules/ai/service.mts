@@ -2,50 +2,22 @@
  * @file service.mts
  * @description AI 服务核心类，封装文本生成和流式文本生成能力
  */
-import type { AICreateOptions, AIRequestOptions, AIInvokeResult, AIStreamResult, AIServiceError } from 'types/ai';
 import type { ToolSet } from 'ai';
-import { generateText, jsonSchema, Output, streamText, tool } from 'ai';
+import type { AICreateOptions, AIRequestOptions, AIInvokeResult, AIStreamResult, AIServiceError } from 'types/ai';
 import { tavilyExtract, tavilySearch } from '@tavily/ai-sdk';
+import { generateText, jsonSchema, Output, streamText, tool } from 'ai';
 import { log } from '../logger/service.mjs';
 import { AI_ERROR_CODE } from './errors/codes.mjs';
 import { AIProviderRegistry } from './providers/_index.mjs';
 
-/**
- * 将前端工具定义转换为 AI SDK 的工具格式
- * @param tools - 前端工具定义数组
- * @param request - 前端请求配置
- * @returns AI SDK 兼容的工具对象
- */
-function toSdkTools(tools: AIRequestOptions['tools'], request: AIRequestOptions): ToolSet | undefined {
-  const rendererTools: ToolSet = tools?.length
-    ? Object.fromEntries(
-        tools.map((item) => [
-          item.name,
-          tool({
-            description: item.description,
-            inputSchema: jsonSchema(item.parameters)
-          })
-        ])
-      ) as ToolSet
-    : {};
-
-  const tavilyTools = createTavilySdkTools(request);
-  const mergedTools = { ...rendererTools, ...tavilyTools } as ToolSet;
-
-  return Object.keys(mergedTools).length > 0 ? mergedTools : undefined;
-}
+// ─── 纯工具函数 ──────────────────────────────────────────────────────────────
 
 /**
- * 根据请求创建 Tavily SDK 工具。
- * @param request - 前端请求配置
- * @returns Tavily 工具映射
+ * 根据 Tavily 配置创建 SDK 工具集。
+ * 配置缺失或未启用时返回空对象。
  */
-function createTavilySdkTools(request: AIRequestOptions): ToolSet {
-  const tavily = request.tavily;
-
-  if (!tavily?.enabled || !tavily.apiKey.trim()) {
-    return {};
-  }
+function createTavilySdkTools(tavily: AIRequestOptions['tavily']): ToolSet {
+  if (!tavily?.enabled || !tavily.apiKey.trim()) return {};
 
   return {
     tavily_search: tavilySearch({
@@ -70,148 +42,151 @@ function createTavilySdkTools(request: AIRequestOptions): ToolSet {
 }
 
 /**
- * 将前端结构化输出配置转换为 AI SDK output 配置。
- * @param output - 前端传入的结构化输出配置
- * @returns AI SDK Output.object 配置
+ * 将前端工具定义与 Tavily 工具合并为 AI SDK 兼容的工具集。
+ * 合并结果为空时返回 undefined，避免向 SDK 传入空对象。
  */
-function toOutput(output: AIRequestOptions['output']) {
-  if (!output) return undefined;
+function toSdkTools(tools: AIRequestOptions['tools'], tavily: AIRequestOptions['tavily']): ToolSet | undefined {
+  const rendererTools: ToolSet = tools?.length
+    ? Object.fromEntries(tools.map((item) => [item.name, tool({ description: item.description, inputSchema: jsonSchema(item.parameters) })]))
+    : {};
 
-  return Output.object({
-    schema: jsonSchema(output.schema),
-    name: output.name,
-    description: output.description
-  });
+  const merged: ToolSet = { ...rendererTools, ...createTavilySdkTools(tavily) };
+  return Object.keys(merged).length > 0 ? merged : undefined;
 }
 
 /**
- * 判断错误是否属于可预期的临时服务问题。
- * @param error - 标准化 AI 错误
- * @returns 是否应该使用简短日志输出
+ * 将结构化输出配置转换为 AI SDK Output 格式。
+ */
+function toOutput(output: AIRequestOptions['output']) {
+  if (!output) return undefined;
+  return Output.object({ schema: jsonSchema(output.schema), name: output.name, description: output.description });
+}
+
+/**
+ * 判断是否为可预期的临时服务错误（限流 / 服务不可用）。
  */
 function isExpectedTransientError(error: AIServiceError): boolean {
   return error.code === AI_ERROR_CODE.RATE_LIMITED || error.code === AI_ERROR_CODE.SERVICE_UNAVAILABLE;
 }
 
-/**
- * 记录 AI 服务调用错误，避免限流/过载类错误刷出冗长堆栈。
- * @param scope - 调用范围
- * @param error - 原始错误
- * @param normalizedError - 标准化错误
- */
-function logAIServiceError(scope: string, error: unknown, normalizedError: AIServiceError): void {
-  if (isExpectedTransientError(normalizedError)) {
-    log.warn(`[AIService] ${scope} ${normalizedError.code}:`, normalizedError.message);
-    return;
-  }
-
-  log.error(`[AIService] ${scope} error:`, error);
-}
+// ─── AIService ───────────────────────────────────────────────────────────────
 
 /**
  * AI 服务类
- * @description 封装 AI 模型调用能力，支持同步和流式两种模式
+ * 封装模型调用能力，支持同步文本生成与流式文本生成两种模式。
  */
 class AIService {
-  /** AI 服务商注册表 */
   public aiProvider: AIProviderRegistry = new AIProviderRegistry();
 
-  /** AbortController 映射表，用于中止流式请求 */
   private abortControllers = new Map<string, AbortController>();
 
-  /**
-   * 中止指定的流式请求
-   * @param requestId - 请求 ID
-   */
-  abortStream(requestId: string) {
-    if (!this.abortControllers.has(requestId)) return;
+  // ── AbortController 管理 ──────────────────────────────────────────────────
 
-    this.abortControllers.get(requestId)?.abort();
+  abortStream(requestId: string): void {
+    const controller = this.abortControllers.get(requestId);
+    if (!controller) return;
+
+    controller.abort();
     this.abortControllers.delete(requestId);
     log.info(`[AIService] Stream aborted manually for requestId: ${requestId}`);
   }
 
-  /**
-   * 移除指定的 AbortController
-   * @param requestId - 请求 ID
-   */
-  removeController(requestId: string) {
+  removeController(requestId: string): void {
     this.abortControllers.delete(requestId);
   }
 
   /**
-   * 创建语言模型实例
-   * @param createOptions - 创建选项
-   * @param modelId - 模型 ID
-   * @returns 语言模型实例
+   * 为指定请求创建 AbortSignal，并注册到内部映射表。
+   * requestId 缺失时返回 undefined。
    */
+  private registerAbortSignal(requestId?: string): AbortSignal | undefined {
+    if (!requestId) return undefined;
+
+    const controller = new AbortController();
+    this.abortControllers.set(requestId, controller);
+    return controller.signal;
+  }
+
+  // ── 内部辅助 ──────────────────────────────────────────────────────────────
+
   private createModel(createOptions: AICreateOptions, modelId: string) {
     return this.aiProvider.create(createOptions, modelId);
   }
 
   /**
-   * 同步生成文本
-   * @param createOptions - 创建选项（包含服务商配置）
-   * @param request - 请求选项（包含模型 ID、消息等）
-   * @returns 错误或生成结果
+   * 构建 generateText / streamText 共用的基础选项。
+   */
+  private buildBaseOptions(createOptions: AICreateOptions, request: AIRequestOptions) {
+    return {
+      model: this.createModel(createOptions, request.modelId),
+      system: request.system,
+      temperature: request.temperature,
+      maxOutputTokens: request.maxOutputTokens,
+      tools: toSdkTools(request.tools, request.tavily)
+    };
+  }
+
+  /**
+   * 统一处理 AI 调用异常：标准化错误、按类型记录日志，并返回错误元组。
+   */
+  private handleError(scope: string, error: unknown, providerType: AICreateOptions['providerType']): [AIServiceError] {
+    const normalized = this.aiProvider.normalizeError(error, providerType);
+
+    if (isExpectedTransientError(normalized)) {
+      log.warn(`[AIService] ${scope} ${normalized.code}:`, normalized.message);
+    } else {
+      log.error(`[AIService] ${scope} error:`, error);
+    }
+
+    return [normalized];
+  }
+
+  // ── 公开 API ──────────────────────────────────────────────────────────────
+
+  /**
+   * 同步生成文本。
    */
   async generateText(createOptions: AICreateOptions, request: AIRequestOptions): Promise<[AIServiceError] | [undefined, AIInvokeResult]> {
     try {
-      const model = this.createModel(createOptions, request.modelId);
-      const { prompt = '', system, temperature, maxOutputTokens, messages, output } = request;
-
       log.info(`[AIService] generateText request:`, request);
 
-      const baseOptions = { model, system, temperature, maxOutputTokens, tools: toSdkTools(request.tools, request), output: toOutput(output) };
+      const baseOptions = {
+        ...this.buildBaseOptions(createOptions, request),
+        output: toOutput(request.output)
+      };
 
-      // 根据是否有 messages 选择不同的调用方式
-      const result = messages ? await generateText({ ...baseOptions, messages }) : await generateText({ ...baseOptions, prompt });
+      const result = request.messages
+        ? await generateText({ ...baseOptions, messages: request.messages })
+        : await generateText({ ...baseOptions, prompt: request.prompt ?? '' });
 
       log.info(`[AIService] generateText result:`, result);
 
-      const { inputTokens = 0, outputTokens = 0, totalTokens = 0 } = result.usage || {};
-
+      const { inputTokens = 0, outputTokens = 0, totalTokens = 0 } = result.usage ?? {};
       return [undefined, { text: result.text, output: result.output, usage: { inputTokens, outputTokens, totalTokens } }];
-    } catch (error: unknown) {
-      const normalizedError = this.aiProvider.normalizeError(error, createOptions.providerType);
-      logAIServiceError('generateText', error, normalizedError);
-
-      return [normalizedError];
+    } catch (error) {
+      return this.handleError('generateText', error, createOptions.providerType);
     }
   }
 
   /**
-   * 流式生成文本
-   * @param createOptions - 创建选项（包含服务商配置）
-   * @param request - 请求选项（包含模型 ID、消息、请求 ID 等）
-   * @returns 错误或流式结果
+   * 流式生成文本。
    */
   async streamText(createOptions: AICreateOptions, request: AIRequestOptions): Promise<[AIServiceError] | [undefined, AIStreamResult]> {
     try {
-      const model = this.createModel(createOptions, request.modelId);
-      const { prompt = '', system, temperature, maxOutputTokens, requestId, messages } = request;
-
-      // 创建 AbortController 用于中止请求
-      let abortSignal: AbortSignal | undefined;
-      if (requestId) {
-        const controller = new AbortController();
-        this.abortControllers.set(requestId, controller);
-        abortSignal = controller.signal;
-      }
-
       log.info(`[AIService] streamText request:`, request);
 
-      const baseOptions = { model, system, temperature, maxOutputTokens, abortSignal, tools: toSdkTools(request.tools, request) };
+      const baseOptions = {
+        ...this.buildBaseOptions(createOptions, request),
+        abortSignal: this.registerAbortSignal(request.requestId)
+      };
 
-      // 根据是否有 messages 选择不同的调用方式
-      const result = messages ? streamText({ ...baseOptions, messages }) : streamText({ ...baseOptions, prompt });
+      const result = request.messages
+        ? streamText({ ...baseOptions, messages: request.messages })
+        : streamText({ ...baseOptions, prompt: request.prompt ?? '' });
 
       return [undefined, { stream: result.fullStream }];
-    } catch (error: unknown) {
-      const normalizedError = this.aiProvider.normalizeError(error, createOptions.providerType);
-      logAIServiceError('streamText', error, normalizedError);
-
-      return [normalizedError];
+    } catch (error) {
+      return this.handleError('streamText', error, createOptions.providerType);
     }
   }
 }

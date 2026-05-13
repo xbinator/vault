@@ -5,7 +5,7 @@
     </button>
     <div v-show="!collapsed" class="sidebar-search">
       <Icon icon="lucide:search" width="13" height="13" class="search-icon" />
-      <input :value="modelValue" class="search-input" placeholder="搜索服务商" @input="handleInput" />
+      <input :value="modelValue" class="search-input" placeholder="搜索模型平台" @input="handleInput" />
       <button v-show="modelValue" class="search-clear" @click="emit('update:modelValue', '')">
         <Icon icon="lucide:x" width="12" height="12" />
       </button>

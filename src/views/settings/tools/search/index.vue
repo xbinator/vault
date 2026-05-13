@@ -1,9 +1,9 @@
 <!--
   @file index.vue
-  @description 搜索工具设置页，负责管理 Tavily 的启用状态、默认参数与连通性测试。
+  @description 搜索工具设置页，负责管理 Tavily 的启用状态与默认参数。
 -->
 <template>
-  <BSettingsPage title="搜索">
+  <BSettingsPage title="网络搜索">
     <BSettingsSection title="基础配置">
       <div class="search-tools-settings__item">
         <div class="search-tools-settings__meta">
@@ -117,47 +117,16 @@
         <ASwitch :checked="store.tavily.extractDefaults.includeImages" @change="handleExtractIncludeImagesChange" />
       </div>
     </BSettingsSection>
-
-    <BSettingsSection title="连通性测试">
-      <div class="search-tools-settings__item">
-        <div class="search-tools-settings__meta">
-          <div class="search-tools-settings__label">测试 Search</div>
-          <div class="search-tools-settings__description">使用内置示例查询：{{ TAVILY_SEARCH_TEST_QUERY }}</div>
-        </div>
-        <BButton type="primary">测试 Search</BButton>
-      </div>
-
-      <div class="search-tools-settings__item search-tools-settings__item--stacked">
-        <div class="search-tools-settings__meta">
-          <div class="search-tools-settings__label">测试 Extract</div>
-          <div class="search-tools-settings__description">输入一个公开可访问的网页链接，仅用于连通性测试，不会保存到配置中。</div>
-        </div>
-        <div class="search-tools-settings__test-row">
-          <div class="search-tools-settings__test-url-label">测试 URL</div>
-          <AInput v-model:value="extractTestUrl" placeholder="https://example.com/article" />
-          <BButton type="primary">测试 Extract</BButton>
-        </div>
-      </div>
-    </BSettingsSection>
   </BSettingsPage>
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed } from 'vue';
 import type { TavilyExtractDepth, TavilyExtractFormat, TavilySearchDepth, TavilySearchTopic, TavilyTimeRange } from '@/shared/storage/tool-settings';
 import { useToolSettingsStore } from '@/stores/toolSettings';
-import {
-  TAVILY_SEARCH_TEST_QUERY,
-  tavilyCountryOptions,
-  tavilyExtractFormatOptions,
-  tavilySearchDepthOptions,
-  tavilyTimeRangeOptions,
-  tavilyTopicOptions
-} from './constants';
+import { tavilyCountryOptions, tavilyExtractFormatOptions, tavilySearchDepthOptions, tavilyTimeRangeOptions, tavilyTopicOptions } from './constants';
 
 const store = useToolSettingsStore();
-
-const extractTestUrl = ref('https://docs.tavily.com');
 
 /**
  * 将域名数组映射为输入框字符串。
@@ -344,28 +313,10 @@ function handleExtractIncludeImagesChange(value: boolean | string | number): voi
   color: var(--text-secondary);
 }
 
-.search-tools-settings__test-row {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-}
-
-.search-tools-settings__test-url-label {
-  flex-shrink: 0;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-secondary);
-}
-
 @media (width <= 720px) {
   .search-tools-settings__item {
     flex-direction: column;
     align-items: flex-start;
-  }
-
-  .search-tools-settings__test-row {
-    flex-direction: column;
-    align-items: stretch;
   }
 
   .search-tools-settings__item :deep(.b-select) {

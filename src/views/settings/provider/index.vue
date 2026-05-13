@@ -3,8 +3,7 @@
     <div class="provider-header">
       <!--  -->
       <div class="header-left">
-        <h2 class="content-title">AI 服务商</h2>
-        <span class="enabled-count">已启用 {{ enabledCount }} 个服务商</span>
+        <h2 class="content-title">模型服务</h2>
       </div>
     </div>
 
@@ -15,7 +14,7 @@
 
       <div v-if="filteredProviders.length === 0" class="empty-state">
         <Icon icon="lucide:search-x" class="empty-icon" />
-        <p>未找到匹配的服务商</p>
+        <p>未找到匹配的模型平台</p>
       </div>
     </div>
   </div>
@@ -35,8 +34,6 @@ const route = useRoute();
 const providerStore = useProviderStore();
 const providers = computed(() => providerStore.providers);
 const searchText: Ref<string> = ref('');
-
-const enabledCount: ComputedRef<number> = computed(() => providers.value.filter((provider: AIProvider) => provider.isEnabled).length);
 
 const activeCategory: ComputedRef<string> = computed((): string => {
   const category = route.query.category as string;
@@ -63,7 +60,7 @@ const filteredProviders: ComputedRef<AIProvider[]> = computed((): AIProvider[] =
 async function handleToggleProvider(id: string, enabled: boolean): Promise<void> {
   await providerStore.toggleProvider(id, enabled);
 
-  message.success(enabled ? '已启用服务商' : '已禁用服务商');
+  message.success(enabled ? '已启用模型平台' : '已禁用模型平台');
 }
 </script>
 
@@ -97,14 +94,6 @@ async function handleToggleProvider(id: string, enabled: boolean): Promise<void>
   font-size: 18px;
   font-weight: 600;
   color: var(--text-primary);
-}
-
-.enabled-count {
-  padding: 3px 10px;
-  font-size: 12px;
-  color: var(--color-primary);
-  background: var(--color-primary-bg);
-  border-radius: 10px;
 }
 
 :deep(.ant-input-affix-wrapper) {

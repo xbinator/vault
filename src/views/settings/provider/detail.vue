@@ -105,7 +105,7 @@ async function handleToggle(enabled: boolean): Promise<void> {
 
   await providerStore.toggleProvider(provider.value.id, enabled);
   provider.value = { ...provider.value, isEnabled: enabled };
-  message.success(enabled ? '已启用服务商' : '已禁用服务商');
+  message.success(enabled ? '已启用模型平台' : '已禁用模型平台');
 }
 
 async function handleRefreshModels(): Promise<void> {
