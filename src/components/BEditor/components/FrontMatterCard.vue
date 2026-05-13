@@ -1,5 +1,5 @@
 <template>
-  <div class="b-editor-frontmatter">
+  <div :class="name">
     <div class="b-editor-frontmatter__header">
       <span class="b-editor-frontmatter__title">元数据</span>
       <div class="b-editor-frontmatter__actions">
@@ -79,6 +79,9 @@ import { ref, watch } from 'vue';
 import { Icon } from '@iconify/vue';
 import yaml from 'js-yaml';
 import { vFocus } from '@/directives/focus';
+import { createNamespace } from '@/utils/namespace';
+
+const [name] = createNamespace('', 'b-editor-frontmatter');
 
 interface Props {
   data?: FrontMatterData;

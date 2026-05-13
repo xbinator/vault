@@ -1,5 +1,5 @@
 <template>
-  <div class="b-editor-seltoolbar">
+  <div :class="name">
     <template v-if="isModelAvailable">
       <div class="b-editor-seltoolbar__ai-btn" @mousedown.prevent="$emit('ai')">
         <Icon icon="lucide:sparkles" />
@@ -31,6 +31,9 @@ import type { SelectionToolbarAction } from '../adapters/selectionAssistant';
 import { ref, computed } from 'vue';
 import { Icon } from '@iconify/vue';
 import { useServiceModelStore } from '@/stores/serviceModel';
+import { createNamespace } from '@/utils/namespace';
+
+const [name] = createNamespace('', 'b-editor-seltoolbar');
 
 /**
  * 格式按钮的定义（由 host 注入，含当前激活态）。

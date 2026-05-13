@@ -1,5 +1,5 @@
 <template>
-  <BScrollbar class="b-editor-anchor__content" inset="vertical">
+  <BScrollbar :class="bem('content')" inset="vertical">
     <TransitionGroup name="b-editor-anchor-fade" tag="div">
       <div
         v-for="item in treeItems"
@@ -25,7 +25,10 @@
 <script setup lang="ts">
 import { computed, CSSProperties, ref, watch, nextTick } from 'vue';
 import { Icon } from '@iconify/vue';
+import { createNamespace } from '@/utils/namespace';
 import BScrollbar from '../../BScrollbar/index.vue';
+
+const [, bem] = createNamespace('', 'b-editor-anchor');
 
 export interface AnchorItem {
   // 目录项id

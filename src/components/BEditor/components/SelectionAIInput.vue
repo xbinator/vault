@@ -1,5 +1,5 @@
 <template>
-  <div v-if="adapter && visible" ref="wrapperRef" class="b-editor-selai" :style="wrapperStyle">
+  <div v-if="adapter && visible" ref="wrapperRef" :class="name" :style="wrapperStyle">
     <!-- AI 生成预览区 -->
     <div v-if="previewText || loading" class="b-editor-selai__preview">
       <div class="b-editor-selai__preview-text">
@@ -44,6 +44,9 @@ import type { ServiceModelUpdatedDetail } from '@/shared/storage/service-models/
 import { SERVICE_MODEL_UPDATED_EVENT } from '@/shared/storage/service-models/events';
 import type { AvailableServiceModelConfig } from '@/stores/serviceModel';
 import { useServiceModelStore } from '@/stores/serviceModel';
+import { createNamespace } from '@/utils/namespace';
+
+const [name] = createNamespace('', 'b-editor-selai');
 
 interface Props {
   /** 面板是否可见 */

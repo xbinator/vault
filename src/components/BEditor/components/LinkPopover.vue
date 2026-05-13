@@ -1,6 +1,6 @@
 <template>
   <Teleport v-if="overlayRoot && visible" :to="overlayRoot">
-    <div ref="popoverRef" class="b-editor-link" :style="popoverStyle">
+    <div ref="popoverRef" :class="name" :style="popoverStyle">
       <input
         ref="inputRef"
         v-model="href"
@@ -24,6 +24,9 @@
 import type { CSSProperties } from 'vue';
 import { nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import { onClickOutside } from '@vueuse/core';
+import { createNamespace } from '@/utils/namespace';
+
+const [name] = createNamespace('', 'b-editor-link');
 
 interface Props {
   /** 是否显示弹窗 */

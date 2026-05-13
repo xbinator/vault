@@ -1,12 +1,16 @@
 <template>
   <Transition name="b-editor-hover-fade">
-    <div v-show="isVisible" class="b-editor-hover" :class="`is-${type}`" :style="{ top }">
+    <div v-show="isVisible" :class="[name, `is-${type}`]" :style="{ top }">
       {{ label }}
     </div>
   </Transition>
 </template>
 
 <script setup lang="ts">
+import { createNamespace } from '@/utils/namespace';
+
+const [name] = createNamespace('', 'b-editor-hover');
+
 type HoverBlockType = 'heading' | 'paragraph';
 
 interface Props {

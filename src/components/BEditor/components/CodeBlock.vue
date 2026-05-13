@@ -1,5 +1,5 @@
 <template>
-  <NodeViewWrapper class="b-editor-codeblock" :class="{ 'is-collapsed': isCollapsed, 'is-word-wrap': isWordWrap }">
+  <NodeViewWrapper :class="[name, { 'is-collapsed': isCollapsed, 'is-word-wrap': isWordWrap }]">
     <div class="b-editor-codeblock__header" contenteditable="false">
       <BSelect v-model:value="selectedLanguage" :width="200" :options="languageOptions" @change="handleLanguageChange" />
 
@@ -48,6 +48,9 @@ import { useClipboard, useDebounceFn } from '@vueuse/core';
 import { message } from 'ant-design-vue';
 import mermaid from 'mermaid';
 import BSelect from '@/components/BSelect/index.vue';
+import { createNamespace } from '@/utils/namespace';
+
+const [name] = createNamespace('', 'b-editor-codeblock');
 
 // ─── 类型 ────────────────────────────────────────────────────────────────────
 

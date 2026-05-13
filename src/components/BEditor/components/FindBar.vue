@@ -1,6 +1,6 @@
 <template>
   <Transition name="b-editor-findbar-flip">
-    <div v-if="visible" class="b-editor-findbar">
+    <div v-if="visible" :class="name">
       <div class="b-editor-findbar__container" :class="{ 'no-match': isNoMatchFound }">
         <input
           ref="inputRef"
@@ -32,6 +32,9 @@ import { Icon } from '@iconify/vue';
 import type { BEditorPublicInstance, EditorSearchState as SearchState } from '@/components/BEditor/types';
 import { EditorShortcuts } from '@/constants/shortcuts';
 import { useShortcuts } from '@/hooks/useShortcuts';
+import { createNamespace } from '@/utils/namespace';
+
+const [name] = createNamespace('', 'b-editor-findbar');
 
 interface Props {
   editorInstance: BEditorPublicInstance | null;

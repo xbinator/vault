@@ -1,6 +1,6 @@
 <template>
   <Teleport v-if="overlayRoot" :to="overlayRoot">
-    <div v-if="visible" ref="toolbarRef" class="b-editor-selrich" :style="style">
+    <div v-if="visible" ref="toolbarRef" :class="name" :style="style">
       <SelectionToolbar :format-buttons="resolvedFormatButtons" @ai="$emit('ai')" @reference="$emit('reference')" @format="handleFormat" />
     </div>
     <LinkPopover
@@ -25,8 +25,11 @@ import type { Editor } from '@tiptap/vue-3';
 import type { CSSProperties } from 'vue';
 import { computed, nextTick, onBeforeUnmount, ref, shallowRef, watch } from 'vue';
 import { useEventListener, useResizeObserver } from '@vueuse/core';
+import { createNamespace } from '@/utils/namespace';
 import LinkPopover from './LinkPopover.vue';
 import SelectionToolbar from './SelectionToolbar.vue';
+
+const [name] = createNamespace('', 'b-editor-selrich');
 
 /**
  * 格式按钮定义（从 host 外部注入，含当前编辑器激活态）。

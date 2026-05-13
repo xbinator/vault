@@ -1,6 +1,6 @@
 <template>
   <Teleport v-if="overlayRoot" :to="overlayRoot">
-    <div v-if="visible" ref="toolbarRef" class="b-editor-selsource" :style="style">
+    <div v-if="visible" ref="toolbarRef" :class="name" :style="style">
       <SelectionToolbar :format-buttons="formatButtons" @ai="$emit('ai')" @reference="$emit('reference')" @format="$emit('format', $event)" />
     </div>
   </Teleport>
@@ -15,7 +15,10 @@ import type { SelectionAssistantPosition, SelectionToolbarAction } from '../adap
 import type { CSSProperties } from 'vue';
 import { nextTick, onBeforeUnmount, ref, shallowRef, watch } from 'vue';
 import { useEventListener, useResizeObserver } from '@vueuse/core';
+import { createNamespace } from '@/utils/namespace';
 import SelectionToolbar from './SelectionToolbar.vue';
+
+const [name] = createNamespace('', 'b-editor-selsource');
 
 /**
  * 格式按钮定义（source 模式下无格式按钮，此接口保留以兼容内容组件）。

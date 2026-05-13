@@ -1,5 +1,5 @@
 <template>
-  <div v-if="isVisible" ref="rootRef" class="b-editor-blockmenu" :style="buttonStyle" @mouseenter="isHoveringMenu = true" @mouseleave="handleMenuMouseLeave">
+  <div v-if="isVisible" ref="rootRef" :class="name" :style="buttonStyle" @mouseenter="isHoveringMenu = true" @mouseleave="handleMenuMouseLeave">
     <button type="button" class="b-editor-blockmenu__trigger" :class="{ 'is-open': open }" @mousedown.prevent="toggleMenu" @click.prevent>
       <Icon :icon="triggerIcon" />
     </button>
@@ -40,6 +40,9 @@ import { Icon } from '@iconify/vue';
 import { EditorState, TextSelection } from '@tiptap/pm/state';
 import { onClickOutside, useEventListener } from '@vueuse/core';
 import BScrollbar from '@/components/BScrollbar/index.vue';
+import { createNamespace } from '@/utils/namespace';
+
+const [name] = createNamespace('', 'b-editor-blockmenu');
 
 interface Props {
   editor?: Editor | null;

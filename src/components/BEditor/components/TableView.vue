@@ -1,17 +1,16 @@
 <template>
-  <NodeViewWrapper class="b-editor-table">
-    <div ref="viewportRef" class="b-editor-table__viewport" @mouseleave="handleViewportMouseLeave">
-      <div ref="scrollerRef" class="b-editor-table__scroller" @mousemove="handleMouseMove" @mouseleave="handleScrollerMouseLeave" @scroll="handleScroll">
-        <NodeViewContent as="table" class="b-editor-table__table" />
+  <NodeViewWrapper :class="name">
+    <div ref="viewportRef" :class="bem('viewport')" @mouseleave="handleViewportMouseLeave">
+      <div ref="scrollerRef" :class="bem('scroller')" @mousemove="handleMouseMove" @mouseleave="handleScrollerMouseLeave" @scroll="handleScroll">
+        <NodeViewContent as="table" :class="bem('table')" />
       </div>
 
       <!-- 分割线 + 新增按钮 -->
-      <div v-show="showDividerOverlay" class="b-editor-table__line-overlay" contenteditable="false">
-        <div class="b-editor-table__line-highlight" :style="lineHighlightStyle"></div>
+      <div v-show="showDividerOverlay" :class="bem('line-overlay')" contenteditable="false">
+        <div :class="bem('line-highlight')" :style="lineHighlightStyle"></div>
         <button
           type="button"
-          class="b-editor-table__add-button"
-          :class="addButtonVariantClass"
+          :class="[bem('add-button'), addButtonVariantClass]"
           :style="addButtonStyle"
           :title="addButtonLabel"
           :aria-label="addButtonLabel"
@@ -19,40 +18,36 @@
           @mouseenter="handleOverlayControlMouseEnter"
           @click="handleAdd"
         >
-          <Icon class="b-editor-table__button-icon" :icon="ICONS.add" />
+          <Icon :class="bem('button-icon')" :icon="ICONS.add" />
         </button>
       </div>
 
       <!-- 区段 + 删除按钮 -->
-      <div v-show="showSegmentOverlay" class="b-editor-table__segment-overlay" contenteditable="false">
-        <div v-show="showRemoveRowButton" class="b-editor-table__segment-button-group b-editor-table__segment-button-group--row" :style="removeRowButtonStyle">
+      <div v-show="showSegmentOverlay" :class="bem('segment-overlay')" contenteditable="false">
+        <div v-show="showRemoveRowButton" :class="bem('segment-button-group', 'row')" :style="removeRowButtonStyle">
           <button
             type="button"
-            class="b-editor-table__remove-button b-editor-table__remove-button--row"
+            :class="bem('remove-button', 'row')"
             title="删除行"
             aria-label="删除行"
             @mousedown.prevent
             @mouseenter="handleOverlayControlMouseEnter"
             @click="handleRemove(segmentHover?.row ?? null)"
           >
-            <Icon class="b-editor-table__button-icon" :icon="ICONS.remove" />
+            <Icon :class="bem('button-icon')" :icon="ICONS.remove" />
           </button>
         </div>
-        <div
-          v-show="showRemoveColumnButton"
-          class="b-editor-table__segment-button-group b-editor-table__segment-button-group--column"
-          :style="removeColumnButtonStyle"
-        >
+        <div v-show="showRemoveColumnButton" :class="bem('segment-button-group', 'column')" :style="removeColumnButtonStyle">
           <button
             type="button"
-            class="b-editor-table__remove-button b-editor-table__remove-button--column"
+            :class="bem('remove-button', 'column')"
             title="删除列"
             aria-label="删除列"
             @mousedown.prevent
             @mouseenter="handleOverlayControlMouseEnter"
             @click="handleRemove(segmentHover?.column ?? null)"
           >
-            <Icon class="b-editor-table__button-icon" :icon="ICONS.remove" />
+            <Icon :class="bem('button-icon')" :icon="ICONS.remove" />
           </button>
         </div>
       </div>
@@ -72,6 +67,7 @@ import { Icon } from '@iconify/vue';
 import { findParentNodeClosestToPos } from '@tiptap/core';
 import { CellSelection, TableMap } from '@tiptap/pm/tables';
 import { NodeViewContent, NodeViewWrapper, nodeViewProps } from '@tiptap/vue-3';
+import { createNamespace } from '@/utils/namespace';
 import { applyAddAction, applyRemoveAction } from '../extensions/tableControlsCommands';
 import {
   findHoveredDivider,
@@ -83,6 +79,8 @@ import {
   type SegmentHover,
   type SegmentHit
 } from '../extensions/tableControlsGeometry';
+
+const [name, bem] = createNamespace('', 'b-editor-table');
 
 // ─── 常量 ────────────────────────────────────────────────────────────────────
 

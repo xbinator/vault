@@ -1,5 +1,5 @@
 <template>
-  <div ref="overlayRootRef" class="b-editor-rich" @click="navigate.onLink" @focusout="handleEditorFocusOut">
+  <div ref="overlayRootRef" :class="name" @click="navigate.onLink" @focusout="handleEditorFocusOut">
     <!-- Front Matter 卡片 -->
     <FrontMatterCard
       v-if="shouldShowFrontMatterCard"
@@ -53,6 +53,7 @@ import { computed, onBeforeUnmount, ref, shallowRef, toRef, watch } from 'vue';
 import { EditorContent } from '@tiptap/vue-3';
 import { useEventListener } from '@vueuse/core';
 import { useNavigate } from '@/hooks/useNavigate';
+import { createNamespace } from '@/utils/namespace';
 import { createRichSelectionAssistantAdapter } from '../adapters/richSelectionAssistant';
 import { mapSourceLineRangeToProseMirrorRange } from '../adapters/sourceLineMapping';
 import { setAISelectionHighlight } from '../extensions/aiRangeHighlight';
@@ -64,6 +65,8 @@ import CurrentBlockMenu from './CurrentBlockMenu.vue';
 import FrontMatterCard from './FrontMatterCard.vue';
 import SelectionAIInput from './SelectionAIInput.vue';
 import SelectionToolbarRich from './SelectionToolbarRich.vue';
+
+const [name] = createNamespace('', 'b-editor-rich');
 
 interface Props {
   /** 编辑器是否可编辑 */

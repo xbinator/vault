@@ -1,6 +1,6 @@
 <template>
-  <div class="b-editor-source" @focusout="handleEditorFocusOut">
-    <div ref="overlayRootRef" class="b-editor-source__host">
+  <div :class="name" @focusout="handleEditorFocusOut">
+    <div ref="overlayRootRef" :class="bem('host')">
       <div ref="editorViewHostRef" class="b-editor-source__codemirror"></div>
       <SelectionToolbarSource
         :visible="assistant.toolbarVisible.value"
@@ -48,6 +48,7 @@ import { markdown } from '@codemirror/lang-markdown';
 import { Compartment, EditorSelection, EditorState } from '@codemirror/state';
 import { EditorView, keymap, placeholder } from '@codemirror/view';
 import { useEventListener } from '@vueuse/core';
+import { createNamespace } from '@/utils/namespace';
 import { getRenderedSourceAnchorOffsetTop } from '../adapters/sourceEditorAnchorScroll';
 import { createSourceCodeBlockHighlightExtension } from '../adapters/sourceEditorCodeBlockHighlight';
 import { createSourceEditorDrawSelectionExtension } from '../adapters/sourceEditorDrawSelection';
@@ -67,6 +68,8 @@ import { useFrontMatter } from '../hooks/useFrontMatter';
 import { useSelectionAssistant } from '../hooks/useSelectionAssistant';
 import SelectionAIInput from './SelectionAIInput.vue';
 import SelectionToolbarSource from './SelectionToolbarSource.vue';
+
+const [name, bem] = createNamespace('', 'b-editor-source');
 
 interface Props {
   editorId?: string;
