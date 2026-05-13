@@ -154,9 +154,33 @@ function applyTableGeometry(wrapper: VueWrapper<PaneRichEditorVm>): void {
   });
 }
 
+/**
+ * 为 jsdom 补齐 ProseMirror 读取选区几何时依赖的节点矩形方法。
+ */
+function installTextGeometryFallback(): void {
+  if (typeof Node === 'undefined') {
+    return;
+  }
+
+  if (typeof Node.prototype.getClientRects !== 'function') {
+    Object.defineProperty(Node.prototype, 'getClientRects', {
+      configurable: true,
+      value: (): DOMRect[] => [new DOMRect(0, 0, 0, 0)]
+    });
+  }
+
+  if (typeof Node.prototype.getBoundingClientRect !== 'function') {
+    Object.defineProperty(Node.prototype, 'getBoundingClientRect', {
+      configurable: true,
+      value: (): DOMRect => new DOMRect(0, 0, 0, 0)
+    });
+  }
+}
+
 describe('table node view integration', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
+    installTextGeometryFallback();
   });
 
   test('adds a column through the visible add button in a real rich editor table', async () => {
@@ -203,5 +227,45 @@ describe('table node view integration', () => {
     expect(rows).toHaveLength(2);
 
     wrapper.unmount();
+  });
+
+  test('keeps the add button available briefly after leaving the table viewport', async () => {
+    const wrapper = mountPaneRichEditor('| A | B |\n| --- | --- |\n| 1 | 2 |\n| 3 | 4 |');
+
+    try {
+      await flushEditorWork();
+      applyTableGeometry(wrapper);
+
+      const scroller = wrapper.get('.b-editor-table__scroller');
+      await scroller.trigger('mousemove', { clientX: 321, clientY: 120 });
+
+      const addButton = wrapper.get('.b-editor-table__add-button');
+      expect(addButton.isVisible()).toBe(true);
+
+      await wrapper.get('.b-editor-table__viewport').trigger('mouseleave', { relatedTarget: null });
+      await new Promise((resolve) => window.setTimeout(resolve, 120));
+
+      expect(wrapper.get('.b-editor-table__add-button').isVisible()).toBe(true);
+    } finally {
+      wrapper.unmount();
+    }
+  });
+
+  test('keeps the add button visible while moving from the divider toward the outer button gap', async () => {
+    const wrapper = mountPaneRichEditor('| A | B |\n| --- | --- |\n| 1 | 2 |\n| 3 | 4 |');
+
+    try {
+      await flushEditorWork();
+      applyTableGeometry(wrapper);
+
+      const scroller = wrapper.get('.b-editor-table__scroller');
+      await scroller.trigger('mousemove', { clientX: 321, clientY: 120 });
+      expect(wrapper.get('.b-editor-table__add-button').isVisible()).toBe(true);
+
+      await scroller.trigger('mousemove', { clientX: 321, clientY: 94 });
+      expect(wrapper.get('.b-editor-table__add-button').isVisible()).toBe(true);
+    } finally {
+      wrapper.unmount();
+    }
   });
 });

@@ -16,6 +16,7 @@
           :title="addButtonLabel"
           :aria-label="addButtonLabel"
           @mousedown.prevent
+          @mouseenter="handleOverlayControlMouseEnter"
           @click="handleAdd"
         >
           <Icon class="b-editor-table__button-icon" :icon="ICONS.add" />
@@ -31,6 +32,7 @@
             title="删除行"
             aria-label="删除行"
             @mousedown.prevent
+            @mouseenter="handleOverlayControlMouseEnter"
             @click="handleRemove(segmentHover?.row ?? null)"
           >
             <Icon class="b-editor-table__button-icon" :icon="ICONS.remove" />
@@ -47,6 +49,7 @@
             title="删除列"
             aria-label="删除列"
             @mousedown.prevent
+            @mouseenter="handleOverlayControlMouseEnter"
             @click="handleRemove(segmentHover?.column ?? null)"
           >
             <Icon class="b-editor-table__button-icon" :icon="ICONS.remove" />
@@ -90,7 +93,8 @@ const UI = {
   LINE_THICKNESS: 2,
   OVERLAY_GUTTER: 0,
   SEGMENT_HIDE_DELAY: 90,
-  OVERLAY_HIDE_DELAY: 90
+  // 外侧按钮悬挂在表格边界外，需要更长缓冲时间让鼠标穿过间隙。
+  OVERLAY_HIDE_DELAY: 220
 } as const;
 
 const ICONS = {
@@ -327,7 +331,8 @@ function updateHoverState(clientX: number, clientY: number): void {
     return;
   }
 
-  clearHoverState();
+  // 鼠标离开命中线后，给移向外侧悬挂按钮留出短暂缓冲，避免控件立即消失。
+  scheduleOverlayHide();
 }
 
 function handleMouseMove(event: MouseEvent): void {
@@ -356,6 +361,14 @@ function handleScrollerMouseLeave(event: MouseEvent): void {
 function handleViewportMouseLeave(event: MouseEvent): void {
   if (isInsideViewport(event.relatedTarget)) return;
   scheduleOverlayHide();
+}
+
+/**
+ * 鼠标真正进入外侧悬挂按钮时，取消隐藏计时，避免按钮在点击前消失。
+ */
+function handleOverlayControlMouseEnter(): void {
+  clearOverlayHideTimer();
+  clearSegmentHideTimer();
 }
 
 function handleScroll(): void {
