@@ -6,7 +6,7 @@
       </div>
 
       <!-- 分割线 + 新增按钮 -->
-      <template v-if="hoverState.type === 'divider'">
+      <template v-if="showDividerOverlay">
         <div class="b-editor-table__line-overlay" contenteditable="false">
           <div class="b-editor-table__line-highlight" :style="lineHighlightStyle"></div>
           <button
@@ -25,7 +25,7 @@
       </template>
 
       <!-- 区段 + 删除按钮 -->
-      <template v-else-if="hoverState.type === 'segment'">
+      <template v-else-if="showSegmentOverlay">
         <div class="b-editor-table__segment-overlay" contenteditable="false">
           <div v-if="removeRowButtonStyle" class="b-editor-table__segment-button-group b-editor-table__segment-button-group--row" :style="removeRowButtonStyle">
             <button
@@ -34,7 +34,7 @@
               title="删除行"
               aria-label="删除行"
               @mousedown.prevent
-              @click="handleRemove(hoverState.hits.row)"
+              @click="handleRemove(segmentHover?.row ?? null)"
             >
               <Icon class="b-editor-table__button-icon" :icon="ICONS.remove" />
             </button>
@@ -50,7 +50,7 @@
               title="删除列"
               aria-label="删除列"
               @mousedown.prevent
-              @click="handleRemove(hoverState.hits.column)"
+              @click="handleRemove(segmentHover?.column ?? null)"
             >
               <Icon class="b-editor-table__button-icon" :icon="ICONS.remove" />
             </button>
@@ -92,7 +92,8 @@ const props = defineProps(nodeViewProps);
 const UI = {
   DIVIDER_THRESHOLD: 6,
   LINE_THICKNESS: 2,
-  OVERLAY_GUTTER: 0
+  OVERLAY_GUTTER: 0,
+  SEGMENT_HIDE_DELAY: 90
 } as const;
 
 const ICONS = {
@@ -107,18 +108,57 @@ const FALLBACK = {
   COLUMN_COUNT: 3
 } as const;
 
-// ─── hover 状态（互斥联合类型）──────────────────────────────────────────────
+// ─── hover 状态 ─────────────────────────────────────────────────────────────
 
-type HoverState = { type: 'divider'; hit: DividerHit } | { type: 'segment'; hits: SegmentHover } | { type: 'none' };
-
-const HOVER_NONE: HoverState = { type: 'none' };
-
-const hoverState = ref<HoverState>(HOVER_NONE);
+/**
+ * 当前命中的分割线；存在时显示新增控件。
+ */
+const dividerHover = ref<DividerHit | null>(null);
+/**
+ * 当前命中的区段；存在时显示删除控件。
+ */
+const segmentHover = ref<SegmentHover | null>(null);
+/**
+ * 当前实际显示的 overlay 类型。
+ */
+const activeOverlay = ref<'none' | 'divider' | 'segment'>('none');
 const viewportRef = ref<HTMLElement | null>(null);
 const scrollerRef = ref<HTMLElement | null>(null);
+let segmentHideTimer = 0;
 
+/**
+ * 清理区段 overlay 的延时关闭定时器。
+ */
+function clearSegmentHideTimer(): void {
+  if (segmentHideTimer !== 0) {
+    window.clearTimeout(segmentHideTimer);
+    segmentHideTimer = 0;
+  }
+}
+
+/**
+ * 延迟关闭区段 overlay，让快速移动到分割线时不至于闪烁。
+ */
+function scheduleSegmentHide(): void {
+  if (segmentHideTimer !== 0) {
+    return;
+  }
+
+  segmentHideTimer = window.setTimeout(() => {
+    segmentHideTimer = 0;
+    segmentHover.value = null;
+    activeOverlay.value = dividerHover.value ? 'divider' : 'none';
+  }, UI.SEGMENT_HIDE_DELAY);
+}
+
+/**
+ * 清空全部 hover 命中状态。
+ */
 function clearHoverState(): void {
-  hoverState.value = HOVER_NONE;
+  clearSegmentHideTimer();
+  dividerHover.value = null;
+  segmentHover.value = null;
+  activeOverlay.value = 'none';
 }
 
 // ─── 几何计算 ────────────────────────────────────────────────────────────────
@@ -245,17 +285,28 @@ function updateHoverState(clientX: number, clientY: number): void {
 
   const divider = findHoveredDivider(params);
   if (divider) {
-    hoverState.value = { type: 'divider', hit: divider };
+    dividerHover.value = divider;
+    if (activeOverlay.value === 'segment' && segmentHover.value) {
+      scheduleSegmentHide();
+      return;
+    }
+
+    clearSegmentHideTimer();
+    activeOverlay.value = 'divider';
+    segmentHover.value = null;
     return;
   }
 
   const segment = findHoveredSegments(params);
   if (segment) {
-    hoverState.value = { type: 'segment', hits: segment };
+    clearSegmentHideTimer();
+    dividerHover.value = null;
+    segmentHover.value = segment;
+    activeOverlay.value = 'segment';
     return;
   }
 
-  hoverState.value = HOVER_NONE;
+  clearHoverState();
 }
 
 function handleMouseMove(event: MouseEvent): void {
@@ -345,8 +396,8 @@ function getDimensions(): { rowCount: number; columnCount: number } {
 const editorContext = { editor: props.editor, focusCellAt, getDimensions };
 
 function handleAdd(): void {
-  if (hoverState.value.type === 'divider') {
-    applyAddAction(editorContext, hoverState.value.hit);
+  if (dividerHover.value) {
+    applyAddAction(editorContext, dividerHover.value);
   }
 }
 
@@ -372,15 +423,23 @@ function getRemoveStyle(hit: SegmentHit | null): CSSProperties | null {
   return { top: `${viewportPosition.top}px`, left: `${viewportPosition.left}px` };
 }
 
-const lineHighlightStyle = computed<CSSProperties>(() => {
-  if (hoverState.value.type !== 'divider') return {};
+/**
+ * 当前是否显示分割线 overlay。
+ */
+const showDividerOverlay = computed<boolean>(() => activeOverlay.value === 'divider' && dividerHover.value !== null);
+/**
+ * 当前是否显示区段 overlay。
+ */
+const showSegmentOverlay = computed<boolean>(() => activeOverlay.value === 'segment' && segmentHover.value !== null);
 
-  const { hit } = hoverState.value;
-  const { lineRect } = hit;
+const lineHighlightStyle = computed<CSSProperties>(() => {
+  if (!dividerHover.value) return {};
+
+  const { lineRect } = dividerHover.value;
   const t = UI.LINE_THICKNESS;
   const vp = toViewportPosition({ top: lineRect.top, left: lineRect.left });
 
-  if (hit.type === 'column') {
+  if (dividerHover.value.type === 'column') {
     return { left: `${vp.left - t / 2}px`, top: `${vp.top}px`, width: `${t}px`, height: `${lineRect.height}px` };
   }
 
@@ -388,32 +447,31 @@ const lineHighlightStyle = computed<CSSProperties>(() => {
 });
 
 const addButtonStyle = computed<CSSProperties>(() => {
-  if (hoverState.value.type !== 'divider') return {};
+  if (!dividerHover.value) return {};
 
-  const position = getAddButtonPosition(hoverState.value.hit);
+  const position = getAddButtonPosition(dividerHover.value);
   const viewportPosition = toViewportPosition(position);
   return { top: `${viewportPosition.top}px`, left: `${viewportPosition.left}px` };
 });
 
 const addButtonVariantClass = computed(() => ({
-  'b-editor-table__add-button--column': hoverState.value.type === 'divider' && hoverState.value.hit.type === 'column',
-  'b-editor-table__add-button--row': hoverState.value.type === 'divider' && hoverState.value.hit.type === 'row'
+  'b-editor-table__add-button--column': dividerHover.value?.type === 'column',
+  'b-editor-table__add-button--row': dividerHover.value?.type === 'row'
 }));
 
 const removeRowButtonStyle = computed<CSSProperties | null>(() => {
-  if (hoverState.value.type !== 'segment') return null;
-  return getRemoveStyle(hoverState.value.hits.row);
+  return getRemoveStyle(segmentHover.value?.row ?? null);
 });
 
 const removeColumnButtonStyle = computed<CSSProperties | null>(() => {
-  if (hoverState.value.type !== 'segment') return null;
-  return getRemoveStyle(hoverState.value.hits.column);
+  return getRemoveStyle(segmentHover.value?.column ?? null);
 });
 
 // ─── 生命周期 ────────────────────────────────────────────────────────────────
 
 onBeforeUnmount(() => {
   cancelAnimationFrame(scrollFrame);
+  clearSegmentHideTimer();
 });
 </script>
 
@@ -474,8 +532,6 @@ onBeforeUnmount(() => {
   background: color-mix(in srgb, var(--bg-primary) 92%, var(--editor-link) 8%);
   border: 1px solid color-mix(in srgb, var(--editor-table-border) 82%, var(--editor-link) 18%);
   border-radius: 999px;
-  box-shadow: 0 2px 8px rgb(15 23 42 / 12%);
-  transition: background-color 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease, color 0.16s ease, transform 0.16s ease;
 
   &:hover {
     color: color-mix(in srgb, var(--editor-link) 82%, var(--editor-text));
