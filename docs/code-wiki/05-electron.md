@@ -9,7 +9,7 @@
 
 - `electron/main/window.mts`
   - `createWindow()`：创建无边框窗口（`frame: false`），开启 `contextIsolation: true`，禁用 `nodeIntegration`
-  - Dev 环境：`loadURL('http://localhost:1420')` + `openDevTools()`
+  - Dev 环境：`loadURL('http://127.0.0.1:1420')` + `openDevTools()`
   - Prod 环境：`loadFile(dist/index.html)`
 
 ## 主进程模块化（IPC handlers）

@@ -6,57 +6,53 @@
       </div>
 
       <!-- 分割线 + 新增按钮 -->
-      <template v-if="showDividerOverlay">
-        <div class="b-editor-table__line-overlay" contenteditable="false">
-          <div class="b-editor-table__line-highlight" :style="lineHighlightStyle"></div>
-          <button
-            type="button"
-            class="b-editor-table__add-button"
-            :class="addButtonVariantClass"
-            :style="addButtonStyle"
-            title="新增"
-            aria-label="新增"
-            @mousedown.prevent
-            @click="handleAdd"
-          >
-            <Icon class="b-editor-table__button-icon" :icon="ICONS.add" />
-          </button>
-        </div>
-      </template>
+      <div v-show="showDividerOverlay" class="b-editor-table__line-overlay" contenteditable="false">
+        <div class="b-editor-table__line-highlight" :style="lineHighlightStyle"></div>
+        <button
+          type="button"
+          class="b-editor-table__add-button"
+          :class="addButtonVariantClass"
+          :style="addButtonStyle"
+          :title="addButtonLabel"
+          :aria-label="addButtonLabel"
+          @mousedown.prevent
+          @click="handleAdd"
+        >
+          <Icon class="b-editor-table__button-icon" :icon="ICONS.add" />
+        </button>
+      </div>
 
       <!-- 区段 + 删除按钮 -->
-      <template v-else-if="showSegmentOverlay">
-        <div class="b-editor-table__segment-overlay" contenteditable="false">
-          <div v-if="removeRowButtonStyle" class="b-editor-table__segment-button-group b-editor-table__segment-button-group--row" :style="removeRowButtonStyle">
-            <button
-              type="button"
-              class="b-editor-table__remove-button b-editor-table__remove-button--row"
-              title="删除行"
-              aria-label="删除行"
-              @mousedown.prevent
-              @click="handleRemove(segmentHover?.row ?? null)"
-            >
-              <Icon class="b-editor-table__button-icon" :icon="ICONS.remove" />
-            </button>
-          </div>
-          <div
-            v-if="removeColumnButtonStyle"
-            class="b-editor-table__segment-button-group b-editor-table__segment-button-group--column"
-            :style="removeColumnButtonStyle"
+      <div v-show="showSegmentOverlay" class="b-editor-table__segment-overlay" contenteditable="false">
+        <div v-show="showRemoveRowButton" class="b-editor-table__segment-button-group b-editor-table__segment-button-group--row" :style="removeRowButtonStyle">
+          <button
+            type="button"
+            class="b-editor-table__remove-button b-editor-table__remove-button--row"
+            title="删除行"
+            aria-label="删除行"
+            @mousedown.prevent
+            @click="handleRemove(segmentHover?.row ?? null)"
           >
-            <button
-              type="button"
-              class="b-editor-table__remove-button b-editor-table__remove-button--column"
-              title="删除列"
-              aria-label="删除列"
-              @mousedown.prevent
-              @click="handleRemove(segmentHover?.column ?? null)"
-            >
-              <Icon class="b-editor-table__button-icon" :icon="ICONS.remove" />
-            </button>
-          </div>
+            <Icon class="b-editor-table__button-icon" :icon="ICONS.remove" />
+          </button>
         </div>
-      </template>
+        <div
+          v-show="showRemoveColumnButton"
+          class="b-editor-table__segment-button-group b-editor-table__segment-button-group--column"
+          :style="removeColumnButtonStyle"
+        >
+          <button
+            type="button"
+            class="b-editor-table__remove-button b-editor-table__remove-button--column"
+            title="删除列"
+            aria-label="删除列"
+            @mousedown.prevent
+            @click="handleRemove(segmentHover?.column ?? null)"
+          >
+            <Icon class="b-editor-table__button-icon" :icon="ICONS.remove" />
+          </button>
+        </div>
+      </div>
     </div>
   </NodeViewWrapper>
 </template>
@@ -93,7 +89,8 @@ const UI = {
   DIVIDER_THRESHOLD: 6,
   LINE_THICKNESS: 2,
   OVERLAY_GUTTER: 0,
-  SEGMENT_HIDE_DELAY: 90
+  SEGMENT_HIDE_DELAY: 90,
+  OVERLAY_HIDE_DELAY: 90
 } as const;
 
 const ICONS = {
@@ -125,6 +122,7 @@ const activeOverlay = ref<'none' | 'divider' | 'segment'>('none');
 const viewportRef = ref<HTMLElement | null>(null);
 const scrollerRef = ref<HTMLElement | null>(null);
 let segmentHideTimer = 0;
+let overlayHideTimer = 0;
 
 /**
  * 清理区段 overlay 的延时关闭定时器。
@@ -133,6 +131,16 @@ function clearSegmentHideTimer(): void {
   if (segmentHideTimer !== 0) {
     window.clearTimeout(segmentHideTimer);
     segmentHideTimer = 0;
+  }
+}
+
+/**
+ * 清理整个 hover overlay 的延时关闭定时器。
+ */
+function clearOverlayHideTimer(): void {
+  if (overlayHideTimer !== 0) {
+    window.clearTimeout(overlayHideTimer);
+    overlayHideTimer = 0;
   }
 }
 
@@ -146,7 +154,6 @@ function scheduleSegmentHide(): void {
 
   segmentHideTimer = window.setTimeout(() => {
     segmentHideTimer = 0;
-    segmentHover.value = null;
     activeOverlay.value = dividerHover.value ? 'divider' : 'none';
   }, UI.SEGMENT_HIDE_DELAY);
 }
@@ -155,10 +162,23 @@ function scheduleSegmentHide(): void {
  * 清空全部 hover 命中状态。
  */
 function clearHoverState(): void {
+  clearOverlayHideTimer();
   clearSegmentHideTimer();
-  dividerHover.value = null;
-  segmentHover.value = null;
   activeOverlay.value = 'none';
+}
+
+/**
+ * 延迟关闭全部 overlay，给鼠标移向外层按钮留出缓冲时间。
+ */
+function scheduleOverlayHide(): void {
+  if (overlayHideTimer !== 0) {
+    return;
+  }
+
+  overlayHideTimer = window.setTimeout(() => {
+    overlayHideTimer = 0;
+    clearHoverState();
+  }, UI.OVERLAY_HIDE_DELAY);
 }
 
 // ─── 几何计算 ────────────────────────────────────────────────────────────────
@@ -268,6 +288,7 @@ function toLocalPointer(clientX: number, clientY: number, scroller: HTMLElement)
  * 根据当前指针坐标更新 hoverState。
  */
 function updateHoverState(clientX: number, clientY: number): void {
+  clearOverlayHideTimer();
   if (!props.editor.isEditable) {
     clearHoverState();
     return;
@@ -326,7 +347,7 @@ function isInsideViewport(target: EventTarget | null): boolean {
  */
 function handleScrollerMouseLeave(event: MouseEvent): void {
   if (isInsideViewport(event.relatedTarget)) return;
-  clearHoverState();
+  scheduleOverlayHide();
 }
 
 /**
@@ -334,7 +355,7 @@ function handleScrollerMouseLeave(event: MouseEvent): void {
  */
 function handleViewportMouseLeave(event: MouseEvent): void {
   if (isInsideViewport(event.relatedTarget)) return;
-  clearHoverState();
+  scheduleOverlayHide();
 }
 
 function handleScroll(): void {
@@ -459,6 +480,13 @@ const addButtonVariantClass = computed(() => ({
   'b-editor-table__add-button--row': dividerHover.value?.type === 'row'
 }));
 
+/**
+ * 根据当前分割线方向生成新增按钮文案。
+ */
+const addButtonLabel = computed<string>(() => {
+  return dividerHover.value?.type === 'row' ? '新增行' : '新增列';
+});
+
 const removeRowButtonStyle = computed<CSSProperties | null>(() => {
   return getRemoveStyle(segmentHover.value?.row ?? null);
 });
@@ -467,10 +495,21 @@ const removeColumnButtonStyle = computed<CSSProperties | null>(() => {
   return getRemoveStyle(segmentHover.value?.column ?? null);
 });
 
+/**
+ * 当前是否显示删除行按钮。
+ */
+const showRemoveRowButton = computed<boolean>(() => removeRowButtonStyle.value !== null);
+
+/**
+ * 当前是否显示删除列按钮。
+ */
+const showRemoveColumnButton = computed<boolean>(() => removeColumnButtonStyle.value !== null);
+
 // ─── 生命周期 ────────────────────────────────────────────────────────────────
 
 onBeforeUnmount(() => {
   cancelAnimationFrame(scrollFrame);
+  clearOverlayHideTimer();
   clearSegmentHideTimer();
 });
 </script>

@@ -30,7 +30,7 @@ pnpm electron:build
 ### 前端 dev server
 
 - Vite 默认端口：1420（见 `vite.config.ts`）
-- Electron dev 模式下主窗口会加载 `http://localhost:1420`
+- Electron dev 模式下主窗口会加载 `http://127.0.0.1:1420`
 
 ### Electron dev
 

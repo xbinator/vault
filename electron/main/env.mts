@@ -12,7 +12,7 @@ interface EnvConfig {
 
 function loadEnv(): EnvConfig {
   const defaultConfig: EnvConfig = {
-    DEV_SERVER_HOST: 'localhost',
+    DEV_SERVER_HOST: '127.0.0.1',
     DEV_SERVER_PORT: '1420'
   };
 

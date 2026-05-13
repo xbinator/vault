@@ -88,6 +88,8 @@ describe('TableView', () => {
     expect(wrapper.get('.b-editor-table__add-button--column').isVisible()).toBe(true);
     expect(wrapper.get('.b-editor-table__button-icon').isVisible()).toBe(true);
     expect(wrapper.get('.b-editor-table__line-highlight').attributes('style')).toContain('left: 119px');
+    expect(wrapper.get('.b-editor-table__add-button').attributes('title')).toBe('新增列');
+    expect(wrapper.get('.b-editor-table__add-button').attributes('aria-label')).toBe('新增列');
   });
 
   it('renders divider overlays outside the scroller to avoid overflow clipping', async () => {
@@ -156,6 +158,8 @@ describe('TableView', () => {
     expect(wrapper.get('.b-editor-table__line-highlight').attributes('style')).toContain('top: 119px');
     expect(wrapper.get('.b-editor-table__add-button').attributes('style')).toContain('left: 0px');
     expect(wrapper.get('.b-editor-table__add-button').attributes('style')).toContain('top: 120px');
+    expect(wrapper.get('.b-editor-table__add-button').attributes('title')).toBe('新增行');
+    expect(wrapper.get('.b-editor-table__add-button').attributes('aria-label')).toBe('新增行');
   });
 
   it('keeps leading-edge add controls inside the reserved viewport gutter', async () => {
@@ -381,6 +385,52 @@ describe('TableView', () => {
 
     expect(wrapper.get('.b-editor-table__add-button').isVisible()).toBe(false);
     expect(wrapper.get('.b-editor-table__remove-button').isVisible()).toBe(false);
+  });
+
+  it('keeps the last add-control position styles after the overlay is hidden', async () => {
+    const wrapper = mount(TableView, {
+      props: createNodeViewProps()
+    });
+
+    const scroller = wrapper.get('.b-editor-table__scroller');
+    const viewport = wrapper.get('.b-editor-table__viewport');
+    await scroller.trigger('mousemove', { clientX: 121, clientY: 20 });
+
+    const visibleAddButtonStyle = wrapper.get('.b-editor-table__add-button').attributes('style');
+    const visibleLineStyle = wrapper.get('.b-editor-table__line-highlight').attributes('style');
+
+    await scroller.trigger('mouseleave');
+    await viewport.trigger('mouseleave');
+    vi.runAllTimers();
+    await nextTick();
+
+    expect(wrapper.get('.b-editor-table__add-button').isVisible()).toBe(false);
+    expect(wrapper.get('.b-editor-table__line-highlight').isVisible()).toBe(false);
+    expect(wrapper.get('.b-editor-table__add-button').attributes('style')).toBe(visibleAddButtonStyle);
+    expect(wrapper.get('.b-editor-table__line-highlight').attributes('style')).toBe(visibleLineStyle);
+  });
+
+  it('keeps the last remove-control position styles after the overlay is hidden', async () => {
+    const wrapper = mount(TableView, {
+      props: createNodeViewProps()
+    });
+
+    const scroller = wrapper.get('.b-editor-table__scroller');
+    const viewport = wrapper.get('.b-editor-table__viewport');
+    await scroller.trigger('mousemove', { clientX: 180, clientY: 60 });
+
+    const visibleRowStyle = wrapper.get('.b-editor-table__segment-button-group--row').attributes('style');
+    const visibleColumnStyle = wrapper.get('.b-editor-table__segment-button-group--column').attributes('style');
+
+    await scroller.trigger('mouseleave');
+    await viewport.trigger('mouseleave');
+    vi.runAllTimers();
+    await nextTick();
+
+    expect(wrapper.get('.b-editor-table__remove-button--row').isVisible()).toBe(false);
+    expect(wrapper.get('.b-editor-table__remove-button--column').isVisible()).toBe(false);
+    expect(wrapper.get('.b-editor-table__segment-button-group--row').attributes('style')).toBe(visibleRowStyle);
+    expect(wrapper.get('.b-editor-table__segment-button-group--column').attributes('style')).toBe(visibleColumnStyle);
   });
 
   it('does not show controls when the editor is not editable', async () => {
