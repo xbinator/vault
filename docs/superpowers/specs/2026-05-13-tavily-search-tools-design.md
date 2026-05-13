@@ -34,6 +34,7 @@
 - 本次不做按会话、按模型或按文档覆盖 Tavily 默认参数
 - 本次不引入工具级用量统计、额度显示或 API Credit 预估
 - 本次不为 Tavily 工具增加额外权限确认流程
+- 本次不处理 Tavily API Key 的加密存储改造，先沿用当前项目既有设置持久化方式
 
 ## 方案对比
 
@@ -152,12 +153,52 @@ export type TavilySearchTopic = 'general' | 'news' | 'finance';
 export type TavilyTimeRange = 'day' | 'week' | 'month' | 'year' | null;
 export type TavilyExtractDepth = 'basic' | 'advanced';
 export type TavilyExtractFormat = 'markdown' | 'text';
+export type TavilyCountry =
+  | 'afghanistan'
+  | 'albania'
+  | 'algeria'
+  | 'andorra'
+  | 'angola'
+  | 'argentina'
+  | 'armenia'
+  | 'australia'
+  | 'austria'
+  | 'azerbaijan'
+  | 'bahamas'
+  | 'bahrain'
+  | 'bangladesh'
+  | 'barbados'
+  | 'belarus'
+  | 'belgium'
+  | 'belize'
+  | 'benin'
+  | 'bhutan'
+  | 'bolivia'
+  | 'bosnia and herzegovina'
+  | 'botswana'
+  | 'brazil'
+  | 'brunei'
+  | 'bulgaria'
+  | 'burkina faso'
+  | 'burundi'
+  | 'cambodia'
+  | 'cameroon'
+  | 'canada'
+  | 'cape verde'
+  | 'central african republic'
+  | 'chad'
+  | 'chile'
+  | 'china'
+  | 'colombia'
+  | 'comoros'
+  | 'congo'
+  | string;
 
 export interface TavilySearchDefaults {
   searchDepth: TavilySearchDepth;
   topic: TavilySearchTopic;
   timeRange: TavilyTimeRange;
-  country: string | null;
+  country: TavilyCountry | null;
   maxResults: number;
   includeAnswer: boolean;
   includeImages: boolean;
@@ -182,6 +223,16 @@ export interface ToolSettingsState {
   tavily: TavilyToolSettings;
 }
 ```
+
+`country` 的值域采用 Tavily Search API 的国家名称枚举，而不是 ISO 3166-1 alpha-2 代码。当前默认值 `china` 与官方文档一致。
+
+考虑到 Tavily 的国家列表较长且后续可能扩展，代码实现不建议在前端硬编码完整联合类型；更稳妥的做法是：
+
+- 常量层提供一份当前产品支持的国家选项列表
+- 归一化函数至少保证值为小写字符串或 `null`
+- 若值不在当前选项列表中，则回退为默认值 `china`
+
+另外需要补充一个 Tavily 约束：`country` 仅在 `topic = 'general'` 时生效。实现上不强制清空该字段，但 UI 应给出提示，运行时透传 Tavily 让其按官方规则处理。
 
 ### 默认值
 
@@ -232,6 +283,7 @@ const DEFAULT_TOOL_SETTINGS: ToolSettingsState = {
 - 校验枚举字段是否合法
 - 约束 `maxResults` 在可接受范围内
 - 保证 `includeDomains` / `excludeDomains` 始终是字符串数组
+- 显式处理 `timeRange` 字段存在且值为 `null` 的情况，并将其视为合法“未设置”状态
 - 处理非法或空对象时回退默认值
 
 `maxResults` 的建议约束：
@@ -278,14 +330,25 @@ Tavily 工具调用的参数合并规则固定为：
 - `extract` 不共享 `search` 的默认参数
 - `includeDomains` / `excludeDomains` 在未显式传入时直接使用设置默认值
 
+参数合并的唯一落点定义在主进程 AI service 层，也就是真正创建 Tavily SDK 工具实例之前。
+
+原因：
+
+- 前端 `src/ai/tools` 应专注于工具定义、参数 schema 与是否暴露
+- 主进程层同时掌握 Tavily 持久化设置和最终 SDK 调用参数
+- 把合并逻辑集中在主进程，更容易测试“默认值 + 显式覆盖”的最终行为
+
+因此测试中提到的“运行时参数能正确合并默认值与显式调用值”，默认指向主进程 Tavily 工具组装层。
+
 ### 聊天工具执行路径
 
 建议保持现有工具架构分层：
 
 1. 前端 `src/ai/tools` 定义 Tavily 工具的元数据、参数 schema 和执行入口
 2. 聊天流将工具调用交给现有 transport tool 机制
-3. 主进程 AI service 组装 Tavily SDK 工具实例
-4. Tavily SDK 工具实例使用设置页保存的默认参数
+3. 主进程 AI service 读取 Tavily 设置，并在这一层完成“调用参数覆盖默认参数”的合并
+4. 主进程 AI service 组装 Tavily SDK 工具实例
+5. Tavily SDK 工具实例使用合并后的最终参数执行请求
 
 这意味着 Tavily 仍然是“模型可调用工具”，只是底层实际实现不再是仓库内置读写工具，而是对 `@tavily/ai-sdk` 的受控封装。
 
@@ -332,12 +395,21 @@ Tavily 工具调用的参数合并规则固定为：
 
 `tavily_extract` 建议至少支持：
 
-- `urls` 或单个 `url`
+- `url`
 - `extractDepth`
 - `format`
 - `includeImages`
 
-这里要注意一点：工具层的参数命名、SDK 层的参数命名和设置层字段命名最好保持一致，避免后续在映射层出现重复转换和命名漂移。
+第一版明确只支持单 URL 输入，不同时支持 `url` 和 `urls` 两套 schema。这样可以避免首版工具定义出现分支复杂度。
+
+与 Tavily Extract API 的适配方式固定为：
+
+- 工具层暴露 `url: string`
+- 主进程 Tavily 适配层在最终调用 SDK 前把它转换成 `urls: [url]`
+
+这样既保留了 UI 和工具层的简单性，也和 Tavily SDK 的底层参数结构兼容。
+
+另外，工具层的参数命名、SDK 层的参数命名和设置层字段命名最好尽量保持一致；本次 `url -> urls` 是唯一允许的显式适配。
 
 ## UI 设计
 
@@ -392,10 +464,12 @@ Tavily 工具调用的参数合并规则固定为：
 - `测试 Search`
 - `测试 Extract`
 
+其中 `测试 Extract` 需要在同一区块提供一个独立的 URL 输入框，不复用页面其他字段。这个输入框只服务于连通性测试，不写回持久化设置。
+
 测试策略：
 
 - Search 使用内置示例 query，例如“今日 AI 行业动态”
-- Extract 使用用户输入的 URL，避免硬编码外部站点不稳定影响判断
+- Extract 使用测试区 URL 输入框中的用户输入值，避免硬编码外部站点不稳定影响判断
 
 返回结果：
 
@@ -409,6 +483,8 @@ Tavily 工具调用的参数合并规则固定为：
 
 而不是展示完整搜索结果或提取结果。
 
+Search 测试示例 query 不应散落在组件内，建议抽到搜索设置页常量文件或同目录 `constants.ts` 中统一维护。
+
 ## 路由与组件拆分
 
 建议新增或调整以下路径：
@@ -417,6 +493,11 @@ Tavily 工具调用的参数合并规则固定为：
 - `src/views/settings/index.vue`
 - `src/views/settings/constants.ts`
 - `src/views/settings/tools/search/index.vue`
+
+如测试交互较多，也可以拆出：
+
+- `src/views/settings/tools/search/components/SearchConnectionTest.vue`
+- `src/views/settings/tools/search/components/TavilyBaseConfig.vue`
 
 如当前设置页导航仅支持一级项，建议把“工具”作为一级入口，并在对应页面内展示二级导航；如果现有结构已允许子路由，则直接加 `tools/search` 子路由即可。实现时应优先复用现有设置页样式模式，而不是新造一套导航系统。
 
@@ -466,6 +547,15 @@ Tavily 工具调用的参数合并规则固定为：
 - 聊天侧不注册不可用工具，减少模型误调用概率
 - 连通性测试错误消息尽量直接转成用户可理解文案
 
+域名输入规则需要在设置页和归一化逻辑中统一：
+
+- 只接受裸域名，不接受协议前缀，如 `example.com`
+- 自动去除首尾空白
+- 空字符串在保存前过滤掉
+- 第一版不支持通配符
+
+这样可以避免 UI、store 和运行时各自发明不同规则。
+
 ## 测试设计
 
 至少需要覆盖以下测试：
@@ -511,7 +601,6 @@ Tavily 工具调用的参数合并规则固定为：
 - `src/ai/tools/`
 - `electron/main/modules/ai/service.mts`
 - `test/` 下对应设置页、store、AI 工具链测试
-- `changelog/2026-05-13.md`
 
 ## 实施顺序建议
 
