@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   type DividerHit,
+  findHoveredDividers,
   type DOMRectLike,
   findHoveredDivider,
   findHoveredSegment,
@@ -93,6 +94,31 @@ describe('tableControlsGeometry', () => {
 
     expect(hit?.type).toBe('column');
     expect(hit?.index).toBe(1);
+  });
+
+  it('returns both row and column add targets when hovering a divider intersection', () => {
+    const hover = findHoveredDividers({
+      clientX: 120,
+      clientY: 40,
+      columnRects,
+      rowRects,
+      threshold: 6
+    });
+
+    expect(hover).toEqual({
+      row: {
+        type: 'row',
+        index: 1,
+        edge: 'inner',
+        lineRect: createRect(0, 40, 360, 0)
+      },
+      column: {
+        type: 'column',
+        index: 1,
+        edge: 'inner',
+        lineRect: createRect(120, 0, 0, 120)
+      }
+    });
   });
 
   it('finds a row remove segment only when the pointer is outside divider thresholds', () => {

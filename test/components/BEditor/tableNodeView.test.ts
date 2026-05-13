@@ -63,6 +63,24 @@ function countVisible(wrapper: ReturnType<typeof mount>, selector: string): numb
   return wrapper.findAll(selector).filter((node) => node.isVisible()).length;
 }
 
+/**
+ * 获取新增列按钮。
+ * @param wrapper - 组件挂载结果
+ * @returns 新增列按钮
+ */
+function getAddColumnButton(wrapper: ReturnType<typeof mount>) {
+  return wrapper.get('button[title="新增列"]');
+}
+
+/**
+ * 获取新增行按钮。
+ * @param wrapper - 组件挂载结果
+ * @returns 新增行按钮
+ */
+function getAddRowButton(wrapper: ReturnType<typeof mount>) {
+  return wrapper.get('button[title="新增行"]');
+}
+
 describe('TableView', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -83,13 +101,45 @@ describe('TableView', () => {
 
     await scroller.trigger('mousemove', { clientX: 121, clientY: 20 });
 
-    expect(wrapper.get('.b-editor-table__add-button').isVisible()).toBe(true);
-    expect(wrapper.get('.b-editor-table__line-highlight').isVisible()).toBe(true);
-    expect(wrapper.get('.b-editor-table__add-button--column').isVisible()).toBe(true);
+    expect(countVisible(wrapper, '.b-editor-table__add-button')).toBe(1);
+    expect(wrapper.get('.b-editor-table__line-highlight--column').isVisible()).toBe(true);
+    expect(getAddColumnButton(wrapper).isVisible()).toBe(true);
     expect(wrapper.get('.b-editor-table__button-icon').isVisible()).toBe(true);
-    expect(wrapper.get('.b-editor-table__line-highlight').attributes('style')).toContain('left: 119px');
-    expect(wrapper.get('.b-editor-table__add-button').attributes('title')).toBe('新增列');
-    expect(wrapper.get('.b-editor-table__add-button').attributes('aria-label')).toBe('新增列');
+    expect(wrapper.get('.b-editor-table__line-highlight--column').attributes('style')).toContain('left: 119px');
+    expect(getAddColumnButton(wrapper).attributes('title')).toBe('新增列');
+    expect(getAddColumnButton(wrapper).attributes('aria-label')).toBe('新增列');
+  });
+
+  it('applies directional positioning to the add-button group instead of the inner add button', async () => {
+    const wrapper = mount(TableView, {
+      props: createNodeViewProps()
+    });
+
+    const scroller = wrapper.get('.b-editor-table__scroller');
+    await scroller.trigger('mousemove', { clientX: 120, clientY: 40 });
+
+    const columnAddButton = getAddColumnButton(wrapper);
+    const rowAddButton = getAddRowButton(wrapper);
+
+    expect(columnAddButton.element.parentElement?.className).toContain('b-editor-table__add-button-group--column');
+    expect(rowAddButton.element.parentElement?.className).toContain('b-editor-table__add-button-group--row');
+    expect(columnAddButton.attributes('class')).toBe('b-editor-table__add-button');
+    expect(rowAddButton.attributes('class')).toBe('b-editor-table__add-button');
+  });
+
+  it('shows both add controls when hovering a divider intersection', async () => {
+    const wrapper = mount(TableView, {
+      props: createNodeViewProps()
+    });
+
+    const scroller = wrapper.get('.b-editor-table__scroller');
+    await scroller.trigger('mousemove', { clientX: 120, clientY: 40 });
+
+    expect(countVisible(wrapper, '.b-editor-table__add-button')).toBe(2);
+    expect(getAddColumnButton(wrapper).isVisible()).toBe(true);
+    expect(getAddRowButton(wrapper).isVisible()).toBe(true);
+    expect(wrapper.get('.b-editor-table__line-highlight--column').isVisible()).toBe(true);
+    expect(wrapper.get('.b-editor-table__line-highlight--row').isVisible()).toBe(true);
   });
 
   it('renders divider overlays outside the scroller to avoid overflow clipping', async () => {
@@ -116,10 +166,10 @@ describe('TableView', () => {
     expect(countVisible(wrapper, '.b-editor-table__remove-button')).toBe(2);
     expect(wrapper.get('.b-editor-table__remove-button--row').isVisible()).toBe(true);
     expect(wrapper.get('.b-editor-table__remove-button--column').isVisible()).toBe(true);
-    expect(wrapper.get('.b-editor-table__segment-button-group--row').attributes('style')).toContain('left: 0px');
-    expect(wrapper.get('.b-editor-table__segment-button-group--row').attributes('style')).toContain('top: 60px');
-    expect(wrapper.get('.b-editor-table__segment-button-group--column').attributes('style')).toContain('left: 180px');
-    expect(wrapper.get('.b-editor-table__segment-button-group--column').attributes('style')).toContain('top: 0px');
+    expect(wrapper.get('.b-editor-table__remove-button--row').element.parentElement?.getAttribute('style')).toContain('left: 0px');
+    expect(wrapper.get('.b-editor-table__remove-button--row').element.parentElement?.getAttribute('style')).toContain('top: 60px');
+    expect(wrapper.get('.b-editor-table__remove-button--column').element.parentElement?.getAttribute('style')).toContain('left: 180px');
+    expect(wrapper.get('.b-editor-table__remove-button--column').element.parentElement?.getAttribute('style')).toContain('top: 0px');
   });
 
   it('delays switching from segment remove controls to divider add controls', async () => {
@@ -143,7 +193,50 @@ describe('TableView', () => {
 
     expect(wrapper.get('.b-editor-table__segment-overlay').attributes('style')).toContain('display: none;');
     expect(wrapper.get('.b-editor-table__line-overlay').attributes('style')).not.toContain('display: none;');
-    expect(wrapper.get('.b-editor-table__add-button').attributes('style')).not.toContain('display: none;');
+    expect(getAddColumnButton(wrapper).element.parentElement?.getAttribute('style')).not.toContain('display: none;');
+  });
+
+  it('still switches from segment remove controls to divider add controls when window mousemove also fires', async () => {
+    const wrapper = mount(TableView, {
+      props: createNodeViewProps()
+    });
+
+    const scroller = wrapper.get('.b-editor-table__scroller');
+    const viewport = wrapper.get('.b-editor-table__viewport');
+    vi.spyOn(viewport.element, 'getBoundingClientRect').mockReturnValue({
+      x: 200,
+      y: 100,
+      top: 100,
+      left: 200,
+      right: 560,
+      bottom: 340,
+      width: 360,
+      height: 240,
+      toJSON: () => ({})
+    } as DOMRect);
+    vi.spyOn(scroller.element, 'getBoundingClientRect').mockReturnValue({
+      x: 200,
+      y: 100,
+      top: 100,
+      left: 200,
+      right: 560,
+      bottom: 340,
+      width: 360,
+      height: 240,
+      toJSON: () => ({})
+    } as DOMRect);
+
+    await scroller.trigger('mousemove', { clientX: 380, clientY: 160 });
+    await scroller.trigger('mousemove', { clientX: 321, clientY: 120 });
+    window.dispatchEvent(new MouseEvent('mousemove', { clientX: 321, clientY: 120 }));
+
+    vi.runAllTimers();
+    await nextTick();
+    await nextTick();
+
+    expect(wrapper.get('.b-editor-table__segment-overlay').attributes('style')).toContain('display: none;');
+    expect(wrapper.get('.b-editor-table__line-overlay').attributes('style')).not.toContain('display: none;');
+    expect(wrapper.get('.b-editor-table__add-button').isVisible()).toBe(true);
   });
 
   it('uses the row add-button variant when hovering a horizontal divider', async () => {
@@ -154,12 +247,12 @@ describe('TableView', () => {
     const scroller = wrapper.get('.b-editor-table__scroller');
     await scroller.trigger('mousemove', { clientX: 80, clientY: 119 });
 
-    expect(wrapper.get('.b-editor-table__add-button--row').isVisible()).toBe(true);
-    expect(wrapper.get('.b-editor-table__line-highlight').attributes('style')).toContain('top: 119px');
-    expect(wrapper.get('.b-editor-table__add-button').attributes('style')).toContain('left: 0px');
-    expect(wrapper.get('.b-editor-table__add-button').attributes('style')).toContain('top: 120px');
-    expect(wrapper.get('.b-editor-table__add-button').attributes('title')).toBe('新增行');
-    expect(wrapper.get('.b-editor-table__add-button').attributes('aria-label')).toBe('新增行');
+    expect(getAddRowButton(wrapper).isVisible()).toBe(true);
+    expect(wrapper.get('.b-editor-table__line-highlight--row').attributes('style')).toContain('top: 119px');
+    expect(getAddRowButton(wrapper).element.parentElement?.getAttribute('style')).toContain('left: 0px');
+    expect(getAddRowButton(wrapper).element.parentElement?.getAttribute('style')).toContain('top: 120px');
+    expect(getAddRowButton(wrapper).attributes('title')).toBe('新增行');
+    expect(getAddRowButton(wrapper).attributes('aria-label')).toBe('新增行');
   });
 
   it('keeps leading-edge add controls inside the reserved viewport gutter', async () => {
@@ -170,7 +263,7 @@ describe('TableView', () => {
     const scroller = wrapper.get('.b-editor-table__scroller');
     await scroller.trigger('mousemove', { clientX: 1, clientY: 20 });
 
-    const style = wrapper.get('.b-editor-table__add-button').attributes('style');
+    const style = getAddColumnButton(wrapper).element.parentElement?.getAttribute('style') ?? '';
     expect(style).toContain('top: 0px');
     expect(style).toContain('left: 0px');
   });
@@ -286,6 +379,59 @@ describe('TableView', () => {
     expect(wrapper.get('.b-editor-table__add-button').isVisible()).toBe(true);
   });
 
+  it('keeps add controls visible after the hide delay while the pointer pauses in the gap before the button', async () => {
+    const wrapper = mount(TableView, {
+      props: createNodeViewProps()
+    });
+
+    const scroller = wrapper.get('.b-editor-table__scroller');
+    const viewport = wrapper.get('.b-editor-table__viewport');
+    vi.spyOn(viewport.element, 'getBoundingClientRect').mockReturnValue({
+      x: 200,
+      y: 100,
+      top: 100,
+      left: 200,
+      right: 560,
+      bottom: 340,
+      width: 360,
+      height: 240,
+      toJSON: () => ({})
+    } as DOMRect);
+    vi.spyOn(scroller.element, 'getBoundingClientRect').mockReturnValue({
+      x: 200,
+      y: 100,
+      top: 100,
+      left: 200,
+      right: 560,
+      bottom: 340,
+      width: 360,
+      height: 240,
+      toJSON: () => ({})
+    } as DOMRect);
+    const addButton = wrapper.get('.b-editor-table__add-button');
+    vi.spyOn(addButton.element, 'getBoundingClientRect').mockReturnValue({
+      x: 312,
+      y: 84,
+      top: 84,
+      left: 312,
+      right: 328,
+      bottom: 100,
+      width: 16,
+      height: 16,
+      toJSON: () => ({})
+    } as DOMRect);
+
+    await scroller.trigger('mousemove', { clientX: 321, clientY: 120 });
+    await scroller.trigger('mouseleave');
+    await viewport.trigger('mouseleave');
+
+    window.dispatchEvent(new MouseEvent('mousemove', { clientX: 340, clientY: 92 }));
+    vi.advanceTimersByTime(400);
+    await nextTick();
+
+    expect(wrapper.get('.b-editor-table__add-button').isVisible()).toBe(true);
+  });
+
   it('keeps add controls visible while the pointer moves toward the add button outside the table', async () => {
     const wrapper = mount(TableView, {
       props: createNodeViewProps()
@@ -396,8 +542,8 @@ describe('TableView', () => {
     const viewport = wrapper.get('.b-editor-table__viewport');
     await scroller.trigger('mousemove', { clientX: 121, clientY: 20 });
 
-    const visibleAddButtonStyle = wrapper.get('.b-editor-table__add-button').attributes('style');
-    const visibleLineStyle = wrapper.get('.b-editor-table__line-highlight').attributes('style');
+    const visibleAddButtonStyle = getAddColumnButton(wrapper).element.parentElement?.getAttribute('style');
+    const visibleLineStyle = wrapper.get('.b-editor-table__line-highlight--column').attributes('style');
 
     await scroller.trigger('mouseleave');
     await viewport.trigger('mouseleave');
@@ -405,9 +551,9 @@ describe('TableView', () => {
     await nextTick();
 
     expect(wrapper.get('.b-editor-table__add-button').isVisible()).toBe(false);
-    expect(wrapper.get('.b-editor-table__line-highlight').isVisible()).toBe(false);
-    expect(wrapper.get('.b-editor-table__add-button').attributes('style')).toBe(visibleAddButtonStyle);
-    expect(wrapper.get('.b-editor-table__line-highlight').attributes('style')).toBe(visibleLineStyle);
+    expect(wrapper.get('.b-editor-table__line-highlight--column').isVisible()).toBe(false);
+    expect(getAddColumnButton(wrapper).element.parentElement?.getAttribute('style')).toBe(visibleAddButtonStyle);
+    expect(wrapper.get('.b-editor-table__line-highlight--column').attributes('style')).toBe(visibleLineStyle);
   });
 
   it('keeps the last remove-control position styles after the overlay is hidden', async () => {

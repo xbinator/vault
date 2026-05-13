@@ -7,25 +7,43 @@
 
       <!-- 分割线 + 新增按钮 -->
       <div v-show="showDividerOverlay" :class="bem('line-overlay')" contenteditable="false">
-        <div :class="bem('line-highlight')" :style="lineHighlightStyle"></div>
-        <button
-          type="button"
-          :class="[bem('add-button'), addButtonVariantClass]"
-          :style="addButtonStyle"
-          :title="addButtonLabel"
-          :aria-label="addButtonLabel"
-          @mousedown.prevent
-          @mouseenter="handleOverlayControlMouseEnter"
-          @click="handleAdd"
-        >
-          <Icon :class="bem('button-icon')" :icon="ICONS.add" />
-        </button>
+        <div v-show="showAddColumnButton" :class="bem('line-highlight', 'column')" :style="columnLineHighlightStyle"></div>
+        <div v-show="showAddRowButton" :class="bem('line-highlight', 'row')" :style="rowLineHighlightStyle"></div>
+        <div v-show="showAddColumnButton" :class="[bem('add-button-group'), bem('add-button-group', 'column')]" :style="addColumnButtonStyle">
+          <button
+            ref="addColumnButtonRef"
+            type="button"
+            :class="bem('add-button')"
+            title="新增列"
+            aria-label="新增列"
+            @mousedown.prevent
+            @mouseenter="handleOverlayControlMouseEnter"
+            @click="handleAdd(addHover?.column ?? null)"
+          >
+            <Icon :class="bem('button-icon')" :icon="ICONS.add" />
+          </button>
+        </div>
+        <div v-show="showAddRowButton" :class="[bem('add-button-group'), bem('add-button-group', 'row')]" :style="addRowButtonStyle">
+          <button
+            ref="addRowButtonRef"
+            type="button"
+            :class="bem('add-button')"
+            title="新增行"
+            aria-label="新增行"
+            @mousedown.prevent
+            @mouseenter="handleOverlayControlMouseEnter"
+            @click="handleAdd(addHover?.row ?? null)"
+          >
+            <Icon :class="bem('button-icon')" :icon="ICONS.add" />
+          </button>
+        </div>
       </div>
 
       <!-- 区段 + 删除按钮 -->
       <div v-show="showSegmentOverlay" :class="bem('segment-overlay')" contenteditable="false">
         <div v-show="showRemoveRowButton" :class="bem('segment-button-group', 'row')" :style="removeRowButtonStyle">
           <button
+            ref="removeRowButtonRef"
             type="button"
             :class="bem('remove-button', 'row')"
             title="删除行"
@@ -39,6 +57,7 @@
         </div>
         <div v-show="showRemoveColumnButton" :class="bem('segment-button-group', 'column')" :style="removeColumnButtonStyle">
           <button
+            ref="removeColumnButtonRef"
             type="button"
             :class="bem('remove-button', 'column')"
             title="删除列"
@@ -62,7 +81,7 @@
  */
 
 import type { CSSProperties } from 'vue';
-import { computed, onBeforeUnmount, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { Icon } from '@iconify/vue';
 import { findParentNodeClosestToPos } from '@tiptap/core';
 import { CellSelection, TableMap } from '@tiptap/pm/tables';
@@ -70,11 +89,12 @@ import { NodeViewContent, NodeViewWrapper, nodeViewProps } from '@tiptap/vue-3';
 import { createNamespace } from '@/utils/namespace';
 import { applyAddAction, applyRemoveAction } from '../extensions/tableControlsCommands';
 import {
-  findHoveredDivider,
+  findHoveredDividers,
   findHoveredSegments,
   getAddButtonPosition,
   getRemoveButtonPosition,
   type DividerHit,
+  type DividerHover,
   type DOMRectLike,
   type SegmentHover,
   type SegmentHit
@@ -112,7 +132,7 @@ const FALLBACK = {
 /**
  * 当前命中的分割线；存在时显示新增控件。
  */
-const dividerHover = ref<DividerHit | null>(null);
+const addHover = ref<DividerHover | null>(null);
 /**
  * 当前命中的区段；存在时显示删除控件。
  */
@@ -123,6 +143,10 @@ const segmentHover = ref<SegmentHover | null>(null);
 const activeOverlay = ref<'none' | 'divider' | 'segment'>('none');
 const viewportRef = ref<HTMLElement | null>(null);
 const scrollerRef = ref<HTMLElement | null>(null);
+const addColumnButtonRef = ref<HTMLButtonElement | null>(null);
+const addRowButtonRef = ref<HTMLButtonElement | null>(null);
+const removeRowButtonRef = ref<HTMLButtonElement | null>(null);
+const removeColumnButtonRef = ref<HTMLButtonElement | null>(null);
 let segmentHideTimer = 0;
 let overlayHideTimer = 0;
 
@@ -156,7 +180,7 @@ function scheduleSegmentHide(): void {
 
   segmentHideTimer = window.setTimeout(() => {
     segmentHideTimer = 0;
-    activeOverlay.value = dividerHover.value ? 'divider' : 'none';
+    activeOverlay.value = addHover.value?.row || addHover.value?.column ? 'divider' : 'none';
   }, UI.SEGMENT_HIDE_DELAY);
 }
 
@@ -276,6 +300,106 @@ const lastPointer = ref<{ clientX: number; clientY: number } | null>(null);
 let scrollFrame = 0;
 
 /**
+ * 将 DOMRect 标准化为纯数据矩形，便于命中区复用。
+ */
+function toRectLike(rect: DOMRect): DOMRectLike {
+  return {
+    top: rect.top,
+    right: rect.right,
+    bottom: rect.bottom,
+    left: rect.left,
+    width: rect.width,
+    height: rect.height
+  };
+}
+
+/**
+ * 判断当前指针是否处于给定矩形范围内。
+ */
+function isPointInsideRect(rect: DOMRectLike, clientX: number, clientY: number): boolean {
+  return clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom;
+}
+
+/**
+ * 为命中矩形增加缓冲边距，提升外侧悬挂按钮的容错范围。
+ */
+function expandRect(rect: DOMRectLike, padding: number): DOMRectLike {
+  return {
+    top: rect.top - padding,
+    right: rect.right + padding,
+    bottom: rect.bottom + padding,
+    left: rect.left - padding,
+    width: rect.width + padding * 2,
+    height: rect.height + padding * 2
+  };
+}
+
+/**
+ * 合并两个矩形，生成覆盖二者的连续交互区。
+ */
+function mergeRects(first: DOMRectLike, second: DOMRectLike): DOMRectLike {
+  const left = Math.min(first.left, second.left);
+  const right = Math.max(first.right, second.right);
+  const top = Math.min(first.top, second.top);
+  const bottom = Math.max(first.bottom, second.bottom);
+
+  return {
+    top,
+    right,
+    bottom,
+    left,
+    width: right - left,
+    height: bottom - top
+  };
+}
+
+/**
+ * 读取当前表格可视滚动区域的 client 坐标矩形。
+ */
+function getScrollerClientRect(): DOMRectLike | null {
+  const scrollerRect = scrollerRef.value?.getBoundingClientRect();
+  return scrollerRect ? toRectLike(scrollerRect) : null;
+}
+
+/**
+ * 读取指向上侧悬挂按钮的顶边交互带。
+ */
+function getTopEdgeTransitionRect(): DOMRectLike | null {
+  const scrollerRect = getScrollerClientRect();
+  if (!scrollerRect) {
+    return null;
+  }
+
+  return {
+    top: scrollerRect.top,
+    right: scrollerRect.right,
+    bottom: scrollerRect.top,
+    left: scrollerRect.left,
+    width: scrollerRect.width,
+    height: 0
+  };
+}
+
+/**
+ * 读取指向左侧悬挂按钮的左边交互带。
+ */
+function getLeftEdgeTransitionRect(): DOMRectLike | null {
+  const scrollerRect = getScrollerClientRect();
+  if (!scrollerRect) {
+    return null;
+  }
+
+  return {
+    top: scrollerRect.top,
+    right: scrollerRect.left,
+    bottom: scrollerRect.bottom,
+    left: scrollerRect.left,
+    width: 0,
+    height: scrollerRect.height
+  };
+}
+
+/**
  * 将视口坐标转为 scroller 局部坐标。
  */
 function toLocalPointer(clientX: number, clientY: number, scroller: HTMLElement): { x: number; y: number } {
@@ -306,9 +430,9 @@ function updateHoverState(clientX: number, clientY: number): void {
   const geometry = readTableGeometry();
   const params = { clientX: x, clientY: y, threshold: UI.DIVIDER_THRESHOLD, ...geometry };
 
-  const divider = findHoveredDivider(params);
+  const divider = findHoveredDividers(params);
   if (divider) {
-    dividerHover.value = divider;
+    addHover.value = divider;
     if (activeOverlay.value === 'segment' && segmentHover.value) {
       scheduleSegmentHide();
       return;
@@ -323,7 +447,7 @@ function updateHoverState(clientX: number, clientY: number): void {
   const segment = findHoveredSegments(params);
   if (segment) {
     clearSegmentHideTimer();
-    dividerHover.value = null;
+    addHover.value = null;
     segmentHover.value = segment;
     activeOverlay.value = 'segment';
     return;
@@ -367,6 +491,95 @@ function handleViewportMouseLeave(event: MouseEvent): void {
 function handleOverlayControlMouseEnter(): void {
   clearOverlayHideTimer();
   clearSegmentHideTimer();
+}
+
+/**
+ * 判断指针是否仍在 viewport 可见边界内。
+ */
+function isPointerInsideViewportBounds(clientX: number, clientY: number): boolean {
+  const viewportRect = viewportRef.value?.getBoundingClientRect();
+  if (!viewportRect) {
+    return false;
+  }
+
+  return clientX >= viewportRect.left && clientX <= viewportRect.right && clientY >= viewportRect.top && clientY <= viewportRect.bottom;
+}
+
+/**
+ * 判断指针是否仍在表格边缘与外侧按钮之间的过渡交互带内。
+ */
+function isPointerWithinOverlayTransitionZone(clientX: number, clientY: number): boolean {
+  const transitionPadding = 8;
+
+  if (activeOverlay.value === 'divider') {
+    const targets: Array<{ button: HTMLButtonElement | null; sourceRect: DOMRectLike | null }> = [
+      {
+        button: addColumnButtonRef.value,
+        sourceRect: addHover.value?.column ? getTopEdgeTransitionRect() : null
+      },
+      {
+        button: addRowButtonRef.value,
+        sourceRect: addHover.value?.row ? getLeftEdgeTransitionRect() : null
+      }
+    ];
+
+    for (const target of targets) {
+      if (!target.button || !target.sourceRect) {
+        continue;
+      }
+
+      const buttonRect = toRectLike(target.button.getBoundingClientRect());
+      const bridgeRect = expandRect(mergeRects(target.sourceRect, buttonRect), transitionPadding);
+      if (isPointInsideRect(bridgeRect, clientX, clientY)) {
+        return true;
+      }
+    }
+  }
+
+  if (activeOverlay.value === 'segment') {
+    const targets: Array<{ button: HTMLButtonElement | null; sourceRect: DOMRectLike | null }> = [
+      {
+        button: removeRowButtonRef.value,
+        sourceRect: segmentHover.value?.row ? getLeftEdgeTransitionRect() : null
+      },
+      {
+        button: removeColumnButtonRef.value,
+        sourceRect: segmentHover.value?.column ? getTopEdgeTransitionRect() : null
+      }
+    ];
+
+    for (const target of targets) {
+      if (!target.button || !target.sourceRect) {
+        continue;
+      }
+
+      const buttonRect = toRectLike(target.button.getBoundingClientRect());
+      const bridgeRect = expandRect(mergeRects(target.sourceRect, buttonRect), transitionPadding);
+      if (isPointInsideRect(bridgeRect, clientX, clientY)) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
+/**
+ * 在鼠标离开表格几何区域后，继续追踪通往外侧按钮的移动轨迹。
+ */
+function handleWindowMouseMove(event: MouseEvent): void {
+  lastPointer.value = { clientX: event.clientX, clientY: event.clientY };
+
+  if (activeOverlay.value === 'none') {
+    return;
+  }
+
+  if (isPointerInsideViewportBounds(event.clientX, event.clientY) || isPointerWithinOverlayTransitionZone(event.clientX, event.clientY)) {
+    clearOverlayHideTimer();
+    return;
+  }
+
+  scheduleOverlayHide();
 }
 
 function handleScroll(): void {
@@ -427,9 +640,12 @@ function getDimensions(): { rowCount: number; columnCount: number } {
 
 const editorContext = { editor: props.editor, focusCellAt, getDimensions };
 
-function handleAdd(): void {
-  if (dividerHover.value) {
-    applyAddAction(editorContext, dividerHover.value);
+/**
+ * 执行新增动作；行列按钮各自传入自己的命中目标。
+ */
+function handleAdd(hit: DividerHit | null): void {
+  if (hit) {
+    applyAddAction(editorContext, hit);
   }
 }
 
@@ -458,45 +674,61 @@ function getRemoveStyle(hit: SegmentHit | null): CSSProperties | null {
 /**
  * 当前是否显示分割线 overlay。
  */
-const showDividerOverlay = computed<boolean>(() => activeOverlay.value === 'divider' && dividerHover.value !== null);
+const showDividerOverlay = computed<boolean>(() => {
+  return activeOverlay.value === 'divider' && Boolean(addHover.value && (addHover.value.row || addHover.value.column));
+});
 /**
  * 当前是否显示区段 overlay。
  */
 const showSegmentOverlay = computed<boolean>(() => activeOverlay.value === 'segment' && segmentHover.value !== null);
 
-const lineHighlightStyle = computed<CSSProperties>(() => {
-  if (!dividerHover.value) return {};
+function getLineHighlightStyle(hit: DividerHit | null): CSSProperties {
+  if (!hit) return {};
 
-  const { lineRect } = dividerHover.value;
+  const { lineRect } = hit;
   const t = UI.LINE_THICKNESS;
   const vp = toViewportPosition({ top: lineRect.top, left: lineRect.left });
 
-  if (dividerHover.value.type === 'column') {
+  if (hit.type === 'column') {
     return { left: `${vp.left - t / 2}px`, top: `${vp.top}px`, width: `${t}px`, height: `${lineRect.height}px` };
   }
 
   return { left: `${vp.left}px`, top: `${vp.top - t / 2}px`, width: `${lineRect.width}px`, height: `${t}px` };
+}
+
+const columnLineHighlightStyle = computed<CSSProperties>(() => {
+  return getLineHighlightStyle(addHover.value?.column ?? null);
 });
 
-const addButtonStyle = computed<CSSProperties>(() => {
-  if (!dividerHover.value) return {};
+const rowLineHighlightStyle = computed<CSSProperties>(() => {
+  return getLineHighlightStyle(addHover.value?.row ?? null);
+});
 
-  const position = getAddButtonPosition(dividerHover.value);
+function getAddStyle(hit: DividerHit | null): CSSProperties | null {
+  if (!hit) return null;
+
+  const position = getAddButtonPosition(hit);
   const viewportPosition = toViewportPosition(position);
   return { top: `${viewportPosition.top}px`, left: `${viewportPosition.left}px` };
+}
+
+const addRowButtonStyle = computed<CSSProperties | null>(() => {
+  return getAddStyle(addHover.value?.row ?? null);
 });
 
-const addButtonVariantClass = computed(() => ({
-  'b-editor-table__add-button--column': dividerHover.value?.type === 'column',
-  'b-editor-table__add-button--row': dividerHover.value?.type === 'row'
-}));
+const addColumnButtonStyle = computed<CSSProperties | null>(() => {
+  return getAddStyle(addHover.value?.column ?? null);
+});
 
 /**
- * 根据当前分割线方向生成新增按钮文案。
+ * 当前是否显示新增行按钮。
  */
-const addButtonLabel = computed<string>(() => {
-  return dividerHover.value?.type === 'row' ? '新增行' : '新增列';
-});
+const showAddRowButton = computed<boolean>(() => addRowButtonStyle.value !== null);
+
+/**
+ * 当前是否显示新增列按钮。
+ */
+const showAddColumnButton = computed<boolean>(() => addColumnButtonStyle.value !== null);
 
 const removeRowButtonStyle = computed<CSSProperties | null>(() => {
   return getRemoveStyle(segmentHover.value?.row ?? null);
@@ -518,7 +750,12 @@ const showRemoveColumnButton = computed<boolean>(() => removeColumnButtonStyle.v
 
 // ─── 生命周期 ────────────────────────────────────────────────────────────────
 
+onMounted(() => {
+  window.addEventListener('mousemove', handleWindowMouseMove);
+});
+
 onBeforeUnmount(() => {
+  window.removeEventListener('mousemove', handleWindowMouseMove);
   cancelAnimationFrame(scrollFrame);
   clearOverlayHideTimer();
   clearSegmentHideTimer();
@@ -574,45 +811,20 @@ onBeforeUnmount(() => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 26px;
-  height: 26px;
+  width: 16px;
+  height: 16px;
   padding: 0;
-  color: var(--editor-link);
+  color: #fff;
   cursor: pointer;
-  background: color-mix(in srgb, var(--bg-primary) 92%, var(--editor-link) 8%);
-  border: 1px solid color-mix(in srgb, var(--editor-table-border) 82%, var(--editor-link) 18%);
+  background-color: var(--color-primary);
   border-radius: 999px;
-
-  &:hover {
-    color: color-mix(in srgb, var(--editor-link) 82%, var(--editor-text));
-    background: color-mix(in srgb, var(--bg-primary) 84%, var(--editor-link) 16%);
-    border-color: color-mix(in srgb, var(--editor-link) 40%, var(--editor-table-border));
-    box-shadow: 0 4px 12px rgb(15 23 42 / 16%);
-  }
 }
 
 .b-editor-table__add-button {
-  position: absolute;
-  z-index: 2;
   pointer-events: auto;
 }
 
-.b-editor-table__add-button--column {
-  transform: translate(-50%, -100%);
-
-  &:active {
-    transform: translate(-50%, -100%) scale(0.96);
-  }
-}
-
-.b-editor-table__add-button--row {
-  transform: translate(-100%, -50%);
-
-  &:active {
-    transform: translate(-100%, -50%) scale(0.96);
-  }
-}
-
+.b-editor-table__add-button-group,
 .b-editor-table__segment-button-group {
   position: absolute;
   z-index: 3;
@@ -622,12 +834,18 @@ onBeforeUnmount(() => {
   pointer-events: auto;
 }
 
+.b-editor-table__add-button-group--column,
 .b-editor-table__segment-button-group--column {
   transform: translate(-50%, -100%);
 }
 
+.b-editor-table__add-button-group--row,
 .b-editor-table__segment-button-group--row {
   transform: translate(-100%, -50%);
+}
+
+.b-editor-table__add-button:active {
+  transform: scale(0.96);
 }
 
 .b-editor-table__remove-button {

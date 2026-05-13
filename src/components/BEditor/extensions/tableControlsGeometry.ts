@@ -38,6 +38,12 @@ export interface SegmentHover {
   column: SegmentHit | null;
 }
 
+/** 同一悬浮位置下的行列新增命中集合。 */
+export interface DividerHover {
+  row: DividerHit | null;
+  column: DividerHit | null;
+}
+
 /** 按钮定位结果。 */
 export interface ButtonPosition {
   top: number;
@@ -140,6 +146,23 @@ function dividerDistance({ type, lineRect }: DividerHit, x: number, y: number): 
   return type === 'column' ? Math.abs(x - lineRect.left) : Math.abs(y - lineRect.top);
 }
 
+/**
+ * 从同方向候选中取距离最近的分割线。
+ * @param hits - 同方向候选分割线
+ * @param x - 指针横坐标
+ * @param y - 指针纵坐标
+ * @returns 最近的命中结果
+ */
+function findClosestDivider(hits: DividerHit[], x: number, y: number): DividerHit | null {
+  if (hits.length === 0) {
+    return null;
+  }
+
+  return hits.reduce((best, cur) => {
+    return dividerDistance(cur, x, y) < dividerDistance(best, x, y) ? cur : best;
+  });
+}
+
 // ─── 公开 API ─────────────────────────────────────────────────────────────────
 
 /**
@@ -147,12 +170,8 @@ function dividerDistance({ type, lineRect }: DividerHit, x: number, y: number): 
  * 多个候选时取轴向距离最近者；距离相同时列优先。
  */
 export function findHoveredDivider({ clientX: x, clientY: y, columnRects, rowRects, threshold }: HitTestInput): DividerHit | null {
-  if (columnRects.length === 0 || rowRects.length === 0) return null;
-
-  const colDividers = buildDividers('column', columnRects, rowRects[0].top, rowRects[rowRects.length - 1].bottom);
-  const rowDividers = buildDividers('row', rowRects, columnRects[0].left, columnRects[columnRects.length - 1].right);
-
-  const candidates = [...colDividers, ...rowDividers].filter((hit) => matchesDivider(hit, x, y, threshold));
+  const hover = findHoveredDividers({ clientX: x, clientY: y, columnRects, rowRects, threshold });
+  const candidates = [hover?.column, hover?.row].filter((hit): hit is DividerHit => hit !== null && hit !== undefined);
 
   if (candidates.length === 0) return null;
 
@@ -162,6 +181,22 @@ export function findHoveredDivider({ clientX: x, clientY: y, columnRects, rowRec
     // 距离相同：列优先
     return best.type === 'column' ? best : cur;
   });
+}
+
+/**
+ * 查找当前命中的行列新增分割线集合。
+ * 交叉点附近可同时返回一条行分割线和一条列分割线。
+ */
+export function findHoveredDividers({ clientX: x, clientY: y, columnRects, rowRects, threshold }: HitTestInput): DividerHover | null {
+  if (columnRects.length === 0 || rowRects.length === 0) return null;
+
+  const colDividers = buildDividers('column', columnRects, rowRects[0].top, rowRects[rowRects.length - 1].bottom);
+  const rowDividers = buildDividers('row', rowRects, columnRects[0].left, columnRects[columnRects.length - 1].right);
+
+  const column = findClosestDivider(colDividers.filter((hit) => matchesDivider(hit, x, y, threshold)), x, y);
+  const row = findClosestDivider(rowDividers.filter((hit) => matchesDivider(hit, x, y, threshold)), x, y);
+
+  return row || column ? { row, column } : null;
 }
 
 /**
