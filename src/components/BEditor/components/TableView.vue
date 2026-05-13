@@ -90,7 +90,6 @@ import {
 const props = defineProps(nodeViewProps);
 
 const UI = {
-  BUTTON_SIZE: 26,
   DIVIDER_THRESHOLD: 6,
   LINE_THICKNESS: 2,
   OVERLAY_GUTTER: 0
@@ -368,7 +367,7 @@ function handleRemove(hit: SegmentHit | null): void {
 function getRemoveStyle(hit: SegmentHit | null): CSSProperties | null {
   if (!hit) return null;
 
-  const position = getRemoveButtonPosition(hit, UI.BUTTON_SIZE);
+  const position = getRemoveButtonPosition(hit);
   const viewportPosition = toViewportPosition(position);
   return { top: `${viewportPosition.top}px`, left: `${viewportPosition.left}px` };
 }
@@ -391,7 +390,7 @@ const lineHighlightStyle = computed<CSSProperties>(() => {
 const addButtonStyle = computed<CSSProperties>(() => {
   if (hoverState.value.type !== 'divider') return {};
 
-  const position = getAddButtonPosition(hoverState.value.hit, UI.BUTTON_SIZE);
+  const position = getAddButtonPosition(hoverState.value.hit);
   const viewportPosition = toViewportPosition(position);
   return { top: `${viewportPosition.top}px`, left: `${viewportPosition.left}px` };
 });
