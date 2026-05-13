@@ -14,6 +14,7 @@ import { getModelToolSupport } from '@/ai/tools/policy';
 import { executeToolCall, toTransportTools, type ExecutedToolCall } from '@/ai/tools/stream';
 import { useChat } from '@/hooks/useChat';
 import { useServiceModelStore } from '@/stores/serviceModel';
+import { useToolSettingsStore } from '@/stores/toolSettings';
 import { buildChatMessageReferences } from '../utils/fileReferenceContext';
 import { append, convert, create, userChoice, is } from '../utils/messageHelper';
 import { createToolCallTracker, type ToolCallTracker } from '../utils/toolCallTracker';
@@ -78,6 +79,7 @@ export function useChatStream(options: UseChatStreamOptions): UseChatStreamRetur
   const activeTaskType = ref<'chat' | null>(null);
 
   const serviceModelStore = useServiceModelStore();
+  const toolSettingsStore = useToolSettingsStore();
 
   let lastServiceConfig: ServiceConfig | null = null;
   let executedToolCallIds = new Set<string>();
@@ -339,7 +341,13 @@ export function useChatStream(options: UseChatStreamOptions): UseChatStreamRetur
     currentModelMessageCache = convert.toCachedModelMessages(nextMessages, currentModelMessageCache);
     const continuedMessages: ModelMessage[] = [...currentModelMessageCache.modelMessages];
 
-    agent.stream({ messages: continuedMessages, modelId: config.modelId, providerId: config.providerId, tools: transportTools });
+    agent.stream({
+      messages: continuedMessages,
+      modelId: config.modelId,
+      providerId: config.providerId,
+      tools: transportTools,
+      tavily: toolSettingsStore.tavily
+    });
   }
 
   /**

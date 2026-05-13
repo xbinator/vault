@@ -50,6 +50,9 @@ importers:
       '@lezer/highlight':
         specifier: ^1.2.3
         version: 1.2.3
+      '@tavily/ai-sdk':
+        specifier: ^0.5.0
+        version: 0.5.0(ai@6.0.170(zod@3.25.76))(zod@3.25.76)
       '@tiptap/core':
         specifier: ^3.22.5
         version: 3.22.5(@tiptap/pm@3.22.5)
@@ -1324,6 +1327,15 @@ packages:
   '@szmarczak/http-timer@4.0.6':
     resolution: {integrity: sha512-4BAffykYOgO+5nzBWYwE3W90sBgLJoUPRWWcL8wlyiM8IB8ipJz3UMJ9KXQd1RKQXpKp8Tutn80HZtWsu2u76w==}
     engines: {node: '>=10'}
+
+  '@tavily/ai-sdk@0.5.0':
+    resolution: {integrity: sha512-OUG1p9yjfeQA0QAJEWx4LgHtQnG6k91ihLFtWAryUarTwYLWAHfwbQZ6dfYsBB8GqsKjvh6Fe7RuM2bNs2QgNQ==}
+    peerDependencies:
+      ai: ^5.0.0 || ^6.0.0
+      zod: ^4.0.0
+
+  '@tavily/core@0.7.3':
+    resolution: {integrity: sha512-KEXw8xIifY8Rfjq2Wstm8LvlvsNAj4drtpytEmg7BQUtKDcgMmWXm7CB/Mr0nxrcKwnpdTgOt8Ien1iJIUd1yQ==}
 
   '@tiptap/core@3.22.5':
     resolution: {integrity: sha512-L1lhWz6ujGny8LduTJ7MBWYhzigwOvfUJUrJ7IzOJSuy3+OAzisdGDD1GV7LEO/hU0Hr2Mkm1wajRIHExvS9HQ==}
@@ -6601,6 +6613,24 @@ snapshots:
   '@szmarczak/http-timer@4.0.6':
     dependencies:
       defer-to-connect: 2.0.1
+
+  '@tavily/ai-sdk@0.5.0(ai@6.0.170(zod@3.25.76))(zod@3.25.76)':
+    dependencies:
+      '@tavily/core': 0.7.3
+      ai: 6.0.170(zod@3.25.76)
+      zod: 3.25.76
+    transitivePeerDependencies:
+      - debug
+      - supports-color
+
+  '@tavily/core@0.7.3':
+    dependencies:
+      axios: 1.15.0
+      https-proxy-agent: 7.0.6
+      js-tiktoken: 1.0.21
+    transitivePeerDependencies:
+      - debug
+      - supports-color
 
   '@tiptap/core@3.22.5(@tiptap/pm@3.22.5)':
     dependencies:

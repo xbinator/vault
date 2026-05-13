@@ -50,7 +50,7 @@ describe('SearchToolsSettingsView', () => {
           AInputNumber: { template: '<input type="number" />', props: ['value'] },
           ASwitch: { template: '<input type="checkbox" />', props: ['checked'] },
           ACheckbox: { template: '<input type="checkbox" />', props: ['checked'] },
-          AAlert: { template: '<div><slot /></div>', props: ['message', 'type', 'showIcon'] }
+          AAlert: { template: '<div>{{ message }}<slot /></div>', props: ['message', 'type', 'showIcon'] }
         }
       }
     });
@@ -60,5 +60,30 @@ describe('SearchToolsSettingsView', () => {
     expect(wrapper.text()).toContain('Tavily Extract 默认配置');
     expect(wrapper.text()).toContain('测试 Extract');
     expect(wrapper.text()).toContain('测试 URL');
+  });
+
+  it('shows unavailable warning when Tavily is enabled without apiKey', async () => {
+    const store = useToolSettingsStore();
+    store.setTavilyEnabled(true);
+    store.setTavilyApiKey('');
+
+    const wrapper = mount(SearchToolsSettingsView, {
+      global: {
+        stubs: {
+          BSettingsPage: { template: '<div><slot /></div>', props: ['title'] },
+          BSettingsSection: { template: '<section><slot /></section>', props: ['title'] },
+          BSelect: { template: '<div class="b-select-stub"></div>' },
+          BButton: { template: '<button><slot /></button>' },
+          AInput: { template: '<input />', props: ['value'] },
+          AInputPassword: { template: '<input />', props: ['value'] },
+          AInputNumber: { template: '<input type="number" />', props: ['value'] },
+          ASwitch: { template: '<input type="checkbox" />', props: ['checked'] },
+          ACheckbox: { template: '<input type="checkbox" />', props: ['checked'] },
+          AAlert: { template: '<div>{{ message }}</div>', props: ['message', 'type', 'showIcon'] }
+        }
+      }
+    });
+
+    expect(wrapper.text()).toContain('已启用 Tavily，但 API Key 为空');
   });
 });

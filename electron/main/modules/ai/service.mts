@@ -3,7 +3,9 @@
  * @description AI 服务核心类，封装文本生成和流式文本生成能力
  */
 import type { AICreateOptions, AIRequestOptions, AIInvokeResult, AIStreamResult, AIServiceError } from 'types/ai';
+import type { ToolSet } from 'ai';
 import { generateText, jsonSchema, Output, streamText, tool } from 'ai';
+import { tavilyExtract, tavilySearch } from '@tavily/ai-sdk';
 import { log } from '../logger/service.mjs';
 import { AI_ERROR_CODE } from './errors/codes.mjs';
 import { AIProviderRegistry } from './providers/_index.mjs';
@@ -11,20 +13,60 @@ import { AIProviderRegistry } from './providers/_index.mjs';
 /**
  * 将前端工具定义转换为 AI SDK 的工具格式
  * @param tools - 前端工具定义数组
+ * @param request - 前端请求配置
  * @returns AI SDK 兼容的工具对象
  */
-function toSdkTools(tools: AIRequestOptions['tools']) {
-  if (!tools?.length) return undefined;
+function toSdkTools(tools: AIRequestOptions['tools'], request: AIRequestOptions): ToolSet | undefined {
+  const rendererTools: ToolSet = tools?.length
+    ? Object.fromEntries(
+        tools.map((item) => [
+          item.name,
+          tool({
+            description: item.description,
+            inputSchema: jsonSchema(item.parameters)
+          })
+        ])
+      ) as ToolSet
+    : {};
 
-  return Object.fromEntries(
-    tools.map((item) => [
-      item.name,
-      tool({
-        description: item.description,
-        inputSchema: jsonSchema(item.parameters)
-      })
-    ])
-  );
+  const tavilyTools = createTavilySdkTools(request);
+  const mergedTools = { ...rendererTools, ...tavilyTools } as ToolSet;
+
+  return Object.keys(mergedTools).length > 0 ? mergedTools : undefined;
+}
+
+/**
+ * 根据请求创建 Tavily SDK 工具。
+ * @param request - 前端请求配置
+ * @returns Tavily 工具映射
+ */
+function createTavilySdkTools(request: AIRequestOptions): ToolSet {
+  const tavily = request.tavily;
+
+  if (!tavily?.enabled || !tavily.apiKey.trim()) {
+    return {};
+  }
+
+  return {
+    tavily_search: tavilySearch({
+      apiKey: tavily.apiKey,
+      topic: tavily.searchDefaults.topic,
+      country: tavily.searchDefaults.country ?? undefined,
+      maxResults: tavily.searchDefaults.maxResults,
+      includeAnswer: tavily.searchDefaults.includeAnswer,
+      includeImages: tavily.searchDefaults.includeImages,
+      includeDomains: tavily.searchDefaults.includeDomains,
+      excludeDomains: tavily.searchDefaults.excludeDomains,
+      searchDepth: tavily.searchDefaults.searchDepth,
+      timeRange: tavily.searchDefaults.timeRange ?? undefined
+    }),
+    tavily_extract: tavilyExtract({
+      apiKey: tavily.apiKey,
+      includeImages: tavily.extractDefaults.includeImages,
+      extractDepth: tavily.extractDefaults.extractDepth,
+      format: tavily.extractDefaults.format
+    })
+  };
 }
 
 /**
@@ -120,7 +162,7 @@ class AIService {
 
       log.info(`[AIService] generateText request:`, request);
 
-      const baseOptions = { model, system, temperature, maxOutputTokens, tools: toSdkTools(request.tools), output: toOutput(output) };
+      const baseOptions = { model, system, temperature, maxOutputTokens, tools: toSdkTools(request.tools, request), output: toOutput(output) };
 
       // 根据是否有 messages 选择不同的调用方式
       const result = messages ? await generateText({ ...baseOptions, messages }) : await generateText({ ...baseOptions, prompt });
@@ -159,7 +201,7 @@ class AIService {
 
       log.info(`[AIService] streamText request:`, request);
 
-      const baseOptions = { model, system, temperature, maxOutputTokens, abortSignal, tools: toSdkTools(request.tools) };
+      const baseOptions = { model, system, temperature, maxOutputTokens, abortSignal, tools: toSdkTools(request.tools, request) };
 
       // 根据是否有 messages 选择不同的调用方式
       const result = messages ? streamText({ ...baseOptions, messages }) : streamText({ ...baseOptions, prompt });

@@ -5,11 +5,14 @@
 import type { AICreateOptions, AIRequestOptions } from 'types/ai';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const generateTextMock = vi.fn<() => Promise<never>>();
+const generateTextMock = vi.fn();
 const jsonSchemaMock = vi.fn();
 const outputObjectMock = vi.fn();
 const logErrorMock = vi.fn();
 const logWarnMock = vi.fn();
+const toolMock = vi.fn();
+const tavilySearchMock = vi.fn();
+const tavilyExtractMock = vi.fn();
 
 vi.mock('ai', () => ({
   Output: {
@@ -18,7 +21,12 @@ vi.mock('ai', () => ({
   generateText: generateTextMock,
   jsonSchema: jsonSchemaMock,
   streamText: vi.fn(),
-  tool: vi.fn()
+  tool: toolMock
+}));
+
+vi.mock('@tavily/ai-sdk', () => ({
+  tavilySearch: tavilySearchMock,
+  tavilyExtract: tavilyExtractMock
 }));
 
 vi.mock('../../electron/main/modules/logger/service.mjs', () => ({
@@ -57,6 +65,9 @@ describe('aiService', () => {
     outputObjectMock.mockReset();
     logErrorMock.mockReset();
     logWarnMock.mockReset();
+    toolMock.mockReset();
+    tavilySearchMock.mockReset();
+    tavilyExtractMock.mockReset();
   });
 
   it('passes structured output schema to AI SDK when request asks for object output', async () => {
@@ -116,5 +127,111 @@ describe('aiService', () => {
     expect(error?.code).toBe('RATE_LIMITED');
     expect(logWarnMock).toHaveBeenCalledWith('[AIService] generateText RATE_LIMITED:', '请求过于频繁或额度已耗尽，请稍后重试');
     expect(logErrorMock).not.toHaveBeenCalledWith('[AIService] generateText error:', overloadedError);
+  });
+
+  it('registers Tavily server tools when enabled and apiKey is present', async () => {
+    const { aiService } = await import('../../electron/main/modules/ai/service.mjs');
+    const createOptions: AICreateOptions = { providerType: 'openai', providerId: 'provider-1', providerName: 'OpenAI' };
+    const request: AIRequestOptions = {
+      modelId: 'model-1',
+      prompt: '搜索一下今天的 AI 新闻',
+      tavily: {
+        enabled: true,
+        apiKey: 'tvly-dev-key',
+        searchDefaults: {
+          searchDepth: 'basic',
+          topic: 'general',
+          timeRange: null,
+          country: 'china',
+          maxResults: 5,
+          includeAnswer: true,
+          includeImages: false,
+          includeDomains: ['example.com'],
+          excludeDomains: []
+        },
+        extractDefaults: {
+          extractDepth: 'basic',
+          format: 'markdown',
+          includeImages: false
+        }
+      }
+    };
+
+    tavilySearchMock.mockReturnValue({ kind: 'tavily-search-tool' });
+    tavilyExtractMock.mockReturnValue({ kind: 'tavily-extract-tool' });
+    generateTextMock.mockResolvedValue({
+      text: 'ok',
+      output: undefined,
+      usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 }
+    });
+
+    await aiService.generateText(createOptions, request);
+
+    expect(tavilySearchMock).toHaveBeenCalledWith({
+      apiKey: 'tvly-dev-key',
+      topic: 'general',
+      country: 'china',
+      maxResults: 5,
+      includeAnswer: true,
+      includeImages: false,
+      includeDomains: ['example.com'],
+      excludeDomains: [],
+      searchDepth: 'basic',
+      timeRange: undefined
+    });
+    expect(tavilyExtractMock).toHaveBeenCalledWith({
+      apiKey: 'tvly-dev-key',
+      includeImages: false,
+      extractDepth: 'basic',
+      format: 'markdown'
+    });
+    expect(generateTextMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tools: expect.objectContaining({
+          tavily_search: { kind: 'tavily-search-tool' },
+          tavily_extract: { kind: 'tavily-extract-tool' }
+        })
+      })
+    );
+  });
+
+  it('does not register Tavily server tools when disabled', async () => {
+    const { aiService } = await import('../../electron/main/modules/ai/service.mjs');
+    const createOptions: AICreateOptions = { providerType: 'openai', providerId: 'provider-1', providerName: 'OpenAI' };
+    const request: AIRequestOptions = {
+      modelId: 'model-1',
+      prompt: 'hello',
+      tavily: {
+        enabled: false,
+        apiKey: 'tvly-dev-key',
+        searchDefaults: {
+          searchDepth: 'basic',
+          topic: 'general',
+          timeRange: null,
+          country: 'china',
+          maxResults: 5,
+          includeAnswer: true,
+          includeImages: false,
+          includeDomains: [],
+          excludeDomains: []
+        },
+        extractDefaults: {
+          extractDepth: 'basic',
+          format: 'markdown',
+          includeImages: false
+        }
+      }
+    };
+
+    generateTextMock.mockResolvedValue({
+      text: 'ok',
+      output: undefined,
+      usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 }
+    });
+
+    await aiService.generateText(createOptions, request);
+
+    expect(tavilySearchMock).not.toHaveBeenCalled();
+    expect(tavilyExtractMock).not.toHaveBeenCalled();
   });
 });
