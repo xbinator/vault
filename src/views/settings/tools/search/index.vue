@@ -15,25 +15,11 @@
 
       <div class="search-tools-settings__item">
         <div class="search-tools-settings__meta">
-          <div class="search-tools-settings__label">API Key</div>
-          <div class="search-tools-settings__description">用于 Tavily Search 与 Tavily Extract 的统一鉴权。</div>
+          <div class="search-tools-settings__label">Tavily API Key</div>
         </div>
-        <AInputPassword :value="store.tavily.apiKey" placeholder="请输入 Tavily API Key" @update:value="handleApiKeyChange" />
-      </div>
-
-      <div class="search-tools-settings__alert">
-        <AAlert
-          v-if="!store.tavily.enabled"
-          type="info"
-          :message="'当前未启用，聊天中不会暴露 Tavily 工具'"
-          :show-icon="true"
-        />
-        <AAlert
-          v-else-if="!store.isTavilyAvailable"
-          type="warning"
-          :message="'已启用 Tavily，但 API Key 为空，聊天中仍不会注册相关工具'"
-          :show-icon="true"
-        />
+        <div class="search-tools-settings__input">
+          <AInputPassword :value="store.tavily.apiKey" placeholder="请输入 Tavily API Key" @update:value="handleApiKeyChange" />
+        </div>
       </div>
     </BSettingsSection>
 
@@ -93,7 +79,9 @@
           <div class="search-tools-settings__label">限定域名</div>
           <div class="search-tools-settings__description">使用英文逗号分隔，仅接受裸域名，例如 `example.com`。</div>
         </div>
-        <AInput :value="includeDomainsInput" placeholder="example.com, docs.example.com" @update:value="handleIncludeDomainsInput" />
+        <div>
+          <AInput :value="includeDomainsInput" placeholder="example.com, docs.example.com" @update:value="handleIncludeDomainsInput" />
+        </div>
       </div>
 
       <div class="search-tools-settings__item search-tools-settings__item--stacked">
@@ -101,7 +89,9 @@
           <div class="search-tools-settings__label">排除域名</div>
           <div class="search-tools-settings__description">使用英文逗号分隔，仅接受裸域名。</div>
         </div>
-        <AInput :value="excludeDomainsInput" placeholder="ads.example.com" @update:value="handleExcludeDomainsInput" />
+        <div>
+          <AInput :value="excludeDomainsInput" placeholder="ads.example.com" @update:value="handleExcludeDomainsInput" />
+        </div>
       </div>
     </BSettingsSection>
 
@@ -153,8 +143,8 @@
 </template>
 
 <script setup lang="ts">
-import type { TavilyExtractDepth, TavilyExtractFormat, TavilySearchDepth, TavilySearchTopic, TavilyTimeRange } from '@/shared/storage/tool-settings';
 import { computed, ref } from 'vue';
+import type { TavilyExtractDepth, TavilyExtractFormat, TavilySearchDepth, TavilySearchTopic, TavilyTimeRange } from '@/shared/storage/tool-settings';
 import { useToolSettingsStore } from '@/stores/toolSettings';
 import {
   TAVILY_SEARCH_TEST_QUERY,
@@ -184,7 +174,7 @@ const excludeDomainsInput = computed((): string => store.tavily.searchDefaults.e
  * @param value - 输入框原始值
  * @returns 解析后的域名数组
  */
-function parseDomainInput(value: string): string[] {
+function toCanonicalDomain(value: string): string[] {
   return value
     .split(',')
     .map((item: string) => item.trim())
@@ -269,7 +259,7 @@ function handleIncludeImagesChange(value: boolean | string | number): void {
  * @param value - 输入框值
  */
 function handleIncludeDomainsInput(value: string): void {
-  store.updateTavilySearchDefaults({ includeDomains: parseDomainInput(value) });
+  store.updateTavilySearchDefaults({ includeDomains: toCanonicalDomain(value) });
 }
 
 /**
@@ -277,7 +267,7 @@ function handleIncludeDomainsInput(value: string): void {
  * @param value - 输入框值
  */
 function handleExcludeDomainsInput(value: string): void {
-  store.updateTavilySearchDefaults({ excludeDomains: parseDomainInput(value) });
+  store.updateTavilySearchDefaults({ excludeDomains: toCanonicalDomain(value) });
 }
 
 /**
@@ -335,7 +325,10 @@ function handleExtractIncludeImagesChange(value: boolean | string | number): voi
 .search-tools-settings__meta {
   flex: 1;
   min-width: 0;
-  padding: 12px 0;
+}
+
+.search-tools-settings__input {
+  width: 280px;
 }
 
 .search-tools-settings__label {
@@ -349,10 +342,6 @@ function handleExtractIncludeImagesChange(value: boolean | string | number): voi
   margin-top: 4px;
   font-size: 12px;
   color: var(--text-secondary);
-}
-
-.search-tools-settings__alert {
-  padding: 12px 16px 16px;
 }
 
 .search-tools-settings__test-row {
