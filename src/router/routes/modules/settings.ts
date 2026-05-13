@@ -1,4 +1,5 @@
 import type { AppRouteRecordRaw } from '../../type';
+import { RouterView } from 'vue-router';
 
 const routes: AppRouteRecordRaw[] = [
   {
@@ -39,6 +40,21 @@ const routes: AppRouteRecordRaw[] = [
         name: 'service-model',
         component: () => import('@/views/settings/service-model/index.vue'),
         meta: { title: '服务模型' }
+      },
+      {
+        path: 'tools',
+        name: 'tools',
+        component: RouterView,
+        redirect: '/settings/tools/search',
+        meta: { title: '工具' },
+        children: [
+          {
+            path: 'search',
+            name: 'search-tools-settings',
+            component: () => import('@/views/settings/tools/search/index.vue'),
+            meta: { title: '搜索' }
+          }
+        ]
       },
       {
         path: 'editor',

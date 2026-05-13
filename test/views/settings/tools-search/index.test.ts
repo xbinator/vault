@@ -1,0 +1,64 @@
+/**
+ * @file index.test.ts
+ * @description 验证搜索工具设置页渲染 Tavily 配置项与测试输入。
+ */
+/* @vitest-environment jsdom */
+
+import { createPinia, setActivePinia } from 'pinia';
+import { mount } from '@vue/test-utils';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import SearchToolsSettingsView from '@/views/settings/tools/search/index.vue';
+import { useToolSettingsStore } from '@/stores/toolSettings';
+
+const storage = new Map<string, string>();
+
+vi.stubGlobal('localStorage', {
+  getItem(key: string): string | null {
+    return storage.get(key) ?? null;
+  },
+  setItem(key: string, value: string): void {
+    storage.set(key, value);
+  },
+  removeItem(key: string): void {
+    storage.delete(key);
+  },
+  clear(): void {
+    storage.clear();
+  }
+});
+
+describe('SearchToolsSettingsView', () => {
+  beforeEach(() => {
+    vi.resetModules();
+    localStorage.clear();
+    setActivePinia(createPinia());
+  });
+
+  it('renders Tavily base config, default sections, and extract test URL input', async () => {
+    const store = useToolSettingsStore();
+    store.setTavilyEnabled(true);
+
+    const wrapper = mount(SearchToolsSettingsView, {
+      global: {
+        stubs: {
+          BSettingsPage: { template: '<div><h1>{{ title }}</h1><slot /></div>', props: ['title'] },
+          BSettingsSection: { template: '<section><h2>{{ title }}</h2><slot /></section>', props: ['title'] },
+          BSelect: { template: '<div class="b-select-stub"></div>' },
+          BButton: { template: '<button><slot /></button>' },
+          AInput: { template: '<input />', props: ['value'] },
+          AInputPassword: { template: '<input />', props: ['value'] },
+          AInputNumber: { template: '<input type="number" />', props: ['value'] },
+          ASwitch: { template: '<input type="checkbox" />', props: ['checked'] },
+          ACheckbox: { template: '<input type="checkbox" />', props: ['checked'] },
+          AAlert: { template: '<div><slot /></div>', props: ['message', 'type', 'showIcon'] }
+        }
+      }
+    });
+
+    expect(wrapper.text()).toContain('基础配置');
+    expect(wrapper.text()).toContain('Tavily Search 默认配置');
+    expect(wrapper.text()).toContain('Tavily Extract 默认配置');
+    expect(wrapper.text()).toContain('测试 Extract');
+    expect(wrapper.text()).toContain('测试 URL');
+  });
+});
