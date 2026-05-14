@@ -240,6 +240,33 @@ function createAssistantErrorOnlyMessage(): Message {
 }
 
 /**
+ * 创建带工具输入预览的助手消息。
+ * @returns assistant 消息
+ */
+function createMessageWithToolInputPreview(): Message {
+  return {
+    id: 'assistant-tool-input-1',
+    role: 'assistant',
+    content: '',
+    createdAt: '2026-05-14T00:20:00.000Z',
+    loading: true,
+    finished: false,
+    parts: [
+      {
+        type: 'tool-input',
+        toolCallId: 'tool-call-1',
+        toolName: 'write_file',
+        inputText: '{"path":"docs/release-notes.md","content":"# Release"}',
+        input: {
+          path: 'docs/release-notes.md',
+          content: '# Release'
+        }
+      }
+    ]
+  };
+}
+
+/**
  * 挂载 MessageBubble。
  * @param message - 消息数据
  * @returns 挂载结果
@@ -319,5 +346,13 @@ describe('MessageBubble confirmation integration', () => {
 
     expect(wrapper.text()).toContain('工具调用轮次超过限制，已停止自动续轮。');
     expect(wrapper.find('.message-bubble__toolbar').exists()).toBe(false);
+  });
+
+  it('renders streamed write_file preview with path before the final tool-call arrives', () => {
+    const wrapper = mountMessageBubble(createMessageWithToolInputPreview());
+
+    expect(wrapper.text()).toContain('准备写入文件');
+    expect(wrapper.text()).toContain('docs/release-notes.md');
+    expect(wrapper.text()).toContain('# Release');
   });
 });

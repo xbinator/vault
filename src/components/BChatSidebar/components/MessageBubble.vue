@@ -32,6 +32,8 @@
 
           <BubblePartThinking v-else-if="!isCompressionMessage && item.type === 'thinking'" :part="item" />
 
+          <BubblePartToolInput v-else-if="!isCompressionMessage && item.type === 'tool-input'" :part="item as ChatMessageToolInputPart" />
+
           <BubblePartToolCall v-else-if="!isCompressionMessage && item.type === 'tool-call'" :part="item" />
 
           <ConfirmationCard
@@ -82,6 +84,7 @@ import type {
   ChatMessageConfirmationCustomInputPayload,
   ChatMessagePart,
   ChatMessageTextPart,
+  ChatMessageToolInputPart,
   ChatMessageToolResultPart
 } from 'types/chat';
 import { computed, ref } from 'vue';
@@ -98,6 +101,7 @@ import BubblePartCompression from './MessageBubble/BubblePartCompression.vue';
 import BubblePartText from './MessageBubble/BubblePartText.vue';
 import BubblePartThinking from './MessageBubble/BubblePartThinking.vue';
 import BubblePartToolCall from './MessageBubble/BubblePartToolCall.vue';
+import BubblePartToolInput from './MessageBubble/BubblePartToolInput.vue';
 import BubblePartToolResult from './MessageBubble/BubblePartToolResult.vue';
 import BubblePartUserInput from './MessageBubble/BubblePartUserInput.vue';
 
@@ -137,7 +141,13 @@ const showHeader = computed(() => isUserMessage.value && (imageFiles.value.lengt
 const showContainer = computed(() => isCompressionMessage.value || !!props.message.parts?.length);
 /** 是否显示助手工具栏 */
 // eslint-disable-next-line no-use-before-define
-const showAssistantToolbar = computed(() => props.message.finished === true && isAssistantMessage.value);
+const showAssistantToolbar = computed(() => {
+  if (props.message.finished !== true || !isAssistantMessage.value) {
+    return false;
+  }
+
+  return props.message.parts.some((part) => part.type !== 'error');
+});
 /**
  * 气泡加载状态，当消息包含等待用户确认的卡片或等待用户选择的问题时，不显示 loading
  */

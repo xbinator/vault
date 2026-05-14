@@ -6,7 +6,7 @@ import type { Message } from './types';
 import type { FileReference } from '../types';
 import type { JSONValue, ModelMessage } from 'ai';
 import type { AIAwaitingUserChoiceQuestion, AIToolExecutionAwaitingUserInputResult } from 'types/ai';
-import type { AIUserChoiceAnswerData, ChatMessagePart, ChatMessageRole, ChatMessageToolResultPart } from 'types/chat';
+import type { AIUserChoiceAnswerData, ChatMessagePart, ChatMessageRole, ChatMessageToolInputPart, ChatMessageToolResultPart } from 'types/chat';
 import dayjs from 'dayjs';
 import { nanoid } from 'nanoid';
 import { asyncTo } from '@/utils/asyncTo';
@@ -153,6 +153,44 @@ export const append = {
   },
 
   /**
+   * 追加工具输入预览片段。
+   */
+  toolInputStartPart(message: Message, toolCallId: string, toolName: string): void {
+    const existingPart = message.parts.find((part): part is ChatMessageToolInputPart => part.type === 'tool-input' && part.toolCallId === toolCallId);
+    if (existingPart) {
+      existingPart.toolName = toolName;
+      return;
+    }
+
+    message.parts.push({ type: 'tool-input', toolCallId, toolName, inputText: '' });
+  },
+
+  /**
+   * 更新工具输入预览片段。
+   */
+  toolInputDeltaPart(message: Message, toolCallId: string, inputTextDelta: string, input: unknown): void {
+    const existingPart = message.parts.find((part): part is ChatMessageToolInputPart => part.type === 'tool-input' && part.toolCallId === toolCallId);
+    if (!existingPart) {
+      return;
+    }
+
+    existingPart.inputText += inputTextDelta;
+    if (input !== undefined) {
+      existingPart.input = input;
+    }
+  },
+
+  /**
+   * 移除工具输入预览片段。
+   */
+  removeToolInputPart(message: Message, toolCallId: string): void {
+    const previewIndex = message.parts.findIndex((part) => part.type === 'tool-input' && part.toolCallId === toolCallId);
+    if (previewIndex !== -1) {
+      message.parts.splice(previewIndex, 1);
+    }
+  },
+
+  /**
    * 将工具结果追加到消息片段。
    * 结果会被插入到对应 tool-call 之后；若找不到则追加到末尾。
    */
@@ -197,9 +235,7 @@ export const create = {
 
 // ─── find / submit —— 用户选择题流程 ─────────────────────────────────────────
 
-export function isAwaitingUserChoiceResult(
-  part: ChatMessagePart
-): part is ChatMessageToolResultPart & { result: AIToolExecutionAwaitingUserInputResult } {
+export function isAwaitingUserChoiceResult(part: ChatMessagePart): part is ChatMessageToolResultPart & { result: AIToolExecutionAwaitingUserInputResult } {
   return part.type === 'tool-result' && ASK_USER_QUESTION_TOOL_NAMES.has(part.toolName) && part.result.status === 'awaiting_user_input';
 }
 

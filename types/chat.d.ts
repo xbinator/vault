@@ -127,6 +127,22 @@ export interface ChatMessageToolCallPart {
 }
 
 /**
+ * 聊天消息工具输入预览片段。
+ */
+export interface ChatMessageToolInputPart {
+  /** 片段类型 */
+  type: 'tool-input';
+  /** 工具调用 ID */
+  toolCallId: string;
+  /** 工具名称 */
+  toolName: string;
+  /** 工具输入的原始增量文本 */
+  inputText: string;
+  /** 当前已解析出的部分输入 */
+  input?: unknown;
+}
+
+/**
  * 聊天消息工具结果片段
  */
 export interface ChatMessageToolResultPart {
@@ -249,6 +265,7 @@ export type ChatMessagePart =
   | ChatMessageTextPart
   | ChatMessageErrorPart
   | ChatMessageThinkingPart
+  | ChatMessageToolInputPart
   | ChatMessageToolCallPart
   | ChatMessageToolResultPart
   | ChatMessageConfirmationPart;

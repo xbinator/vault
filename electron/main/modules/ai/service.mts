@@ -2,8 +2,7 @@
  * @file service.mts
  * @description AI 服务核心类，封装文本生成和流式文本生成能力
  */
-import type { ToolSet } from 'ai';
-import type { FlexibleSchema, ToolExecutionOptions } from 'ai';
+import type { FlexibleSchema, ToolExecutionOptions, ToolSet } from 'ai';
 import type { AICreateOptions, AIRequestOptions, AIInvokeResult, AIStreamResult, AIServiceError } from 'types/ai';
 import { tavilyExtract, tavilySearch } from '@tavily/ai-sdk';
 import { generateText, jsonSchema, Output, stepCountIs, streamText, tool } from 'ai';
@@ -60,19 +59,8 @@ function createTavilyExtractTool(tavily: NonNullable<AIRequestOptions['tavily']>
   return tool({
     description: 'Extract clean, structured content from a single URL. Returns parsed content in markdown or text format, optimized for AI consumption.',
     inputSchema,
-    /**
-     * 将单 URL 输入适配为 Tavily SDK 需要的 `urls` 数组。
-     */
-    execute: async ({
-      url,
-      extractDepth,
-      query
-    }: TavilyExtractSingleUrlInput, options: ToolExecutionOptions) => {
-      return sdkTool.execute?.({
-        urls: [url],
-        extractDepth,
-        query
-      }, options);
+    execute: async ({ url, extractDepth, query }: TavilyExtractSingleUrlInput, options: ToolExecutionOptions) => {
+      return sdkTool.execute?.({ urls: [url], extractDepth, query }, options);
     }
   });
 }

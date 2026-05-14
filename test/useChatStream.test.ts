@@ -2,14 +2,13 @@
  * @file useChatStream.test.ts
  * @description 校验聊天流在用户主动中止时会正确收尾助手消息并触发持久化回调。
  */
-import { ref } from 'vue';
-import { nextTick } from 'vue';
+import type { AIToolExecutor } from 'types/ai';
+import { nextTick, ref } from 'vue';
 import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createAwaitingUserInputResult } from '@/ai/tools/results';
 import { useChatStream } from '@/components/BChatSidebar/hooks/useChatStream';
 import { create } from '@/components/BChatSidebar/utils/messageHelper';
-import type { AIToolExecutor } from 'types/ai';
 import type { Message, ServiceConfig } from '@/components/BChatSidebar/utils/types';
 
 /**
@@ -17,13 +16,19 @@ import type { Message, ServiceConfig } from '@/components/BChatSidebar/utils/typ
  */
 interface MockChatCallbacks {
   /** 流式完成回调 */
-  onComplete?: () => void;
+  onComplete?: () => void | Promise<void>;
   /** 流式结束回调 */
-  onFinish?: (chunk: import('types/ai').AIStreamFinishChunk) => void;
+  onFinish?: (chunk: import('types/ai').AIStreamFinishChunk) => void | Promise<void>;
+  /** 工具输入开始回调 */
+  onToolInputStart?: (chunk: import('types/ai').AIStreamToolInputStartChunk) => void | Promise<void>;
+  /** 工具输入增量回调 */
+  onToolInputDelta?: (chunk: import('types/ai').AIStreamToolInputDeltaChunk) => void | Promise<void>;
+  /** 工具输入结束回调 */
+  onToolInputEnd?: (chunk: import('types/ai').AIStreamToolInputEndChunk) => void | Promise<void>;
   /** 工具调用回调 */
-  onToolCall?: (chunk: import('types/ai').AIStreamToolCallChunk) => void;
+  onToolCall?: (chunk: import('types/ai').AIStreamToolCallChunk) => void | Promise<void>;
   /** 工具结果回调 */
-  onToolResult?: (chunk: import('types/ai').AIStreamToolResultChunk) => void;
+  onToolResult?: (chunk: import('types/ai').AIStreamToolResultChunk) => void | Promise<void>;
 }
 
 /**
@@ -177,7 +182,7 @@ describe('useChatStream abort', () => {
   it('does not try to execute Tavily SDK tools locally when the stream emits a remote tool call', async () => {
     const messages = ref<Message[]>([create.userMessage('搜索一下最新消息')]);
     const onComplete = vi.fn<(message: Message) => void>();
-    const { stream, loading } = useChatStream({
+    const { stream } = useChatStream({
       messages,
       tools: [],
       onComplete
@@ -502,5 +507,65 @@ describe('useChatStream abort', () => {
 
     expect(submitted).toBe(true);
     expect(streamSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it('shows a streamed write_file preview before the final tool-call arrives', async () => {
+    const messages = ref<Message[]>([create.userMessage('帮我写一份发布说明')]);
+    const { stream } = useChatStream({
+      messages,
+      tools: []
+    });
+
+    const config: ServiceConfig = {
+      providerId: 'openai',
+      modelId: 'gpt-4o',
+      toolSupport: {
+        supported: true
+      }
+    };
+
+    await stream.streamMessages(messages.value, config);
+
+    capturedCallbacks?.onToolInputStart?.({
+      toolCallId: 'tool-call-1',
+      toolName: 'write_file'
+    });
+    await capturedCallbacks?.onToolInputDelta?.({
+      toolCallId: 'tool-call-1',
+      inputTextDelta: '{"path":"docs/release-notes.md","content":"# Release'
+    });
+
+    expect(messages.value[1].parts).toHaveLength(1);
+    expect(messages.value[1].parts[0]).toMatchObject({
+      type: 'tool-input',
+      toolCallId: 'tool-call-1',
+      toolName: 'write_file',
+      input: {
+        path: 'docs/release-notes.md',
+        content: '# Release'
+      },
+      inputText: '{"path":"docs/release-notes.md","content":"# Release'
+    });
+
+    capturedCallbacks?.onToolCall?.({
+      toolCallId: 'tool-call-1',
+      toolName: 'write_file',
+      input: {
+        path: 'docs/release-notes.md',
+        content: '# Release\n\n- Added preview state\n'
+      }
+    });
+
+    expect(messages.value[1].parts).toEqual([
+      {
+        type: 'tool-call',
+        toolCallId: 'tool-call-1',
+        toolName: 'write_file',
+        input: {
+          path: 'docs/release-notes.md',
+          content: '# Release\n\n- Added preview state\n'
+        }
+      }
+    ]);
   });
 });

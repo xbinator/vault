@@ -35,12 +35,7 @@ function emitTextDelta(text: string, isThinking: { value: boolean }, webContents
  * @param chunk - SDK 原始工具结果片段
  * @returns 渲染进程可直接消费的工具结果载荷
  */
-function normalizeToolResultChunk(chunk: {
-  toolCallId: string;
-  toolName: string;
-  output?: unknown;
-  result?: unknown;
-}): AIStreamToolResultChunk {
+function normalizeToolResultChunk(chunk: { toolCallId: string; toolName: string; output?: unknown; result?: unknown }): AIStreamToolResultChunk {
   const payload = chunk.result ?? chunk.output;
   const normalizedResult = (
     payload && typeof payload === 'object' && 'status' in payload && 'toolName' in payload
@@ -114,10 +109,13 @@ export function registerAIHandlers(): void {
           win.webContents.send('ai:stream:tool-call', { toolCallId: chunk.toolCallId, toolName: chunk.toolName, input: chunk.input });
         } else if (chunk.type === 'tool-input-start') {
           // 工具输入开始
+          win.webContents.send('ai:stream:tool-input-start', { toolCallId: chunk.id, toolName: chunk.toolName });
         } else if (chunk.type === 'tool-input-delta') {
           // 工具输入增量
+          win.webContents.send('ai:stream:tool-input-delta', { toolCallId: chunk.id, inputTextDelta: chunk.delta });
         } else if (chunk.type === 'tool-input-end') {
           // 工具输入结束
+          win.webContents.send('ai:stream:tool-input-end', { toolCallId: chunk.id });
         } else if (chunk.type === 'tool-result') {
           // 工具结果
           win.webContents.send('ai:stream:tool-result', normalizeToolResultChunk(chunk));

@@ -13,10 +13,14 @@ import type {
   AIStreamFinishChunk,
   AIStreamFinishReason,
   AIStreamToolCallChunk,
+  AIStreamToolInputDeltaChunk,
+  AIStreamToolInputEndChunk,
+  AIStreamToolInputStartChunk,
   AIStreamToolResultChunk
 } from 'types/ai';
 import type { AIUserChoiceAnswerData, ChatMessageConfirmationAction } from 'types/chat';
 import { nextTick, ref, shallowRef, type Ref } from 'vue';
+import { parsePartialJson } from 'ai';
 import dayjs from 'dayjs';
 import { isSdkManagedToolName } from '@/ai/tools/builtin';
 import { getModelToolSupport } from '@/ai/tools/policy';
@@ -116,6 +120,9 @@ export function useChatStream(options: UseChatStreamOptions): UseChatStreamRetur
         message.usage = usage;
       }
     },
+    onToolInputStart: handleAppendToolInputStart,
+    onToolInputDelta: handleAppendToolInputDelta,
+    onToolInputEnd: handleAppendToolInputEnd,
     onToolCall: handleAppendToolCall,
     onToolResult: handleAppendToolResult,
     onComplete: handleStreamComplete,
@@ -183,7 +190,57 @@ export function useChatStream(options: UseChatStreamOptions): UseChatStreamRetur
       return;
     }
 
+    append.removeToolInputPart(message, chunk.toolCallId);
     append.toolCallPart(message, chunk.toolCallId, chunk.toolName, chunk.input);
+  }
+
+  /**
+   * 追加助手工具输入预览片段。
+   */
+  function appendAssistantToolInputStart(chunk: AIStreamToolInputStartChunk): void {
+    const message = messages.value[messages.value.length - 1];
+    if (message?.role !== 'assistant') {
+      return;
+    }
+
+    append.toolInputStartPart(message, chunk.toolCallId, chunk.toolName);
+    message.createdAt ||= dayjs().toISOString();
+  }
+
+  /**
+   * 追加助手工具输入增量片段。
+   */
+  async function appendAssistantToolInputDelta(chunk: AIStreamToolInputDeltaChunk): Promise<void> {
+    const message = messages.value[messages.value.length - 1];
+    if (message?.role !== 'assistant') {
+      return;
+    }
+
+    const previewPart = message.parts.find(
+      (part): part is Extract<Message['parts'][number], { type: 'tool-input' }> => part.type === 'tool-input' && part.toolCallId === chunk.toolCallId
+    );
+    const nextInputText = `${previewPart?.inputText ?? ''}${chunk.inputTextDelta}`;
+    const parsed = await parsePartialJson(nextInputText);
+
+    append.toolInputDeltaPart(message, chunk.toolCallId, chunk.inputTextDelta, parsed.value);
+    message.createdAt ||= dayjs().toISOString();
+  }
+
+  /**
+   * 处理助手工具输入结束片段。
+   */
+  function appendAssistantToolInputEnd(chunk: AIStreamToolInputEndChunk): void {
+    const message = messages.value[messages.value.length - 1];
+    if (message?.role !== 'assistant') {
+      return;
+    }
+
+    const previewPart = message.parts.find((part) => part.type === 'tool-input' && part.toolCallId === chunk.toolCallId);
+    if (!previewPart) {
+      return;
+    }
+
+    message.createdAt ||= dayjs().toISOString();
   }
 
   /**
@@ -390,6 +447,27 @@ export function useChatStream(options: UseChatStreamOptions): UseChatStreamRetur
    */
   function handleAppendToolCall(chunk: AIStreamToolCallChunk) {
     handleToolCall(chunk);
+  }
+
+  /**
+   * 处理工具输入开始。
+   */
+  function handleAppendToolInputStart(chunk: AIStreamToolInputStartChunk) {
+    appendAssistantToolInputStart(chunk);
+  }
+
+  /**
+   * 处理工具输入增量。
+   */
+  async function handleAppendToolInputDelta(chunk: AIStreamToolInputDeltaChunk): Promise<void> {
+    await appendAssistantToolInputDelta(chunk);
+  }
+
+  /**
+   * 处理工具输入结束。
+   */
+  function handleAppendToolInputEnd(chunk: AIStreamToolInputEndChunk) {
+    appendAssistantToolInputEnd(chunk);
   }
 
   /**

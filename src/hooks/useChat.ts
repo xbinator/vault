@@ -1,5 +1,15 @@
 /* eslint-disable no-use-before-define */
-import type { AIServiceError, AIRequestOptions, AICreateOptions, AIStreamFinishChunk, AIStreamToolCallChunk, AIStreamToolResultChunk } from 'types/ai';
+import type {
+  AIServiceError,
+  AIRequestOptions,
+  AICreateOptions,
+  AIStreamFinishChunk,
+  AIStreamToolCallChunk,
+  AIStreamToolInputDeltaChunk,
+  AIStreamToolInputEndChunk,
+  AIStreamToolInputStartChunk,
+  AIStreamToolResultChunk
+} from 'types/ai';
 import { computed, toValue, ref, type MaybeRefOrGetter } from 'vue';
 import { message } from 'ant-design-vue';
 import { cloneDeep } from 'lodash-es';
@@ -21,6 +31,12 @@ export interface UseStreamOptions {
   onComplete?: () => void;
   /** 流式完成回调（包含 usage 信息） */
   onFinish?: (chunk: AIStreamFinishChunk) => void;
+  /** 工具输入开始回调 */
+  onToolInputStart?: (chunk: AIStreamToolInputStartChunk) => void;
+  /** 工具输入增量回调 */
+  onToolInputDelta?: (chunk: AIStreamToolInputDeltaChunk) => void;
+  /** 工具输入结束回调 */
+  onToolInputEnd?: (chunk: AIStreamToolInputEndChunk) => void;
   /** 工具调用回调 */
   onToolCall?: (chunk: AIStreamToolCallChunk) => void;
   /** 工具结果回调 */
@@ -101,6 +117,21 @@ export function useChat(options: UseStreamOptions) {
       options.onToolCall?.(toolCallChunk);
     });
 
+    const cleanupToolInputStart = electronAPI.onAiStreamToolInputStart((toolInputStartChunk) => {
+      if (currentRequestId.value !== requestId) return;
+      options.onToolInputStart?.(toolInputStartChunk);
+    });
+
+    const cleanupToolInputDelta = electronAPI.onAiStreamToolInputDelta((toolInputDeltaChunk) => {
+      if (currentRequestId.value !== requestId) return;
+      options.onToolInputDelta?.(toolInputDeltaChunk);
+    });
+
+    const cleanupToolInputEnd = electronAPI.onAiStreamToolInputEnd((toolInputEndChunk) => {
+      if (currentRequestId.value !== requestId) return;
+      options.onToolInputEnd?.(toolInputEndChunk);
+    });
+
     const cleanupToolResult = electronAPI.onAiStreamToolResult((toolResultChunk) => {
       if (currentRequestId.value !== requestId) return;
       options.onToolResult?.(toolResultChunk);
@@ -122,6 +153,9 @@ export function useChat(options: UseStreamOptions) {
       cleanupThinking();
       cleanupFinish();
       cleanupToolCall();
+      cleanupToolInputStart();
+      cleanupToolInputDelta();
+      cleanupToolInputEnd();
       cleanupToolResult();
       cleanupComplete();
       cleanupError();

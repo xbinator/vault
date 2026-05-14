@@ -383,6 +383,37 @@ export interface AIStreamToolCallChunk {
 }
 
 /**
+ * AI 流式工具输入开始片段。
+ * @description 模型开始流式输出工具参数时发送，通常早于最终 tool-call。
+ */
+export interface AIStreamToolInputStartChunk {
+  /** 工具调用标识符。 */
+  toolCallId: string;
+  /** 工具名称。 */
+  toolName: string;
+}
+
+/**
+ * AI 流式工具输入增量片段。
+ * @description 承载工具参数 JSON 的增量文本，可用于预览路径和正文内容。
+ */
+export interface AIStreamToolInputDeltaChunk {
+  /** 工具调用标识符。 */
+  toolCallId: string;
+  /** 工具输入 JSON 的增量文本。 */
+  inputTextDelta: string;
+}
+
+/**
+ * AI 流式工具输入结束片段。
+ * @description 表示工具参数的流式输入阶段结束。
+ */
+export interface AIStreamToolInputEndChunk {
+  /** 工具调用标识符。 */
+  toolCallId: string;
+}
+
+/**
  * AI 流式工具结果片段。
  * @description 由主进程将 SDK 工具结果规范化后发送给渲染进程。
  */
