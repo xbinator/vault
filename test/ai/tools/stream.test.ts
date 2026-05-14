@@ -110,8 +110,7 @@ describe('AI tool stream helpers', () => {
           toolCallId: '',
           mode: 'single',
           question: '请选择',
-          options: [{ label: '官网', value: 'official' }],
-          allowOther: false
+          options: [{ label: '官网', value: 'official' }]
         });
       }
     };

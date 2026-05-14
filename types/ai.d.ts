@@ -53,8 +53,6 @@ export interface AIAwaitingUserChoiceQuestion {
   question: string;
   /** 可用选项。 */
   options: AIChoiceOption[];
-  /** 是否允许其他文本输入。 */
-  allowOther: boolean;
   /** 多选时的最大选择数。 */
   maxSelections?: number;
 }

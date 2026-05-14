@@ -389,8 +389,7 @@ describe('BChat message helpers', () => {
         toolCallId: 'tool-call-1',
         mode: 'single',
         question: '请选择渠道',
-        options: [{ label: '官网', value: 'official' }],
-        allowOther: false
+        options: [{ label: '官网', value: 'official' }]
       }
     });
 
@@ -412,8 +411,7 @@ describe('BChat message helpers', () => {
         toolCallId: 'tool-call-1',
         mode: 'single',
         question: '请选择渠道',
-        options: [{ label: '官网', value: 'official' }],
-        allowOther: false
+        options: [{ label: '官网', value: 'official' }]
       }
     });
 

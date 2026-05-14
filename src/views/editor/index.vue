@@ -25,10 +25,10 @@
 import { computed, onActivated, onBeforeUnmount, onDeactivated, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { editorToolContextRegistry } from '@/ai/tools/editor-context';
-import { buildUnsavedPath } from '@/utils/fileReference/unsavedPath';
 import BEditor from '@/components/BEditor/index.vue';
 import type { BEditorPublicInstance } from '@/components/BEditor/types';
 import { useEditorPreferencesStore } from '@/stores/editorPreferences';
+import { buildUnsavedPath } from '@/utils/fileReference/unsavedPath';
 import { useBindings } from './hooks/useBindings';
 import { useFileSelection } from './hooks/useFileSelection';
 import { useSession } from './hooks/useSession';

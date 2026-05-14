@@ -21,8 +21,6 @@ export interface AskUserQuestionInput {
   mode: 'single' | 'multiple';
   /** Available options. */
   options: AIChoiceOption[];
-  /** Whether free-form text input is allowed. */
-  allowOther?: boolean;
   /** Maximum number of answers allowed in multiple mode. */
   maxSelections?: number;
 }
@@ -116,7 +114,6 @@ function createQuestionPayload(input: AskUserQuestionInput, questionId: string):
     question: input.question,
     mode: input.mode,
     options: input.options,
-    allowOther: input.allowOther ?? false,
     maxSelections: input.mode === 'multiple' ? input.maxSelections : undefined
   };
 }
@@ -154,7 +151,6 @@ export function createAskUserQuestionTool(options: CreateAskUserQuestionToolOpti
               additionalProperties: false
             }
           },
-          allowOther: { type: 'boolean', description: '是否允许用户输入其他内容。', default: false },
           maxSelections: { type: 'number', description: '多选时允许选择的最大数量。' }
         },
         required: ['question', 'mode', 'options'],
@@ -166,17 +162,13 @@ export function createAskUserQuestionTool(options: CreateAskUserQuestionToolOpti
         return createToolFailureResult(ASK_USER_QUESTION_TOOL_NAME, 'EXECUTION_FAILED', '当前已有待回答问题，请等待用户先完成作答。');
       }
 
-      const normalizedInput: AskUserQuestionInput = {
-        ...input,
-        allowOther: input.allowOther ?? false
-      };
-      const validationError = validateAskUserQuestionInput(normalizedInput);
+      const validationError = validateAskUserQuestionInput(input);
 
       if (validationError) {
         return createToolFailureResult(ASK_USER_QUESTION_TOOL_NAME, 'INVALID_INPUT', validationError);
       }
 
-      return createAwaitingUserInputResult(ASK_USER_QUESTION_TOOL_NAME, createQuestionPayload(normalizedInput, options.createQuestionId()));
+      return createAwaitingUserInputResult(ASK_USER_QUESTION_TOOL_NAME, createQuestionPayload(input, options.createQuestionId()));
     }
   };
 }

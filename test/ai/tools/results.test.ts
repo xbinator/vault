@@ -56,8 +56,7 @@ describe('AI tool result helpers', () => {
       options: [
         { label: 'Official', value: 'official' },
         { label: 'Xiaohongshu', value: 'xiaohongshu' }
-      ],
-      allowOther: false
+      ]
     });
 
     expect(result).toEqual({
@@ -71,8 +70,7 @@ describe('AI tool result helpers', () => {
         options: [
           { label: 'Official', value: 'official' },
           { label: 'Xiaohongshu', value: 'xiaohongshu' }
-        ],
-        allowOther: false
+        ]
       }
     });
 

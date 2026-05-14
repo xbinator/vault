@@ -211,17 +211,17 @@ export function useChatStream(options: UseChatStreamOptions): UseChatStreamRetur
   }
 
   /**
-   * 将当前助手消息标记为“等待用户继续”的中间态。
-   * 该状态应保留 loading，以表达对话尚未结束，只是暂停等待用户补充输入。
+   * 将当前助手消息标记为“等待用户继续”的已暂停态。
+   * 消息本身应结束当前流式展示，但输入区保持忙碌态以表达会话尚未真正完成。
    */
-  function markAssistantMessageAwaitingUserChoice(): void {
+  function finalizeAssistantMessageAwaitingUserChoice(): void {
     const message = messages.value[messages.value.length - 1];
     if (message?.role !== 'assistant') {
       return;
     }
 
-    message.loading = true;
-    message.finished = false;
+    message.loading = false;
+    message.finished = true;
     message.createdAt ||= dayjs().toISOString();
   }
 
@@ -312,7 +312,7 @@ export function useChatStream(options: UseChatStreamOptions): UseChatStreamRetur
 
     if (result.result.status === 'awaiting_user_input') {
       awaitingUserChoice.value = true;
-      markAssistantMessageAwaitingUserChoice();
+      finalizeAssistantMessageAwaitingUserChoice();
       return;
     }
 
@@ -456,33 +456,42 @@ export function useChatStream(options: UseChatStreamOptions): UseChatStreamRetur
       return;
     }
 
-    loading.value = false;
-    activeTaskType.value = null;
     const roundId = currentToolRoundId;
     const tracker = currentToolCallTracker;
 
     await tracker.waitForAll();
     if (!roundId || roundId !== currentToolRoundId) {
+      loading.value = false;
+      activeTaskType.value = null;
       return;
     }
 
     if (blockedToolLoopReason.value) {
+      loading.value = false;
+      activeTaskType.value = null;
       executedToolCallIds = new Set();
       return;
     }
 
     const message = messages.value[messages.value.length - 1];
     if (message?.role === 'error') {
+      loading.value = false;
+      activeTaskType.value = null;
       return;
     }
 
     if (awaitingUserChoice.value || userChoice.findPending(messages.value)) {
-      markAssistantMessageAwaitingUserChoice();
+      finalizeAssistantMessageAwaitingUserChoice();
+      loading.value = true;
+      activeTaskType.value = null;
       if (message) {
         onComplete?.(message);
       }
       return;
     }
+
+    loading.value = false;
+    activeTaskType.value = null;
 
     if (message) {
       message.loading = false;
@@ -580,7 +589,8 @@ export function useChatStream(options: UseChatStreamOptions): UseChatStreamRetur
    * 用户选择提交
    */
   async function submitUserChoice(answer: AIUserChoiceAnswerData): Promise<boolean> {
-    if (loading.value) {
+    const isAwaitingChoice = awaitingUserChoice.value || userChoice.findPending(messages.value);
+    if (loading.value && !isAwaitingChoice) {
       return false;
     }
 

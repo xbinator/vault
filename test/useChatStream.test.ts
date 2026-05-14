@@ -333,7 +333,7 @@ describe('useChatStream abort', () => {
     expect(messages.value[1].parts.some((part) => part.type === 'error')).toBe(false);
   });
 
-  it('keeps the assistant message in loading state while awaiting user choice submission', async () => {
+  it('keeps stream loading active but finalizes the assistant message while awaiting user choice submission', async () => {
     const askUserQuestionTool: AIToolExecutor = {
       definition: {
         name: 'ask_user_question',
@@ -353,8 +353,7 @@ describe('useChatStream abort', () => {
           toolCallId: '',
           mode: 'single',
           question: '请选择渠道',
-          options: [{ label: '官网', value: 'official' }],
-          allowOther: false
+          options: [{ label: '官网', value: 'official' }]
         });
       }
     };
@@ -384,9 +383,9 @@ describe('useChatStream abort', () => {
     await capturedCallbacks?.onComplete?.();
     await Promise.resolve();
 
-    expect(loading.value).toBe(false);
-    expect(messages.value[1].loading).toBe(true);
-    expect(messages.value[1].finished).not.toBe(true);
+    expect(loading.value).toBe(true);
+    expect(messages.value[1].loading).toBe(false);
+    expect(messages.value[1].finished).toBe(true);
     expect(onComplete).toHaveBeenCalledTimes(1);
     expect(onComplete).toHaveBeenCalledWith(messages.value[1]);
   });
@@ -434,5 +433,74 @@ describe('useChatStream abort', () => {
     expect(messages.value[1].finished).toBe(true);
     expect(onComplete).toHaveBeenCalledTimes(1);
     expect(onComplete).toHaveBeenCalledWith(messages.value[1]);
+  });
+
+  it('allows submitting user choice while stream loading remains active for awaiting input', async () => {
+    const askUserQuestionTool: AIToolExecutor = {
+      definition: {
+        name: 'ask_user_question',
+        description: 'Ask the user a question and wait for input.',
+        source: 'builtin',
+        riskLevel: 'read',
+        requiresActiveDocument: false,
+        parameters: {
+          type: 'object',
+          properties: {},
+          additionalProperties: false
+        }
+      },
+      async execute() {
+        return createAwaitingUserInputResult('ask_user_question', {
+          questionId: 'question-1',
+          toolCallId: '',
+          mode: 'single',
+          question: '请选择渠道',
+          options: [{ label: '官网', value: 'official' }]
+        });
+      }
+    };
+    getAvailableServiceConfigMock.mockResolvedValue({
+      providerId: 'openai',
+      modelId: 'gpt-4o',
+      toolSupport: {
+        supported: true
+      }
+    } satisfies ServiceConfig);
+    const messages = ref<Message[]>([create.userMessage('需要你确认渠道')]);
+    const { stream, loading } = useChatStream({
+      messages,
+      tools: [askUserQuestionTool]
+    });
+
+    const config: ServiceConfig = {
+      providerId: 'openai',
+      modelId: 'gpt-4o',
+      toolSupport: {
+        supported: true
+      }
+    };
+
+    await stream.streamMessages(messages.value, config);
+    capturedCallbacks?.onToolCall?.({
+      toolCallId: 'tool-call-1',
+      toolName: 'ask_user_question',
+      input: {}
+    });
+    await Promise.resolve();
+    await capturedCallbacks?.onComplete?.();
+    await Promise.resolve();
+
+    expect(loading.value).toBe(true);
+
+    const submitted = await stream.submitUserChoice({
+      questionId: 'question-1',
+      toolCallId: 'tool-call-1',
+      answers: ['official'],
+      otherText: ''
+    });
+    await nextTick();
+
+    expect(submitted).toBe(true);
+    expect(streamSpy).toHaveBeenCalledTimes(2);
   });
 });

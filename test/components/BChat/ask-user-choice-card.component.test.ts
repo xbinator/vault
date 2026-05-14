@@ -25,7 +25,6 @@ function createQuestion(overrides: Partial<AIAwaitingUserChoiceQuestion> = {}): 
       { label: '官网', value: 'official' },
       { label: '短视频', value: 'video' }
     ],
-    allowOther: false,
     ...overrides
   };
 }
@@ -77,8 +76,8 @@ describe('AskUserChoiceCard', () => {
     expect((updatedCheckboxes[1].element as HTMLInputElement).disabled).toBe(true);
   });
 
-  it('submits other text when manual input is enabled', async () => {
-    const wrapper = mountAskUserChoiceCard(createQuestion({ allowOther: true }));
+  it('always supports submitting other text', async () => {
+    const wrapper = mountAskUserChoiceCard(createQuestion());
 
     await wrapper.find('input[type="text"]').setValue('线下活动');
     await wrapper.find('button').trigger('click');

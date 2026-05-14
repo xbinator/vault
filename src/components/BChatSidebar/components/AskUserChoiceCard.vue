@@ -20,7 +20,7 @@
       </label>
     </div>
 
-    <input v-if="question.allowOther" v-model="otherText" class="choice-card__other" type="text" placeholder="其他..." />
+    <input v-model="otherText" class="choice-card__other" type="text" placeholder="其他..." />
 
     <div class="choice-card__footer">
       <BButton size="small" :disabled="!canSubmit" @click="handleSubmit">提交选择</BButton>

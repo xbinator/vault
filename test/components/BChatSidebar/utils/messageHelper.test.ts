@@ -379,7 +379,6 @@ describe('userChoice.findPending', () => {
       mode: 'single' as const,
       question: 'Choose an option',
       options: [{ id: 'opt1', label: 'Option 1', value: 'opt1' }],
-      allowOther: false
     };
     const message: Message = {
       id: 'test-id',
@@ -440,7 +439,6 @@ describe('userChoice.submitAnswer', () => {
       mode: 'single' as const,
       question: 'Choose an option',
       options: [{ id: 'opt1', label: 'Option 1', value: 'opt1' }],
-      allowOther: false
     };
     const message: Message = {
       id: 'test-id',

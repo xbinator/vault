@@ -66,13 +66,12 @@ describe('createAskUserQuestionTool', () => {
         options: [
           { label: 'Official', value: 'official' },
           { label: 'Video', value: 'video' }
-        ],
-        allowOther: false
+        ]
       }
     });
   });
 
-  it('keeps allowOther and maxSelections for valid multiple-choice questions', async () => {
+  it('keeps maxSelections for valid multiple-choice questions', async () => {
     const tool = createAskUserQuestionTool({
       getPendingQuestion: () => null,
       createQuestionId: () => 'question-2'
@@ -87,7 +86,6 @@ describe('createAskUserQuestionTool', () => {
           { label: 'Beta', value: 'beta' },
           { label: 'Nightly', value: 'nightly' }
         ],
-        allowOther: true,
         maxSelections: 2
       },
       createContext()
@@ -104,7 +102,6 @@ describe('createAskUserQuestionTool', () => {
         { label: 'Beta', value: 'beta' },
         { label: 'Nightly', value: 'nightly' }
       ],
-      allowOther: true,
       maxSelections: 2
     });
   });
