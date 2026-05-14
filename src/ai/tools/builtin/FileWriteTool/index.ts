@@ -157,14 +157,7 @@ async function executeConfirmedWrite(
 /**
  * 处理目标为未保存草稿的写入流程。
  */
-async function handleUnsavedWrite(
-  options: CreateBuiltinWriteFileToolOptions,
-  context: AIToolContext | undefined,
-  targetPath: string,
-  content: string
-): Promise<
-  ReturnType<typeof createToolSuccessResult<WriteFileResult>> | ReturnType<typeof createToolFailureResult> | ReturnType<typeof createToolCancelledResult>
-> {
+async function handleUnsavedWrite(options: CreateBuiltinWriteFileToolOptions, context: AIToolContext | undefined, targetPath: string, content: string) {
   const unsavedReference = parseUnsavedPath(targetPath);
   if (!unsavedReference) {
     return fail('INVALID_INPUT', `未识别的未保存文档路径：${targetPath}`);
