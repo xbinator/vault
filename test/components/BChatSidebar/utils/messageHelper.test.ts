@@ -372,7 +372,7 @@ describe('userChoice.findPending', () => {
     expect(userChoice.findPending(messages)).toBeNull();
   });
 
-  it('finds pending user choice in last message', () => {
+  it('finds pending ask_user_question in last message', () => {
     const questionData = {
       questionId: 'q1',
       toolCallId: 'tc1',
@@ -389,9 +389,9 @@ describe('userChoice.findPending', () => {
         {
           type: 'tool-result',
           toolCallId: 'tc1',
-          toolName: 'ask_user_choice',
+          toolName: 'ask_user_question',
           result: {
-            toolName: 'ask_user_choice',
+            toolName: 'ask_user_question',
             status: 'awaiting_user_input',
             data: questionData
           }
@@ -413,10 +413,10 @@ describe('userChoice.findPending', () => {
         {
           type: 'tool-result',
           toolCallId: 'tc1',
-          toolName: 'ask_user_choice',
+          toolName: 'ask_user_question',
           result: {
             status: 'success',
-            toolName: 'ask_user_choice',
+            toolName: 'ask_user_question',
             data: {
               questionId: 'q1',
               selectedOptionId: 'opt1'
@@ -450,9 +450,9 @@ describe('userChoice.submitAnswer', () => {
         {
           type: 'tool-result',
           toolCallId: 'tc1',
-          toolName: 'ask_user_choice',
+          toolName: 'ask_user_question',
           result: {
-            toolName: 'ask_user_choice',
+            toolName: 'ask_user_question',
             status: 'awaiting_user_input',
             data: questionData
           }

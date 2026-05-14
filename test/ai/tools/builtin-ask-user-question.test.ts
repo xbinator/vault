@@ -1,13 +1,13 @@
 /**
- * @file builtin-ask-user-choice.test.ts
- * @description Tests for the built-in ask_user_choice tool executor.
+ * @file builtin-ask-user-question.test.ts
+ * @description Tests for the built-in ask_user_question tool executor.
  */
 import type { AIToolContext } from 'types/ai';
 import { describe, expect, it } from 'vitest';
 import { createAskUserQuestionTool } from '@/ai/tools/builtin/AskUserQuestionTool';
 
 /**
- * Creates a stable tool execution context for ask_user_choice tests.
+ * Creates a stable tool execution context for ask_user_question tests.
  * @returns Tool execution context.
  */
 function createContext(): AIToolContext {

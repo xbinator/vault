@@ -377,12 +377,12 @@ describe('BChat message helpers', () => {
     expect(is.removableAssistantPlaceholder(message)).toBe(false);
   });
 
-  it('finds an awaiting ask_user_choice question in assistant history', () => {
+  it('finds an awaiting ask_user_question in assistant history', () => {
     const message = create.assistantPlaceholder();
 
-    append.toolCallPart(message, 'tool-call-1', 'ask_user_choice', { question: '请选择渠道' });
-    append.toolResultPart(message, 'tool-call-1', 'ask_user_choice', {
-      toolName: 'ask_user_choice',
+    append.toolCallPart(message, 'tool-call-1', 'ask_user_question', { question: '请选择渠道' });
+    append.toolResultPart(message, 'tool-call-1', 'ask_user_question', {
+      toolName: 'ask_user_question',
       status: 'awaiting_user_input',
       data: {
         questionId: 'question-1',
@@ -400,12 +400,12 @@ describe('BChat message helpers', () => {
     });
   });
 
-  it('replaces awaiting ask_user_choice result with the submitted answer for model history', () => {
+  it('replaces awaiting ask_user_question result with the submitted answer for model history', () => {
     const message = create.assistantPlaceholder();
 
-    append.toolCallPart(message, 'tool-call-1', 'ask_user_choice', { question: '请选择渠道' });
-    append.toolResultPart(message, 'tool-call-1', 'ask_user_choice', {
-      toolName: 'ask_user_choice',
+    append.toolCallPart(message, 'tool-call-1', 'ask_user_question', { question: '请选择渠道' });
+    append.toolResultPart(message, 'tool-call-1', 'ask_user_question', {
+      toolName: 'ask_user_question',
       status: 'awaiting_user_input',
       data: {
         questionId: 'question-1',
@@ -432,7 +432,7 @@ describe('BChat message helpers', () => {
           {
             type: 'tool-call',
             toolCallId: 'tool-call-1',
-            toolName: 'ask_user_choice',
+            toolName: 'ask_user_question',
             input: { question: '请选择渠道' }
           }
         ]
@@ -443,11 +443,11 @@ describe('BChat message helpers', () => {
           {
             type: 'tool-result',
             toolCallId: 'tool-call-1',
-            toolName: 'ask_user_choice',
+            toolName: 'ask_user_question',
             output: {
               type: 'json',
               value: {
-                toolName: 'ask_user_choice',
+                toolName: 'ask_user_question',
                 status: 'success',
                 data: {
                   questionId: 'question-1',

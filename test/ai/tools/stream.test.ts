@@ -94,8 +94,8 @@ describe('AI tool stream helpers', () => {
   it('injects toolCallId into awaiting user input results', async () => {
     const awaitingTool: AIToolExecutor<Record<string, never>> = {
       definition: {
-        name: 'ask_user_choice',
-        description: 'Ask user choice',
+        name: 'ask_user_question',
+        description: 'Ask user question',
         source: 'builtin',
         riskLevel: 'read',
         parameters: {
@@ -105,7 +105,7 @@ describe('AI tool stream helpers', () => {
         }
       },
       async execute() {
-        return createAwaitingUserInputResult('ask_user_choice', {
+        return createAwaitingUserInputResult('ask_user_question', {
           questionId: 'question-1',
           toolCallId: '',
           mode: 'single',
@@ -116,7 +116,7 @@ describe('AI tool stream helpers', () => {
       }
     };
 
-    const result = await executeToolCall({ toolCallId: 'tool-call-1', toolName: 'ask_user_choice', input: {} }, [awaitingTool], createContext());
+    const result = await executeToolCall({ toolCallId: 'tool-call-1', toolName: 'ask_user_question', input: {} }, [awaitingTool], createContext());
     const messages = createToolResultMessages([result]);
 
     expect(result.result).toMatchObject({

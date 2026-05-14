@@ -36,7 +36,7 @@ function makeToolCallMsg(id: string, toolCallId: string, toolName: string, hasRe
 }
 
 /**
- * 创建含等待用户选择的工具结果消息。
+ * 创建含等待用户提问的工具结果消息。
  */
 function makeAwaitingUserChoiceMsg(id: string): Message {
   return makeMsg({
@@ -47,7 +47,7 @@ function makeAwaitingUserChoiceMsg(id: string): Message {
       {
         type: 'tool-result',
         toolCallId: 'tc-choice',
-        toolName: 'ask_user_choice',
+        toolName: 'ask_user_question',
         result: { status: 'awaiting_user_input', data: { questionId: 'q1', question: 'choose' } } as never
       }
     ]
@@ -103,6 +103,26 @@ describe('planner - classifyMessages', () => {
     const messages: Message[] = [msg];
 
     const result = planCompression(messages, 0);
+    expect(result.preservedMessages).toContain(msg);
+  });
+
+  it('preserves legacy ask_user_choice awaiting messages for existing histories', async () => {
+    const { planCompression } = await import('@/components/BChatSidebar/utils/compression/planner');
+    const msg = makeMsg({
+      id: 'm-legacy',
+      role: 'assistant',
+      content: 'awaiting legacy choice',
+      parts: [
+        {
+          type: 'tool-result',
+          toolCallId: 'tc-choice-legacy',
+          toolName: 'ask_user_choice',
+          result: { status: 'awaiting_user_input', data: { questionId: 'q-legacy', question: 'choose' } } as never
+        }
+      ]
+    });
+
+    const result = planCompression([msg], 0);
     expect(result.preservedMessages).toContain(msg);
   });
 

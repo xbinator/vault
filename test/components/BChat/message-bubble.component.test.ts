@@ -178,6 +178,49 @@ function createMessageWithFileReferencePart(): Message {
 }
 
 /**
+ * 创建等待用户回答问题的助手消息。
+ * @returns assistant 消息
+ */
+function createMessageWithAwaitingUserQuestion(): Message {
+  return {
+    id: 'assistant-question-1',
+    role: 'assistant',
+    content: '',
+    createdAt: '2026-05-14T00:00:00.000Z',
+    finished: true,
+    parts: [
+      {
+        type: 'tool-call',
+        toolCallId: 'tool-call-1',
+        toolName: 'ask_user_question',
+        input: {
+          question: '请选择渠道',
+          mode: 'single',
+          options: [{ label: '官网', value: 'official' }]
+        }
+      },
+      {
+        type: 'tool-result',
+        toolCallId: 'tool-call-1',
+        toolName: 'ask_user_question',
+        result: {
+          toolName: 'ask_user_question',
+          status: 'awaiting_user_input',
+          data: {
+            questionId: 'question-1',
+            toolCallId: 'tool-call-1',
+            mode: 'single',
+            question: '请选择渠道',
+            options: [{ label: '官网', value: 'official' }],
+            allowOther: false
+          }
+        }
+      }
+    ]
+  };
+}
+
+/**
  * 挂载 MessageBubble。
  * @param message - 消息数据
  * @returns 挂载结果
@@ -241,5 +284,14 @@ describe('MessageBubble confirmation integration', () => {
     expect(wrapper.text()).toContain('请看');
     expect(wrapper.text()).toContain('foo.ts');
     expect(wrapper.text()).toContain('这里');
+  });
+
+  it('renders ask_user_question awaiting results as an interactive choice card', () => {
+    const wrapper = mountMessageBubble(createMessageWithAwaitingUserQuestion());
+
+    expect(wrapper.text()).toContain('请选择渠道');
+    expect(wrapper.text()).toContain('官网');
+    expect(wrapper.text()).toContain('提交选择');
+    expect(wrapper.text()).not.toContain('工具结果：ask_user_question');
   });
 });

@@ -4,6 +4,9 @@
  */
 import type { Message } from '@/components/BChatSidebar/utils/types';
 
+/** 兼容历史消息与新工具实现的用户提问工具名称。 */
+const ASK_USER_QUESTION_TOOL_NAMES = new Set(['ask_user_choice', 'ask_user_question']);
+
 /**
  * 判断 assistant 消息是否含有未完成的工具调用（有 tool-call 但没有对应 tool-result）。
  */
@@ -16,14 +19,14 @@ function hasUnfinishedToolCalls(message: Message): boolean {
 }
 
 /**
- * 判断消息是否含有等待用户回答的 ask_user_choice 交互。
+ * 判断消息是否含有等待用户回答的用户提问交互。
  */
 function hasAwaitingUserChoice(message: Message): boolean {
   if (message.role !== 'assistant') return false;
   return message.parts.some(
     (part) =>
       part.type === 'tool-result' &&
-      part.toolName === 'ask_user_choice' &&
+      ASK_USER_QUESTION_TOOL_NAMES.has(part.toolName) &&
       typeof part.result === 'object' &&
       part.result !== null &&
       (part.result as unknown as Record<string, unknown>).status === 'awaiting_user_input'

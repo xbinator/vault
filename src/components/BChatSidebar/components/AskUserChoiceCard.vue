@@ -4,13 +4,15 @@
 
     <div class="choice-card__options">
       <label v-for="option in question.options" :key="option.value" class="choice-card__option">
-        <input
-          :type="inputType"
-          :value="option.value"
-          :checked="selectedValues.includes(option.value)"
-          :disabled="isOptionDisabled(option.value)"
-          @change="handleOptionChange(option.value, ($event.target as HTMLInputElement).checked)"
-        />
+        <div class="choice-card__option-input">
+          <input
+            :type="inputType"
+            :value="option.value"
+            :checked="selectedValues.includes(option.value)"
+            :disabled="isOptionDisabled(option.value)"
+            @change="handleOptionChange(option.value, ($event.target as HTMLInputElement).checked)"
+          />
+        </div>
         <span class="choice-card__option-main">
           <span>{{ option.label }}</span>
           <small v-if="option.description">{{ option.description }}</small>
@@ -29,7 +31,7 @@
 <script setup lang="ts">
 /**
  * @file AskUserChoiceCard.vue
- * @description 渲染 ask_user_choice 等待态工具结果并提交用户答案。
+ * @description 渲染 ask_user_question 等待态工具结果，并兼容历史 ask_user_choice 消息的答案提交。
  */
 import type { AIAwaitingUserChoiceQuestion } from 'types/ai';
 import type { AIUserChoiceAnswerData } from 'types/chat';
@@ -128,6 +130,12 @@ function handleSubmit(): void {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+.choice-card__option-input {
+  display: flex;
+  align-items: center;
+  height: 20px;
 }
 
 .choice-card__option {

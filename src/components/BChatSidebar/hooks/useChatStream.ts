@@ -211,6 +211,21 @@ export function useChatStream(options: UseChatStreamOptions): UseChatStreamRetur
   }
 
   /**
+   * 将当前助手消息标记为“等待用户继续”的中间态。
+   * 该状态应保留 loading，以表达对话尚未结束，只是暂停等待用户补充输入。
+   */
+  function markAssistantMessageAwaitingUserChoice(): void {
+    const message = messages.value[messages.value.length - 1];
+    if (message?.role !== 'assistant') {
+      return;
+    }
+
+    message.loading = true;
+    message.finished = false;
+    message.createdAt ||= dayjs().toISOString();
+  }
+
+  /**
    * 判断助手消息是否已经包含最终可见回答。
    */
   function hasVisibleAssistantAnswer(message: Message): boolean {
@@ -296,6 +311,7 @@ export function useChatStream(options: UseChatStreamOptions): UseChatStreamRetur
 
     if (result.result.status === 'awaiting_user_input') {
       awaitingUserChoice.value = true;
+      markAssistantMessageAwaitingUserChoice();
       return;
     }
 
@@ -455,20 +471,21 @@ export function useChatStream(options: UseChatStreamOptions): UseChatStreamRetur
     }
 
     const message = messages.value[messages.value.length - 1];
-    if (message) {
-      message.loading = false;
-      message.finished = true;
-    }
-
     if (message?.role === 'error') {
       return;
     }
 
     if (awaitingUserChoice.value || userChoice.findPending(messages.value)) {
+      markAssistantMessageAwaitingUserChoice();
       if (message) {
         onComplete?.(message);
       }
       return;
+    }
+
+    if (message) {
+      message.loading = false;
+      message.finished = true;
     }
 
     if (pendingToolResults.value.length && lastServiceConfig) {

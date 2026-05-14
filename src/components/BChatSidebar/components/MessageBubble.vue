@@ -90,7 +90,7 @@ import BBubble from '@/components/BBubble/index.vue';
 import BImageViewer from '@/components/BImageViewer/index.vue';
 import { useClipboard } from '@/hooks/useClipboard';
 import { createNamespace } from '@/utils/namespace';
-import { extractLastTextPart } from '../utils/messageHelper';
+import { extractLastTextPart, isAwaitingUserChoiceResult } from '../utils/messageHelper';
 import { formatMessageTime } from '../utils/timeFormat';
 import AskUserChoiceCard from './AskUserChoiceCard.vue';
 import ConfirmationCard from './ConfirmationCard.vue';
@@ -148,7 +148,7 @@ const imagePreviewList = computed(() => imageFiles.value.map((file) => file.url 
  * @param part - 消息片段
  */
 function isAwaitingUserChoicePart(part: ChatMessagePart): part is ChatMessageToolResultPart & { result: AIToolExecutionAwaitingUserInputResult } {
-  return part.type === 'tool-result' && part.toolName === 'ask_user_choice' && part.result.status === 'awaiting_user_input';
+  return isAwaitingUserChoiceResult(part);
 }
 
 /**

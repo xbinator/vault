@@ -48,7 +48,7 @@ describe('AI tool result helpers', () => {
   });
 
   it('creates an awaiting user input result with question data', () => {
-    const result = createAwaitingUserInputResult('ask_user_choice', {
+    const result = createAwaitingUserInputResult('ask_user_question', {
       questionId: 'question-1',
       toolCallId: 'tool-call-1',
       mode: 'single',
@@ -61,7 +61,7 @@ describe('AI tool result helpers', () => {
     });
 
     expect(result).toEqual({
-      toolName: 'ask_user_choice',
+      toolName: 'ask_user_question',
       status: 'awaiting_user_input',
       data: {
         questionId: 'question-1',

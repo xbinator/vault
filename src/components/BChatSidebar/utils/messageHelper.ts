@@ -52,6 +52,9 @@ export type ToolModelMessageContent = Array<{
 /** 工具结果类型 */
 export type ToolResult = Extract<ChatMessagePart, { type: 'tool-result' }>['result'];
 
+/** 兼容历史消息与新工具实现的用户提问工具名称。 */
+const ASK_USER_QUESTION_TOOL_NAMES = new Set(['ask_user_choice', 'ask_user_question']);
+
 // ─── 内部工具函数 ────────────────────────────────────────────────────────────
 
 /**
@@ -194,8 +197,10 @@ export const create = {
 
 // ─── find / submit —— 用户选择题流程 ─────────────────────────────────────────
 
-function isAwaitingUserChoiceResult(part: ChatMessagePart): part is ChatMessageToolResultPart & { result: AIToolExecutionAwaitingUserInputResult } {
-  return part.type === 'tool-result' && part.toolName === 'ask_user_choice' && part.result.status === 'awaiting_user_input';
+export function isAwaitingUserChoiceResult(
+  part: ChatMessagePart
+): part is ChatMessageToolResultPart & { result: AIToolExecutionAwaitingUserInputResult } {
+  return part.type === 'tool-result' && ASK_USER_QUESTION_TOOL_NAMES.has(part.toolName) && part.result.status === 'awaiting_user_input';
 }
 
 export const userChoice = {
@@ -224,7 +229,7 @@ export const userChoice = {
 
       if (resultPart?.type !== 'tool-result') continue;
 
-      resultPart.result = { toolName: 'ask_user_choice', status: 'success', data: answer };
+      resultPart.result = { toolName: resultPart.toolName, status: 'success', data: answer };
       return true;
     }
     return false;
