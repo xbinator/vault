@@ -130,7 +130,8 @@ async function initMermaid(): Promise<typeof mermaid> {
     startOnLoad: false,
     theme,
     securityLevel: 'loose',
-    fontFamily: 'inherit'
+    fontFamily: 'inherit',
+    suppressErrorRendering: true
   });
 
   mermaidInitialized = true;
