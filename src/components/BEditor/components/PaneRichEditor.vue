@@ -743,15 +743,6 @@ defineExpose({
     background-color: var(--editor-table-header-bg);
     border-right: 1px solid var(--editor-table-border);
     border-bottom: 1px solid var(--editor-table-border);
-
-    &:first-child {
-      border-top-left-radius: 8px;
-    }
-
-    &:last-child {
-      border-right: none;
-      border-top-right-radius: 8px;
-    }
   }
 
   td {
@@ -769,16 +760,32 @@ defineExpose({
     }
   }
 
-  tr:last-child {
-    td {
-      border-bottom: none;
+  tr {
+    &:first-child {
+      td,
+      th {
+        &:first-child {
+          border-top-left-radius: 8px;
+        }
 
-      &:first-child {
-        border-bottom-left-radius: 8px;
+        &:last-child {
+          border-right: none;
+          border-top-right-radius: 8px;
+        }
       }
+    }
 
-      &:last-child {
-        border-bottom-right-radius: 8px;
+    &:last-child {
+      td {
+        border-bottom: none;
+
+        &:first-child {
+          border-bottom-left-radius: 8px;
+        }
+
+        &:last-child {
+          border-bottom-right-radius: 8px;
+        }
       }
     }
   }
