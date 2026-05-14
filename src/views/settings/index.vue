@@ -1,9 +1,9 @@
 <template>
   <div class="settings-container">
-    <div class="settings-sidebar" :class="{ 'settings-sidebar--collapsed': sidebarCollapsed }">
+    <div class="settings-sidebar" :class="{ 'settings-sidebar--collapsed': sidebarCollapsed }" draggable="false">
       <template v-for="(group, gi) in menuGroups" :key="gi">
         <div v-if="gi > 0" class="sidebar-divider"></div>
-        <RouterLink v-for="item in group.items" :key="item.key" :to="item.path" class="sidebar-item" :class="{ active: isActive(item.key) }">
+        <RouterLink v-for="item in group.items" :key="item.key" :to="item.path" class="sidebar-item" :class="{ active: isActive(item.key) }" draggable="false">
           <Icon :icon="item.icon" class="sidebar-item__icon" />
           <span class="sidebar-item__label">{{ item.label }}</span>
         </RouterLink>
@@ -60,6 +60,8 @@ function isActive(key: SettingsMenuKey): boolean {
   padding: 16px 8px 12px 2px;
   overflow-y: auto;
   transition: width 0.3s ease;
+  -webkit-user-drag: none;
+  user-drag: none;
 
   &--collapsed {
     width: var(--sidebar-width-small);
@@ -116,6 +118,8 @@ function isActive(key: SettingsMenuKey): boolean {
   text-decoration: none;
   cursor: pointer;
   user-select: none;
+  -webkit-user-drag: none;
+  user-drag: none;
   border-radius: 6px;
   transition: all 0.15s;
 
