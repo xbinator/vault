@@ -6,6 +6,7 @@ import type { AIToolContext } from 'types/ai';
 import { describe, expect, it, vi } from 'vitest';
 import { createBuiltinWriteFileTool } from '@/ai/tools/builtin/FileWriteTool';
 import type { FileReadSnapshot } from '@/ai/tools/shared/fileTypes';
+import type { StoredFile } from '@/shared/storage/files/types';
 
 /**
  * 创建测试用文件快照。
@@ -30,14 +31,16 @@ function createSnapshotState(): {
 /**
  * 创建测试用工具上下文。
  * @param path - 当前激活文档路径
+ * @param locator - 当前激活文档定位符
  * @returns 工具执行上下文
  */
-function createToolContext(path: string | null): AIToolContext {
+function createToolContext(path: string | null, locator?: string): AIToolContext {
   return {
     document: {
       id: 'doc-1',
       title: 'Example',
       path,
+      locator,
       getContent: () => 'const value = 1;\n'
     },
     editor: {
@@ -46,6 +49,23 @@ function createToolContext(path: string | null): AIToolContext {
       replaceSelection: async () => undefined,
       replaceDocument: async () => undefined
     }
+  };
+}
+
+/**
+ * 创建测试用未保存草稿。
+ * @param overrides - 覆盖字段
+ * @returns 草稿记录
+ */
+function createUnsavedDraft(overrides: Partial<StoredFile> = {}): StoredFile {
+  return {
+    id: 'ytjdxrm4',
+    path: null,
+    content: '# Draft\n',
+    savedContent: '# Draft\n',
+    name: 'Untitled',
+    ext: 'md',
+    ...overrides
   };
 }
 
@@ -254,5 +274,88 @@ describe('createBuiltinWriteFileTool', () => {
     expect(result.status).toBe('success');
     expect(replaceDocument).toHaveBeenCalledWith('const value = 2;\n');
     expect(writeFile).not.toHaveBeenCalled();
+  });
+
+  it('writes to the active unsaved document when the target locator matches it', async () => {
+    const snapshotState = createSnapshotState();
+    const writeFile = vi.fn(async () => undefined);
+    const replaceDocument = vi.fn(async () => undefined);
+    const tool = createBuiltinWriteFileTool({
+      confirm: { confirm: async () => true },
+      getWorkspaceRoot: () => '/workspace',
+      getReadSnapshot: snapshotState.getReadSnapshot,
+      setReadSnapshot: snapshotState.setReadSnapshot,
+      readWorkspaceFile: async () => {
+        throw new Error('should not read workspace file');
+      },
+      writeFile
+    });
+    const unsavedPath = 'unsaved://ytjdxrm4/Untitled.md';
+    const context = createToolContext(null, unsavedPath);
+    context.editor.replaceDocument = replaceDocument;
+
+    const result = await tool.execute({
+      path: unsavedPath,
+      content: '# Updated Draft\n'
+    }, context);
+
+    expect(result.status).toBe('success');
+    expect(result.data).toEqual({
+      path: unsavedPath,
+      content: '# Updated Draft\n',
+      created: false
+    });
+    expect(replaceDocument).toHaveBeenCalledWith('# Updated Draft\n');
+    expect(writeFile).not.toHaveBeenCalled();
+    expect(snapshotState.getReadSnapshot(unsavedPath)).toEqual({
+      path: unsavedPath,
+      content: '# Updated Draft\n',
+      isPartial: false,
+      readAt: expect.any(Number)
+    });
+  });
+
+  it('writes to a stored unsaved draft when the target locator is not active', async () => {
+    const snapshotState = createSnapshotState();
+    const writeFile = vi.fn(async () => undefined);
+    const updateUnsavedDraft = vi.fn(async (_fileId: string, updates: Partial<StoredFile>) => {
+      return createUnsavedDraft(updates);
+    });
+    const tool = createBuiltinWriteFileTool({
+      confirm: { confirm: async () => true },
+      getWorkspaceRoot: () => '/workspace',
+      getUnsavedDraft: async () => createUnsavedDraft(),
+      updateUnsavedDraft,
+      getReadSnapshot: snapshotState.getReadSnapshot,
+      setReadSnapshot: snapshotState.setReadSnapshot,
+      readWorkspaceFile: async () => {
+        throw new Error('should not read workspace file');
+      },
+      writeFile
+    });
+    const unsavedPath = 'unsaved://ytjdxrm4/Untitled.md';
+
+    const result = await tool.execute({
+      path: unsavedPath,
+      content: '# Updated Draft\n'
+    }, createToolContext('/workspace/src/example.ts'));
+
+    expect(result.status).toBe('success');
+    expect(result.data).toEqual({
+      path: unsavedPath,
+      content: '# Updated Draft\n',
+      created: false
+    });
+    expect(updateUnsavedDraft).toHaveBeenCalledWith('ytjdxrm4', {
+      content: '# Updated Draft\n',
+      modifiedAt: expect.any(Number)
+    });
+    expect(writeFile).not.toHaveBeenCalled();
+    expect(snapshotState.getReadSnapshot(unsavedPath)).toEqual({
+      path: unsavedPath,
+      content: '# Updated Draft\n',
+      isPartial: false,
+      readAt: expect.any(Number)
+    });
   });
 });

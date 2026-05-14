@@ -5,6 +5,7 @@
 import type { AIToolConfirmationAdapter } from '../../confirmation';
 import type { FileReadSnapshot } from '../../shared/fileTypes';
 import type { ReadWorkspaceFileOptions, ReadWorkspaceFileResult } from '@/shared/platform/native/types';
+import type { StoredFile } from '@/shared/storage/files/types';
 
 /**
  * write_file 输入参数。
@@ -40,6 +41,10 @@ export interface CreateBuiltinWriteFileToolOptions {
   readWorkspaceFile?: (options: ReadWorkspaceFileOptions) => Promise<ReadWorkspaceFileResult>;
   /** 写入本地文件，测试时可注入替身。 */
   writeFile?: (path: string, content: string) => Promise<void>;
+  /** 按草稿 ID 读取未保存文件，测试时可注入替身。 */
+  getUnsavedDraft?: (fileId: string) => Promise<StoredFile | null>;
+  /** 更新未保存文件内容，测试时可注入替身。 */
+  updateUnsavedDraft?: (fileId: string, updates: Partial<StoredFile>) => Promise<StoredFile>;
   /** 获取指定文件的最近读取快照。 */
   getReadSnapshot: (filePath: string) => FileReadSnapshot | null;
   /** 写入指定文件的最新读取快照。 */
