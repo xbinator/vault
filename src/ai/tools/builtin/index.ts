@@ -27,6 +27,21 @@ export { QUERY_LOGS_TOOL_NAME } from './LogsTool';
 export { GET_SETTINGS_TOOL_NAME, UPDATE_SETTINGS_TOOL_NAME } from './SettingsTool';
 
 /**
+ * 由主进程 AI SDK 直接执行的远端工具名称。
+ * 这些工具会出现在流式 tool-call 中，但不会由渲染进程本地 executor 执行。
+ */
+export const SDK_MANAGED_TOOL_NAMES = ['tavily_search', 'tavily_extract'] as const;
+
+/**
+ * 判断工具名称是否由主进程 AI SDK 直接托管执行。
+ * @param toolName - 工具名称
+ * @returns 是否为 SDK 托管工具
+ */
+export function isSdkManagedToolName(toolName: string): boolean {
+  return SDK_MANAGED_TOOL_NAMES.includes(toolName as (typeof SDK_MANAGED_TOOL_NAMES)[number]);
+}
+
+/**
  * 默认开放的只读内置工具名称列表。
  */
 export const DEFAULT_BUILTIN_READONLY_TOOL_NAMES = [

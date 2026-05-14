@@ -15,6 +15,10 @@ import type { Message, ServiceConfig } from '@/components/BChatSidebar/utils/typ
 interface MockChatCallbacks {
   /** 流式完成回调 */
   onComplete?: () => void;
+  /** 工具调用回调 */
+  onToolCall?: (chunk: import('types/ai').AIStreamToolCallChunk) => void;
+  /** 工具结果回调 */
+  onToolResult?: (chunk: import('types/ai').AIStreamToolResultChunk) => void;
 }
 
 /**
@@ -163,5 +167,104 @@ describe('useChatStream abort', () => {
       })
     );
     expect(getAvailableServiceConfigMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not try to execute Tavily SDK tools locally when the stream emits a remote tool call', async () => {
+    const messages = ref<Message[]>([create.userMessage('搜索一下最新消息')]);
+    const onComplete = vi.fn<(message: Message) => void>();
+    const { stream, loading } = useChatStream({
+      messages,
+      tools: [],
+      onComplete
+    });
+
+    const config: ServiceConfig = {
+      providerId: 'openai',
+      modelId: 'gpt-4o',
+      toolSupport: {
+        supported: true
+      }
+    };
+
+    await stream.streamMessages(messages.value, config);
+    capturedCallbacks?.onToolCall?.({
+      toolCallId: 'tool-call-1',
+      toolName: 'tavily_search',
+      input: { query: 'AI news' }
+    });
+    capturedCallbacks?.onComplete?.();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(messages.value).toHaveLength(2);
+    expect(messages.value[1].role).toBe('assistant');
+    expect(messages.value[1].parts).toEqual([
+      {
+        type: 'tool-call',
+        toolCallId: 'tool-call-1',
+        toolName: 'tavily_search',
+        input: { query: 'AI news' }
+      }
+    ]);
+    expect(messages.value[1].parts.some((part) => part.type === 'tool-result')).toBe(false);
+    expect(messages.value.some((message) => message.role === 'error')).toBe(false);
+    expect(onComplete).toHaveBeenCalledTimes(1);
+  });
+
+  it('appends Tavily remote tool results into assistant message parts', async () => {
+    const messages = ref<Message[]>([create.userMessage('搜索一下最新消息')]);
+    const { stream } = useChatStream({
+      messages,
+      tools: []
+    });
+
+    const config: ServiceConfig = {
+      providerId: 'openai',
+      modelId: 'gpt-4o',
+      toolSupport: {
+        supported: true
+      }
+    };
+
+    await stream.streamMessages(messages.value, config);
+    capturedCallbacks?.onToolCall?.({
+      toolCallId: 'tool-call-1',
+      toolName: 'tavily_search',
+      input: { query: 'AI news' }
+    });
+    capturedCallbacks?.onToolResult?.({
+      toolCallId: 'tool-call-1',
+      toolName: 'tavily_search',
+      result: {
+        toolName: 'tavily_search',
+        status: 'success',
+        data: {
+          answer: 'AI news summary',
+          results: [{ title: 'Headline' }]
+        }
+      }
+    });
+
+    expect(messages.value[1].parts).toEqual([
+      {
+        type: 'tool-call',
+        toolCallId: 'tool-call-1',
+        toolName: 'tavily_search',
+        input: { query: 'AI news' }
+      },
+      {
+        type: 'tool-result',
+        toolCallId: 'tool-call-1',
+        toolName: 'tavily_search',
+        result: {
+          toolName: 'tavily_search',
+          status: 'success',
+          data: {
+            answer: 'AI news summary',
+            results: [{ title: 'Headline' }]
+          }
+        }
+      }
+    ]);
   });
 });

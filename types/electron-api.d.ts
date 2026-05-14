@@ -1,4 +1,4 @@
-import type { AICreateOptions, AIRequestOptions, AIServiceError, AIInvokeResult, AIStreamFinishChunk, AIStreamToolCallChunk } from './ai';
+import type { AICreateOptions, AIRequestOptions, AIServiceError, AIInvokeResult, AIStreamFinishChunk, AIStreamToolCallChunk, AIStreamToolResultChunk } from './ai';
 
 /**
  * Electron API 类型定义
@@ -286,6 +286,7 @@ export interface ElectronAPI {
   onAiStreamError: (callback: (error: AIServiceError) => void) => () => void;
   onAiStreamFinish: (callback: (payload: AIStreamFinishChunk) => void) => () => void;
   onAiStreamToolCall: (callback: (payload: AIStreamToolCallChunk) => void) => () => void;
+  onAiStreamToolResult: (callback: (payload: AIStreamToolResultChunk) => void) => () => void;
 
   // 控制台日志（保留原有，与文件日志分离）
   consoleLogger: {

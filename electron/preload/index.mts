@@ -4,7 +4,7 @@
  * 通过 contextBridge 将 electronAPI 注入到 window 对象
  */
 
-import type { AIServiceError, AIStreamFinishChunk, AIStreamToolCallChunk } from 'types/ai';
+import type { AIServiceError, AIStreamFinishChunk, AIStreamToolCallChunk, AIStreamToolResultChunk } from 'types/ai';
 import type { ElectronAPI, ElectronSpeechInstallProgress, FileChangeEvent } from 'types/electron-api';
 import { contextBridge, ipcRenderer } from 'electron';
 import { formatPreloadErrorMessage, shouldIgnorePreloadError } from './error-collector.mjs';
@@ -323,6 +323,15 @@ const electronAPI: ElectronAPI = {
     ipcRenderer.on('ai:stream:tool-call', handler);
     return () => {
       ipcRenderer.removeListener('ai:stream:tool-call', handler);
+    };
+  },
+
+  onAiStreamToolResult: (callback) => {
+    const handler = (_event: Electron.IpcRendererEvent, payload: AIStreamToolResultChunk) => callback(payload);
+
+    ipcRenderer.on('ai:stream:tool-result', handler);
+    return () => {
+      ipcRenderer.removeListener('ai:stream:tool-result', handler);
     };
   },
 

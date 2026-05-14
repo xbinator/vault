@@ -6,10 +6,11 @@
 import type { CachedModelMessagesResult } from '../utils/messageHelper';
 import type { Message, ServiceConfig, ToolLoopGuardConfig } from '../utils/types';
 import type { ModelMessage } from 'ai';
-import type { AIToolExecutor, AIToolContext, AIServiceError, AIStreamFinishChunk, AIStreamToolCallChunk } from 'types/ai';
+import type { AIToolExecutor, AIToolContext, AIServiceError, AIStreamFinishChunk, AIStreamToolCallChunk, AIStreamToolResultChunk } from 'types/ai';
 import type { AIUserChoiceAnswerData, ChatMessageConfirmationAction } from 'types/chat';
 import { nextTick, ref, shallowRef, type Ref } from 'vue';
 import dayjs from 'dayjs';
+import { isSdkManagedToolName } from '@/ai/tools/builtin';
 import { getModelToolSupport } from '@/ai/tools/policy';
 import { executeToolCall, toTransportTools, type ExecutedToolCall } from '@/ai/tools/stream';
 import { useChat } from '@/hooks/useChat';
@@ -68,6 +69,10 @@ const DEFAULT_TOOL_LOOP_GUARD_CONFIG: ToolLoopGuardConfig = {
   maxRepeatedCalls: 2
 };
 
+/**
+ * 由主进程 AI SDK 直接执行的远端工具名称。
+ * 这些工具会在主进程内完成调用并继续同一轮流式输出，前端不应再次尝试本地执行。
+ */
 export function useChatStream(options: UseChatStreamOptions): UseChatStreamReturns {
   const { messages, tools, getToolContext, onBeforeRegenerate, onComplete } = options;
 
@@ -102,6 +107,7 @@ export function useChatStream(options: UseChatStreamOptions): UseChatStreamRetur
       }
     },
     onToolCall: handleAppendToolCall,
+    onToolResult: handleAppendToolResult,
     onComplete: handleStreamComplete,
     onError: handleStreamError
   });
@@ -182,6 +188,18 @@ export function useChatStream(options: UseChatStreamOptions): UseChatStreamRetur
   }
 
   /**
+   * 追加主进程返回的远端工具结果片段。
+   */
+  function appendAssistantRemoteToolResult(chunk: AIStreamToolResultChunk) {
+    const message = messages.value[messages.value.length - 1];
+    if (message?.role !== 'assistant') {
+      return;
+    }
+
+    append.toolResultPart(message, chunk.toolCallId, chunk.toolName, chunk.result);
+  }
+
+  /**
    * 追加错误消息到消息列表
    * 如果最后一条消息不是 user，则将错误信息追加到该消息的 parts 中
    * 否则创建新的错误消息推入列表
@@ -247,6 +265,11 @@ export function useChatStream(options: UseChatStreamOptions): UseChatStreamRetur
     executedToolCallIds.add(chunk.toolCallId);
     appendAssistantToolCall(chunk);
 
+    // Tavily 等远端 SDK 工具由主进程直接执行，前端仅展示 tool-call，不再本地回放执行。
+    if (!tools?.some((item) => item.definition.name === chunk.toolName) && isSdkManagedToolName(chunk.toolName)) {
+      return;
+    }
+
     const guardResult = currentToolLoopGuard.recordToolCall(chunk.toolName, chunk.input);
     if (!guardResult.allowed) {
       stopToolLoop(guardResult.reason ?? '工具调用重复次数超过限制，已停止自动续轮。');
@@ -302,6 +325,14 @@ export function useChatStream(options: UseChatStreamOptions): UseChatStreamRetur
    */
   function handleAppendToolCall(chunk: AIStreamToolCallChunk) {
     handleToolCall(chunk);
+  }
+
+  /**
+   * 处理远端 SDK 工具结果。
+   * 这些结果已经由主进程完成执行，前端只负责补充展示，不参与本地工具续轮。
+   */
+  function handleAppendToolResult(chunk: AIStreamToolResultChunk) {
+    appendAssistantRemoteToolResult(chunk);
   }
 
   /**

@@ -3,7 +3,7 @@
  * @description AI 服务 IPC 处理器，负责处理渲染进程与主进程之间的 AI 相关通信
  */
 import type { WebContents } from 'electron';
-import type { AICreateOptions, AIRequestOptions } from 'types/ai';
+import type { AICreateOptions, AIRequestOptions, AIStreamToolResultChunk } from 'types/ai';
 import { ipcMain } from 'electron';
 import { getWindowFromWebContents } from '../../window.mjs';
 import { aiService } from './service.mjs';
@@ -28,6 +28,35 @@ function emitTextDelta(text: string, isThinking: { value: boolean }, webContents
     isThinking.value = !isThinking.value;
     remaining = remaining.slice(tagIndex + tag.length);
   }
+}
+
+/**
+ * 规范化 AI SDK 的工具结果事件。
+ * @param chunk - SDK 原始工具结果片段
+ * @returns 渲染进程可直接消费的工具结果载荷
+ */
+function normalizeToolResultChunk(chunk: {
+  toolCallId: string;
+  toolName: string;
+  output?: unknown;
+  result?: unknown;
+}): AIStreamToolResultChunk {
+  const payload = chunk.result ?? chunk.output;
+  const normalizedResult = (
+    payload && typeof payload === 'object' && 'status' in payload && 'toolName' in payload
+      ? payload
+      : {
+          toolName: chunk.toolName,
+          status: 'success',
+          data: payload
+        }
+  ) as AIStreamToolResultChunk['result'];
+
+  return {
+    toolCallId: chunk.toolCallId,
+    toolName: chunk.toolName,
+    result: normalizedResult
+  };
 }
 /**
  * 注册 AI 相关的 IPC 处理器
@@ -91,6 +120,7 @@ export function registerAIHandlers(): void {
           // 工具输入结束
         } else if (chunk.type === 'tool-result') {
           // 工具结果
+          win.webContents.send('ai:stream:tool-result', normalizeToolResultChunk(chunk));
         } else if (chunk.type === 'error') {
           // 流式错误
           win.webContents.send('ai:stream:error', chunk.error);

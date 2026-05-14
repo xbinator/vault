@@ -374,9 +374,25 @@ export interface AIRequestOptions {
 }
 
 export interface AIStreamToolCallChunk {
+  /** 工具调用标识符。 */
   toolCallId: string;
+  /** 工具名称。 */
   toolName: string;
+  /** 工具输入参数。 */
   input: unknown;
+}
+
+/**
+ * AI 流式工具结果片段。
+ * @description 由主进程将 SDK 工具结果规范化后发送给渲染进程。
+ */
+export interface AIStreamToolResultChunk {
+  /** 工具调用标识符。 */
+  toolCallId: string;
+  /** 工具名称。 */
+  toolName: string;
+  /** 规范化后的工具执行结果。 */
+  result: AIToolExecutionResult;
 }
 
 /**

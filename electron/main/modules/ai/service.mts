@@ -5,7 +5,7 @@
 import type { ToolSet } from 'ai';
 import type { AICreateOptions, AIRequestOptions, AIInvokeResult, AIStreamResult, AIServiceError } from 'types/ai';
 import { tavilyExtract, tavilySearch } from '@tavily/ai-sdk';
-import { generateText, jsonSchema, Output, streamText, tool } from 'ai';
+import { generateText, jsonSchema, Output, stepCountIs, streamText, tool } from 'ai';
 import { log } from '../logger/service.mjs';
 import { AI_ERROR_CODE } from './errors/codes.mjs';
 import { AIProviderRegistry } from './providers/_index.mjs';
@@ -39,6 +39,15 @@ function createTavilySdkTools(tavily: AIRequestOptions['tavily']): ToolSet {
       format: tavily.extractDefaults.format
     })
   };
+}
+
+/**
+ * 判断当前请求是否启用了主进程可直接执行的 Tavily SDK 工具。
+ * @param tavily - Tavily 配置
+ * @returns 是否需要开启 SDK 多步工具循环
+ */
+function hasTavilySdkTools(tavily: AIRequestOptions['tavily']): boolean {
+  return Boolean(tavily?.enabled && tavily.apiKey.trim());
 }
 
 /**
@@ -122,7 +131,8 @@ class AIService {
       system: request.system,
       temperature: request.temperature,
       maxOutputTokens: request.maxOutputTokens,
-      tools: toSdkTools(request.tools, request.tavily)
+      tools: toSdkTools(request.tools, request.tavily),
+      ...(hasTavilySdkTools(request.tavily) ? { stopWhen: stepCountIs(5) } : {})
     };
   }
 

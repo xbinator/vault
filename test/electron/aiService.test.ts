@@ -6,11 +6,13 @@ import type { AICreateOptions, AIRequestOptions } from 'types/ai';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const generateTextMock = vi.fn();
+const streamTextMock = vi.fn();
 const jsonSchemaMock = vi.fn();
 const outputObjectMock = vi.fn();
 const logErrorMock = vi.fn();
 const logWarnMock = vi.fn();
 const toolMock = vi.fn();
+const stepCountIsMock = vi.fn();
 const tavilySearchMock = vi.fn();
 const tavilyExtractMock = vi.fn();
 
@@ -20,7 +22,8 @@ vi.mock('ai', () => ({
   },
   generateText: generateTextMock,
   jsonSchema: jsonSchemaMock,
-  streamText: vi.fn(),
+  stepCountIs: stepCountIsMock,
+  streamText: streamTextMock,
   tool: toolMock
 }));
 
@@ -61,11 +64,13 @@ describe('aiService', () => {
   beforeEach(() => {
     vi.resetModules();
     generateTextMock.mockReset();
+    streamTextMock.mockReset();
     jsonSchemaMock.mockReset();
     outputObjectMock.mockReset();
     logErrorMock.mockReset();
     logWarnMock.mockReset();
     toolMock.mockReset();
+    stepCountIsMock.mockReset();
     tavilySearchMock.mockReset();
     tavilyExtractMock.mockReset();
   });
@@ -159,6 +164,7 @@ describe('aiService', () => {
 
     tavilySearchMock.mockReturnValue({ kind: 'tavily-search-tool' });
     tavilyExtractMock.mockReturnValue({ kind: 'tavily-extract-tool' });
+    stepCountIsMock.mockReturnValue({ kind: 'stop-when-5' });
     generateTextMock.mockResolvedValue({
       text: 'ok',
       output: undefined,
@@ -187,6 +193,55 @@ describe('aiService', () => {
     });
     expect(generateTextMock).toHaveBeenCalledWith(
       expect.objectContaining({
+        stopWhen: { kind: 'stop-when-5' },
+        tools: expect.objectContaining({
+          tavily_search: { kind: 'tavily-search-tool' },
+          tavily_extract: { kind: 'tavily-extract-tool' }
+        })
+      })
+    );
+  });
+
+  it('enables multi-step tool continuation for Tavily during streamText', async () => {
+    const { aiService } = await import('../../electron/main/modules/ai/service.mjs');
+    const createOptions: AICreateOptions = { providerType: 'openai', providerId: 'provider-1', providerName: 'OpenAI' };
+    const request: AIRequestOptions = {
+      modelId: 'model-1',
+      prompt: '搜索一下今天的 AI 新闻',
+      tavily: {
+        enabled: true,
+        apiKey: 'tvly-dev-key',
+        searchDefaults: {
+          searchDepth: 'basic',
+          topic: 'general',
+          timeRange: null,
+          country: 'china',
+          maxResults: 5,
+          includeAnswer: true,
+          includeImages: false,
+          includeDomains: ['example.com'],
+          excludeDomains: []
+        },
+        extractDefaults: {
+          extractDepth: 'basic',
+          format: 'markdown',
+          includeImages: false
+        }
+      }
+    };
+
+    tavilySearchMock.mockReturnValue({ kind: 'tavily-search-tool' });
+    tavilyExtractMock.mockReturnValue({ kind: 'tavily-extract-tool' });
+    stepCountIsMock.mockReturnValue({ kind: 'stop-when-5' });
+    streamTextMock.mockReturnValue({ fullStream: [] });
+
+    await aiService.streamText(createOptions, request);
+
+    expect(stepCountIsMock).toHaveBeenCalledWith(5);
+    expect(streamTextMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        prompt: '搜索一下今天的 AI 新闻',
+        stopWhen: { kind: 'stop-when-5' },
         tools: expect.objectContaining({
           tavily_search: { kind: 'tavily-search-tool' },
           tavily_extract: { kind: 'tavily-extract-tool' }

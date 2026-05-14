@@ -1,5 +1,5 @@
 /* eslint-disable no-use-before-define */
-import type { AIServiceError, AIRequestOptions, AICreateOptions, AIStreamFinishChunk, AIStreamToolCallChunk } from 'types/ai';
+import type { AIServiceError, AIRequestOptions, AICreateOptions, AIStreamFinishChunk, AIStreamToolCallChunk, AIStreamToolResultChunk } from 'types/ai';
 import { computed, toValue, ref, type MaybeRefOrGetter } from 'vue';
 import { message } from 'ant-design-vue';
 import { cloneDeep } from 'lodash-es';
@@ -23,6 +23,8 @@ export interface UseStreamOptions {
   onFinish?: (chunk: AIStreamFinishChunk) => void;
   /** 工具调用回调 */
   onToolCall?: (chunk: AIStreamToolCallChunk) => void;
+  /** 工具结果回调 */
+  onToolResult?: (chunk: AIStreamToolResultChunk) => void;
 }
 
 /**
@@ -99,6 +101,11 @@ export function useChat(options: UseStreamOptions) {
       options.onToolCall?.(toolCallChunk);
     });
 
+    const cleanupToolResult = electronAPI.onAiStreamToolResult((toolResultChunk) => {
+      if (currentRequestId.value !== requestId) return;
+      options.onToolResult?.(toolResultChunk);
+    });
+
     const cleanupComplete = electronAPI.onAiStreamComplete(() => {
       if (currentRequestId.value !== requestId) return;
       options.onComplete?.();
@@ -115,6 +122,7 @@ export function useChat(options: UseStreamOptions) {
       cleanupThinking();
       cleanupFinish();
       cleanupToolCall();
+      cleanupToolResult();
       cleanupComplete();
       cleanupError();
       // 只有当前请求 ID 与当前请求 ID 一致时才重置为 null
