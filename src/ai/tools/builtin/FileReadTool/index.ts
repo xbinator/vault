@@ -3,7 +3,6 @@
  * @description 内置本地文件读取工具实现。
  */
 import type { AIToolConfirmationAdapter, AIToolConfirmationRequest } from '../../confirmation';
-import type { FileReadSnapshot } from '../../shared/fileTypes';
 import type { AIToolExecutionError, AIToolExecutor } from 'types/ai';
 import { native } from '@/shared/platform';
 import type {
@@ -71,8 +70,6 @@ export interface CreateBuiltinReadFileToolOptions {
   readWorkspaceFile?: (options: ReadWorkspaceFileOptions) => Promise<ReadWorkspaceFileResult>;
   /** 读取本地目录，测试时可注入替身 */
   readWorkspaceDirectory?: (options: ReadWorkspaceDirectoryOptions) => Promise<ReadWorkspaceDirectoryResult>;
-  /** 读取成功后记录文件快照 */
-  trackReadResult?: (result: ReadFileResult, range: { offset: number; limit?: number }, snapshot: FileReadSnapshot) => void;
 }
 
 /** read_directory 工具输入参数 */
@@ -248,13 +245,6 @@ export function createBuiltinReadFileTool(options: CreateBuiltinReadFileToolOpti
           hasMore,
           nextOffset: hasMore ? endLine + 1 : null
         };
-        options.trackReadResult?.(result, range, {
-          path: result.path,
-          content: result.content,
-          isPartial: range.offset !== DEFAULT_OFFSET || result.hasMore,
-          readAt: Date.now()
-        });
-
         return createToolSuccessResult<ReadFileResult>(READ_FILE_TOOL_NAME, result);
       }
 
@@ -287,13 +277,6 @@ export function createBuiltinReadFileTool(options: CreateBuiltinReadFileToolOpti
           offset: range.offset,
           ...(range.limit === undefined ? {} : { limit: range.limit })
         });
-        options.trackReadResult?.(result, range, {
-          path: result.path,
-          content: result.content,
-          isPartial: range.offset !== DEFAULT_OFFSET || result.hasMore,
-          readAt: Date.now()
-        });
-
         return createToolSuccessResult(READ_FILE_TOOL_NAME, result);
       } catch (error) {
         const code = mapWorkspaceErrorCode(readErrorCode(error));

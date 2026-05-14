@@ -8,10 +8,7 @@ import { createBuiltinReadTools } from '@/ai/tools/builtin/DocumentTool';
  * @param content - 文档内容
  * @returns 工具上下文
  */
-function createContext(
-  overrides: Partial<AIToolContext['document']> = {},
-  content = 'alpha beta\nbeta gamma'
-): AIToolContext {
+function createContext(overrides: Partial<AIToolContext['document']> = {}, content = 'alpha beta\nbeta gamma'): AIToolContext {
   return {
     document: {
       id: 'doc-1',

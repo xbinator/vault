@@ -46,11 +46,14 @@ export function createBuiltinReadTools(): BuiltinReadTools {
         parameters: { type: 'object', properties: {}, additionalProperties: false }
       },
       async execute(_input: Record<string, never>, context: AIToolContext) {
+        const path = context.document.locator ?? context.document.path ?? buildUnsavedPath({ id: context.document.id, fileName: context.document.title });
+        const content = context.document.getContent();
+
         return createToolSuccessResult(READ_CURRENT_DOCUMENT_TOOL_NAME, {
           id: context.document.id,
           title: context.document.title,
-          path: context.document.locator ?? context.document.path ?? buildUnsavedPath({ id: context.document.id, fileName: context.document.title }),
-          content: context.document.getContent()
+          path,
+          content
         });
       }
     }

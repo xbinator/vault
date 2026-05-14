@@ -4,7 +4,6 @@
  */
 import type { CreateBuiltinWriteFileToolOptions, WriteFileInput, WriteFileResult } from './types';
 import type { AIToolConfirmationAdapter, AIToolConfirmationRequest } from '../../confirmation';
-import type { FileReadSnapshot } from '../../shared/fileTypes';
 import type { AIToolContext, AIToolExecutionError, AIToolExecutor } from 'types/ai';
 import { native } from '@/shared/platform';
 import type { ReadWorkspaceFileResult } from '@/shared/platform/native/types';
@@ -12,7 +11,6 @@ import { recentFilesStorage } from '@/shared/storage';
 import type { StoredFile } from '@/shared/storage/files/types';
 import { isUnsavedPath, parseUnsavedPath } from '@/utils/fileReference/unsavedPath';
 import { createToolCancelledResult, createToolFailureResult, createToolSuccessResult } from '../../results';
-import { toFileToolExecutionError } from '../../shared/fileErrors';
 import { isAbsoluteFilePath, isPathInsideWorkspace, resolvePathAgainstWorkspace } from '../../shared/pathUtils';
 
 export const WRITE_FILE_TOOL_NAME = 'write_file';
@@ -194,8 +192,6 @@ async function handleUnsavedWrite(options: CreateBuiltinWriteFileToolOptions, co
     } else {
       await writeUnsavedDraft(options, unsavedReference.fileId, { content, modifiedAt: Date.now() });
     }
-
-    options.setReadSnapshot({ path: targetPath, content, isPartial: false, readAt: Date.now() });
     return { path: targetPath, content, created: false };
   });
 }
@@ -230,31 +226,6 @@ async function tryReadWorkspaceFile(
 }
 
 /**
- * 校验读取快照，确保文件在上次读取后未被修改。
- */
-function validateReadSnapshot(
-  options: CreateBuiltinWriteFileToolOptions,
-  currentFile: ReadWorkspaceFileResult
-): ReturnType<typeof createToolFailureResult> | null {
-  const snapshot = options.getReadSnapshot(currentFile.path);
-
-  if (!snapshot) {
-    const error = toFileToolExecutionError('FILE_NOT_READ');
-    return fail(error.code, error.message);
-  }
-  if (snapshot.isPartial) {
-    const error = toFileToolExecutionError('FILE_READ_PARTIAL');
-    return fail(error.code, error.message);
-  }
-  if (snapshot.content !== currentFile.content) {
-    const error = toFileToolExecutionError('FILE_CHANGED');
-    return fail(error.code, error.message);
-  }
-
-  return null;
-}
-
-/**
  * 处理目标为工作区文件的写入流程。
  */
 async function handleWorkspaceWrite(
@@ -276,11 +247,6 @@ async function handleWorkspaceWrite(
   }
 
   const currentFile = fileOrError as ReadWorkspaceFileResult | null;
-
-  if (currentFile) {
-    const snapshotError = validateReadSnapshot(options, currentFile);
-    if (snapshotError) return snapshotError;
-  }
 
   let targetPath: string;
   if (currentFile) {
@@ -318,10 +284,6 @@ async function handleWorkspaceWrite(
     } else {
       await writeFile(targetPath, content);
     }
-
-    const nextSnapshot: FileReadSnapshot = { path: targetPath, content, isPartial: false, readAt: Date.now() };
-    options.setReadSnapshot(nextSnapshot);
-
     return { path: targetPath, content, created: currentFile === null };
   });
 }
@@ -337,7 +299,7 @@ export function createBuiltinWriteFileTool(options: CreateBuiltinWriteFileToolOp
   return {
     definition: {
       name: WRITE_FILE_TOOL_NAME,
-      description: '创建新文件或使用完整内容覆盖本地文本文件。覆盖已有文件前必须先通过 read_file 完整读取目标文件。',
+      description: '创建新文件或使用完整内容覆盖本地文本文件。执行前会向用户展示确认信息。',
       source: 'builtin',
       riskLevel: 'dangerous',
       requiresActiveDocument: false,

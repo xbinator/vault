@@ -3,10 +3,8 @@
  * @description 内置工具工厂函数，内置工具名称清单与默认暴露策略
  */
 import type { AIToolConfirmationAdapter } from '../confirmation';
-import type { FileReadSnapshot } from '../shared/fileTypes';
 import type { AIToolExecutor } from 'types/ai';
 import { nanoid } from 'nanoid';
-import { createFileStateStore } from '../shared/fileState';
 import { ASK_USER_QUESTION_TOOL_NAME, createAskUserQuestionTool, type PendingQuestionSnapshot } from './AskUserQuestionTool';
 import { READ_CURRENT_DOCUMENT_TOOL_NAME, createBuiltinReadTools } from './DocumentTool';
 import { GET_CURRENT_TIME_TOOL_NAME, createBuiltinEnvironmentTools } from './EnvironmentTool';
@@ -107,8 +105,6 @@ interface CreateBuiltinToolsOptions {
  * @returns 工具执行器列表
  */
 export function createBuiltinTools(options: CreateBuiltinToolsOptions = {}): AIToolExecutor[] {
-  /** 共享文件快照状态，用于约束文件级写入必须基于最新读结果。 */
-  const fileState = createFileStateStore();
   // 创建文档只读工具
   const readTools = createBuiltinReadTools();
   // 创建环境只读工具
@@ -126,14 +122,7 @@ export function createBuiltinTools(options: CreateBuiltinToolsOptions = {}): AIT
     createBuiltinReadFileTool({
       confirm: options.confirm,
       getWorkspaceRoot: options.getWorkspaceRoot,
-      isFileInRecent: options.isFileInRecent,
-      trackReadResult: (_result, _range, snapshot) => {
-        if (snapshot.path.startsWith('unsaved://')) {
-          return;
-        }
-
-        fileState.setSnapshot(snapshot);
-      }
+      isFileInRecent: options.isFileInRecent
     }),
 
     createBuiltinReadDirectoryTool({
@@ -154,15 +143,11 @@ export function createBuiltinTools(options: CreateBuiltinToolsOptions = {}): AIT
   // 创建文件级写入工具
   const editFileTool = createBuiltinEditFileTool({
     confirm: options.confirm,
-    getWorkspaceRoot: options.getWorkspaceRoot,
-    getReadSnapshot: (filePath: string) => fileState.getSnapshot(filePath),
-    setReadSnapshot: (snapshot: FileReadSnapshot) => fileState.setSnapshot(snapshot)
+    getWorkspaceRoot: options.getWorkspaceRoot
   });
   const writeFileTool = createBuiltinWriteFileTool({
     confirm: options.confirm,
-    getWorkspaceRoot: options.getWorkspaceRoot,
-    getReadSnapshot: (filePath: string) => fileState.getSnapshot(filePath),
-    setReadSnapshot: (snapshot: FileReadSnapshot) => fileState.setSnapshot(snapshot)
+    getWorkspaceRoot: options.getWorkspaceRoot
   });
   // 创建设置修改工具
   const settingsTools = createBuiltinSettingsTools(options.confirm);

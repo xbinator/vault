@@ -3,7 +3,6 @@
  * @description fileEdit 工具模块内类型定义。
  */
 import type { AIToolConfirmationAdapter } from '../../confirmation';
-import type { FileReadSnapshot } from '../../shared/fileTypes';
 import type { ReadWorkspaceFileOptions, ReadWorkspaceFileResult } from '@/shared/platform/native/types';
 
 /**
@@ -44,8 +43,4 @@ export interface CreateBuiltinEditFileToolOptions {
   readWorkspaceFile?: (options: ReadWorkspaceFileOptions) => Promise<ReadWorkspaceFileResult>;
   /** 写入本地文件，测试时可注入替身。 */
   writeFile?: (path: string, content: string) => Promise<void>;
-  /** 获取指定文件的最近读取快照。 */
-  getReadSnapshot: (filePath: string) => FileReadSnapshot | null;
-  /** 写入指定文件的最新读取快照。 */
-  setReadSnapshot: (snapshot: FileReadSnapshot) => void;
 }

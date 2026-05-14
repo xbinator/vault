@@ -1,27 +1,5 @@
-import type { AIToolContext } from 'types/ai';
 import { describe, expect, it } from 'vitest';
 import { QUERY_LOGS_TOOL_NAME, READ_DIRECTORY_TOOL_NAME, GET_SETTINGS_TOOL_NAME, UPDATE_SETTINGS_TOOL_NAME, createBuiltinTools } from '@/ai/tools/builtin';
-
-/**
- * 创建工具执行上下文。
- * @returns 测试用工具上下文
- */
-function createToolContext(): AIToolContext {
-  return {
-    document: {
-      id: 'doc-1',
-      title: 'Doc',
-      path: null,
-      getContent: () => ''
-    },
-    editor: {
-      getSelection: () => null,
-      insertAtCursor: async () => undefined,
-      replaceSelection: async () => undefined,
-      replaceDocument: async () => undefined
-    }
-  };
-}
 
 /**
  * 提取工具名称列表。

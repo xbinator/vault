@@ -4,7 +4,6 @@
  */
 import type { CreateBuiltinEditFileToolOptions, EditFileInput, EditFileResult } from './types';
 import type { AIToolConfirmationAdapter, AIToolConfirmationRequest } from '../../confirmation';
-import type { FileReadSnapshot } from '../../shared/fileTypes';
 import type { AIToolContext, AIToolExecutionError, AIToolExecutor } from 'types/ai';
 import { native } from '@/shared/platform';
 import type { ReadWorkspaceFileResult } from '@/shared/platform/native/types';
@@ -194,7 +193,7 @@ export function createBuiltinEditFileTool(options: CreateBuiltinEditFileToolOpti
   return {
     definition: {
       name: EDIT_FILE_TOOL_NAME,
-      description: '按精确字符串匹配修改本地文本文件。必须先通过 read_file 完整读取目标文件，若文件内容已变化则会拒绝执行。',
+      description: '按精确字符串匹配修改本地文本文件。执行前会向用户展示确认信息。',
       source: 'builtin',
       riskLevel: 'write',
       requiresActiveDocument: false,
@@ -248,22 +247,6 @@ export function createBuiltinEditFileTool(options: CreateBuiltinEditFileToolOpti
         return createToolFailureResult(EDIT_FILE_TOOL_NAME, mappedCode, readErrorMessage(error));
       }
 
-      const snapshot = options.getReadSnapshot(currentFile.path);
-      if (!snapshot) {
-        const error = toFileToolExecutionError('FILE_NOT_READ');
-        return createToolFailureResult(EDIT_FILE_TOOL_NAME, error.code, error.message);
-      }
-
-      if (snapshot.isPartial) {
-        const error = toFileToolExecutionError('FILE_READ_PARTIAL');
-        return createToolFailureResult(EDIT_FILE_TOOL_NAME, error.code, error.message);
-      }
-
-      if (snapshot.content !== currentFile.content) {
-        const error = toFileToolExecutionError('FILE_CHANGED');
-        return createToolFailureResult(EDIT_FILE_TOOL_NAME, error.code, error.message);
-      }
-
       const matchCount = countOccurrences(currentFile.content, oldString);
       if (matchCount === 0) {
         const error = toFileToolExecutionError('MATCH_NOT_FOUND');
@@ -295,13 +278,6 @@ export function createBuiltinEditFileTool(options: CreateBuiltinEditFileToolOpti
         } else {
           await writeFile(currentFile.path, nextFile.content);
         }
-        const nextSnapshot: FileReadSnapshot = {
-          path: currentFile.path,
-          content: nextFile.content,
-          isPartial: false,
-          readAt: Date.now()
-        };
-        options.setReadSnapshot(nextSnapshot);
 
         return {
           path: currentFile.path,
