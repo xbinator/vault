@@ -1,6 +1,6 @@
 /**
  * @file index.test.ts
- * @description 验证搜索工具设置页渲染 Tavily 配置项与测试输入。
+ * @description 验证搜索工具设置页渲染 Tavily 配置项。
  */
 /* @vitest-environment jsdom */
 
@@ -34,7 +34,7 @@ describe('SearchToolsSettingsView', () => {
     setActivePinia(createPinia());
   });
 
-  it('renders Tavily base config, default sections, and extract test URL input', async () => {
+  it('renders Tavily base config and default sections', async () => {
     const store = useToolSettingsStore();
     store.setTavilyEnabled(true);
 
@@ -58,7 +58,8 @@ describe('SearchToolsSettingsView', () => {
     expect(wrapper.text()).toContain('基础配置');
     expect(wrapper.text()).toContain('Tavily Search 默认配置');
     expect(wrapper.text()).toContain('Tavily Extract 默认配置');
-    expect(wrapper.text()).toContain('测试 Extract');
-    expect(wrapper.text()).toContain('测试 URL');
+    expect(wrapper.text()).toContain('Tavily API Key');
+    expect(wrapper.text()).toContain('国家');
+    expect(wrapper.text()).toContain('输出格式');
   });
 });
