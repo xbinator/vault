@@ -276,6 +276,44 @@ describe('createBuiltinReadFileTool', () => {
     expect(result.error?.code).toBe('INVALID_INPUT');
   });
 
+  it('resolves documentId to document locator for unsaved documents', async () => {
+    const editorContext: AIToolContext = {
+      document: {
+        id: 'unsaved-doc',
+        title: 'Unsaved',
+        path: null,
+        locator: 'unsaved://unsaved-doc/Unsaved.md',
+        getContent: () => 'unsaved content'
+      },
+      editor: {
+        getSelection: () => null,
+        insertAtCursor: async () => undefined,
+        replaceSelection: async () => undefined,
+        replaceDocument: async () => undefined
+      }
+    };
+    const tool = createBuiltinReadFileTool({
+      getWorkspaceRoot: () => '/workspace',
+      getEditorContext: (documentId: string) => (documentId === 'unsaved-doc' ? editorContext : undefined),
+      readWorkspaceFile: async () => ({ path: '', content: '', totalLines: 0, readLines: 0, hasMore: false, nextOffset: null })
+    });
+
+    const result = await tool.execute({ documentId: 'unsaved-doc' });
+
+    expect(result).toEqual({
+      toolName: 'read_file',
+      status: 'success',
+      data: {
+        path: 'unsaved://unsaved-doc/Unsaved.md',
+        content: 'unsaved content',
+        totalLines: 1,
+        readLines: 1,
+        hasMore: false,
+        nextOffset: null
+      }
+    });
+  });
+
   it('documentId takes priority over path when both are provided', async () => {
     let capturedOptions: ReadWorkspaceFileOptions | null = null;
     const expectedResult: NativeReadWorkspaceFileResult = {

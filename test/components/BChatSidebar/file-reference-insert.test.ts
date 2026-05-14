@@ -103,6 +103,7 @@ describe('chat file reference insert wiring', () => {
     expect(fileReferenceHookSource).toContain('onChatFileReferenceInsert');
     expect(fileReferenceHookSource).toContain('ChatFileReferenceInsertPayload');
     expect(fileReferenceHookSource).toContain('insertReference');
+    expect(fileReferenceHookSource).toContain('buildUnsavedPath');
     expect(fileReferenceHookSource).toContain('renderStartLine');
     expect(fileReferenceHookSource).toContain('renderEndLine');
   });

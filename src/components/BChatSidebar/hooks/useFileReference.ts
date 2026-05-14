@@ -7,6 +7,7 @@ import { nextTick, onMounted, onUnmounted } from 'vue';
 import type { ChatFileReferenceInsertPayload } from '@/shared/chat/fileReference';
 import { onChatFileReferenceInsert } from '@/shared/chat/fileReference';
 import { useSettingStore } from '@/stores/setting';
+import { buildUnsavedPath } from '@/utils/fileReference/unsavedPath';
 
 /**
  * 文件引用 Hook 的依赖项
@@ -51,7 +52,7 @@ export function useFileReference(options: FileReferenceOptions) {
   function insertReference(reference: FileReferenceChip) {
     const { id, fileName, filePath, startLine, endLine, renderStartLine, renderEndLine } = reference;
 
-    const token = `{{#${filePath || `unsaved://${id}/${fileName}`} ${startLine}-${endLine}|${renderStartLine}-${renderEndLine}}} `;
+    const token = `{{#${filePath || buildUnsavedPath({ id, fileName })} ${startLine}-${endLine}|${renderStartLine}-${renderEndLine}}} `;
 
     options.insertTextAtCursor(token);
   }

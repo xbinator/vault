@@ -122,6 +122,8 @@ export interface AIToolContext {
     title: string;
     /** 文件路径，未保存文档为 null。 */
     path: string | null;
+    /** 供工具与文件引用系统消费的文档定位符，未保存文档使用 `unsaved://` 虚拟路径。 */
+    locator?: string;
     /** 读取文档内容。 */
     getContent: () => string;
   };

@@ -3,6 +3,7 @@
  * @description 内置文档只读工具实现
  */
 import type { AIToolContext, AIToolExecutor } from 'types/ai';
+import { buildUnsavedPath } from '@/utils/fileReference/unsavedPath';
 import { createToolSuccessResult } from '../../results';
 
 /**
@@ -14,7 +15,7 @@ export interface ReadCurrentDocumentResult {
   /** 文档标题 */
   title: string;
   /** 文档路径 */
-  path: string | null;
+  path: string;
   /** 文档内容 */
   content: string;
 }
@@ -48,7 +49,7 @@ export function createBuiltinReadTools(): BuiltinReadTools {
         return createToolSuccessResult(READ_CURRENT_DOCUMENT_TOOL_NAME, {
           id: context.document.id,
           title: context.document.title,
-          path: context.document.path,
+          path: context.document.locator ?? context.document.path ?? buildUnsavedPath({ id: context.document.id, fileName: context.document.title }),
           content: context.document.getContent()
         });
       }

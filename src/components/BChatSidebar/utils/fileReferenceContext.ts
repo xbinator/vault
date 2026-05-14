@@ -5,6 +5,7 @@
 import type { FileReference } from '../types';
 import type { Message } from './types';
 import { recentFilesStorage } from '@/shared/storage';
+import { isUnsavedPath, parseUnsavedPath } from '@/utils/fileReference/unsavedPath';
 
 // ─── 类型定义 ────────────────────────────────────────────────────────────────
 
@@ -31,7 +32,7 @@ export const MESSAGE_REF_PATTERN = /\{\{#(\S+)\s+(\d+)-(\d+)(?:\|(\d+)-(\d+))?\}
 /**
  * 从文件中提取指定行号范围的内容和完整内容
  * 支持两种格式：
- * - unsaved://id/fileName - 未保存文件，从路径中提取 id
+ * - unsaved://id/fileName - 未保存文件，从虚拟路径中提取 id
  * - 实际文件路径 - 已保存文件，通过路径查找
  * @param path - 文件路径或 unsaved:// 引用
  * @param startLine - 起始行号（从 1 开始）
@@ -45,11 +46,10 @@ export async function extractFileReferenceLines(token: string, references: strin
 
   let storedFile: Awaited<ReturnType<typeof recentFilesStorage.getRecentFile>> = null;
 
-  // 检查是否为 unsaved:// 格式
-  if (path.startsWith('unsaved://')) {
-    // 从 unsaved://id/fileName 中提取 id
-    const id = path.replace(/^unsaved:\/\/([^/]+)\/.*$/, '$1');
-    storedFile = await recentFilesStorage.getRecentFile(id);
+  // 检查是否为未保存文档虚拟路径。
+  if (isUnsavedPath(path)) {
+    const unsavedReference = parseUnsavedPath(path);
+    storedFile = unsavedReference ? await recentFilesStorage.getRecentFile(unsavedReference.fileId) : null;
   } else {
     // 通过文件路径查找
     const files = await recentFilesStorage.getAllRecentFiles();

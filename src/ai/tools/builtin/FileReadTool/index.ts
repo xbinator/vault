@@ -13,6 +13,7 @@ import type {
   ReadWorkspaceFileResult
 } from '@/shared/platform/native/types';
 import { recentFilesStorage } from '@/shared/storage';
+import { isUnsavedPath, parseUnsavedPath } from '@/utils/fileReference/unsavedPath';
 import { createToolCancelledResult, createToolFailureResult, createToolSuccessResult } from '../../results';
 import { isAbsoluteFilePath } from '../../shared/pathUtils';
 
@@ -161,13 +162,60 @@ function resolveInputFilePath(input: ReadFileInput, getEditorContext?: (document
   const documentId = typeof input.documentId === 'string' ? input.documentId.trim() : '';
   if (documentId) {
     const editorContext = getEditorContext?.(documentId);
-    const documentPath = editorContext?.document.path?.trim() ?? '';
+    const documentPath = editorContext?.document.locator?.trim() || editorContext?.document.path?.trim() || '';
     if (documentPath) {
       return documentPath;
     }
   }
 
   return typeof input.path === 'string' ? input.path.trim() : '';
+}
+
+/**
+ * 从当前编辑器上下文中读取未保存文档内容。
+ * @param filePath - 已解析的目标路径
+ * @param editorContext - 文档对应的编辑器上下文
+ * @param input - read_file 输入参数
+ * @param trackReadResult - 可选的读取快照记录器
+ * @returns 读取结果；路径不是当前未保存文档时返回 null
+ */
+function readUnsavedEditorDocument(
+  filePath: string,
+  editorContext: AIToolContext | undefined,
+  input: ReadFileInput,
+  trackReadResult?: CreateBuiltinReadFileToolOptions['trackReadResult']
+): ReadFileResult | null {
+  const locator = editorContext?.document.locator?.trim() ?? '';
+  if (!editorContext || !locator || locator !== filePath || !isUnsavedPath(locator)) {
+    return null;
+  }
+
+  const range = normalizeReadRange(input);
+  const content = editorContext.document.getContent();
+  const lines = content.split('\n');
+  const totalLines = lines.length;
+  const startLine = Math.max(1, range.offset) - 1;
+  const endLine = range.limit === undefined ? totalLines : Math.min(startLine + range.limit, totalLines);
+  const selectedContent = lines.slice(startLine, endLine).join('\n');
+  const readLines = endLine - startLine;
+  const hasMore = endLine < totalLines;
+  const result: ReadFileResult = {
+    path: locator,
+    content: selectedContent,
+    totalLines,
+    readLines,
+    hasMore,
+    nextOffset: hasMore ? endLine + 1 : null
+  };
+
+  trackReadResult?.(result, range, {
+    path: result.path,
+    content: result.content,
+    isPartial: range.offset !== DEFAULT_OFFSET || result.hasMore,
+    readAt: Date.now()
+  });
+
+  return result;
 }
 
 /**
@@ -240,16 +288,23 @@ export function createBuiltinReadFileTool(options: CreateBuiltinReadFileToolOpti
       }
     },
     async execute(input: ReadFileInput) {
+      const documentId = typeof input.documentId === 'string' ? input.documentId.trim() : '';
+      const editorContext = documentId ? options.getEditorContext?.(documentId) : undefined;
       const filePath = resolveInputFilePath(input, options.getEditorContext);
 
       if (!filePath) {
         return createToolFailureResult(READ_FILE_TOOL_NAME, 'INVALID_INPUT', '文件路径不能为空');
       }
 
-      // 检查是否为 unsaved:// 格式，从 unsaved://id/fileName 中提取 id 并读取未保存文件内容
-      if (filePath.startsWith('unsaved://')) {
-        const id = filePath.replace(/^unsaved:\/\/([^/]+)\/.*$/, '$1');
-        const storedFile = await recentFilesStorage.getRecentFile(id);
+      const editorUnsavedResult = readUnsavedEditorDocument(filePath, editorContext, input, options.trackReadResult);
+      if (editorUnsavedResult) {
+        return createToolSuccessResult<ReadFileResult>(READ_FILE_TOOL_NAME, editorUnsavedResult);
+      }
+
+      // 检查是否为未保存文档虚拟路径，并读取对应草稿内容。
+      if (isUnsavedPath(filePath)) {
+        const unsavedReference = parseUnsavedPath(filePath);
+        const storedFile = unsavedReference ? await recentFilesStorage.getRecentFile(unsavedReference.fileId) : null;
 
         if (!storedFile || storedFile.content === undefined) {
           return createToolFailureResult(READ_FILE_TOOL_NAME, 'EXECUTION_FAILED', `未找到未保存文件：${filePath}`);

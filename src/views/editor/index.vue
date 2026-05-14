@@ -25,6 +25,7 @@
 import { computed, onActivated, onBeforeUnmount, onDeactivated, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { editorToolContextRegistry } from '@/ai/tools/editor-context';
+import { buildUnsavedPath } from '@/utils/fileReference/unsavedPath';
 import BEditor from '@/components/BEditor/index.vue';
 import type { BEditorPublicInstance } from '@/components/BEditor/types';
 import { useEditorPreferencesStore } from '@/stores/editorPreferences';
@@ -76,6 +77,7 @@ function registerEditorContext(): void {
       id: documentId,
       title: fileState.value.name,
       path: fileState.value.path,
+      locator: fileState.value.path ?? buildUnsavedPath({ id: documentId, fileName: `${fileState.value.name}.${fileState.value.ext}` }),
       getContent: () => fileState.value.content
     },
     editor: {

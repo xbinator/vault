@@ -216,7 +216,7 @@ export function createBuiltinWriteFileTool(options: CreateBuiltinWriteFileToolOp
 
       return executeConfirmedWrite(options.confirm, request, async () => {
         if (isActiveDocumentTarget(context, targetPath)) {
-          await context.editor.replaceDocument(content);
+          await context?.editor.replaceDocument(content);
         } else {
           await writeFile(targetPath, content);
         }
