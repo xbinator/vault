@@ -269,7 +269,7 @@ export function useChatStream(options: UseChatStreamOptions): UseChatStreamRetur
 
   /**
    * 将当前助手消息标记为“等待用户继续”的已暂停态。
-   * 消息本身应结束当前流式展示，但输入区保持忙碌态以表达会话尚未真正完成。
+   * 消息本身停止继续追加内容，但仍保持未完成状态，直到用户完成回答并续轮。
    */
   function finalizeAssistantMessageAwaitingUserChoice(): void {
     const message = messages.value[messages.value.length - 1];
@@ -278,7 +278,7 @@ export function useChatStream(options: UseChatStreamOptions): UseChatStreamRetur
     }
 
     message.loading = false;
-    message.finished = true;
+    message.finished = false;
     message.createdAt ||= dayjs().toISOString();
   }
 

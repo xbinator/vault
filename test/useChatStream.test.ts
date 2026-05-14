@@ -338,7 +338,7 @@ describe('useChatStream abort', () => {
     expect(messages.value[1].parts.some((part) => part.type === 'error')).toBe(false);
   });
 
-  it('keeps stream loading active but finalizes the assistant message while awaiting user choice submission', async () => {
+  it('keeps stream loading active and leaves the assistant message unfinished while awaiting user choice submission', async () => {
     const askUserQuestionTool: AIToolExecutor = {
       definition: {
         name: 'ask_user_question',
@@ -390,7 +390,7 @@ describe('useChatStream abort', () => {
 
     expect(loading.value).toBe(true);
     expect(messages.value[1].loading).toBe(false);
-    expect(messages.value[1].finished).toBe(true);
+    expect(messages.value[1].finished).toBe(false);
     expect(onComplete).toHaveBeenCalledTimes(1);
     expect(onComplete).toHaveBeenCalledWith(messages.value[1]);
   });

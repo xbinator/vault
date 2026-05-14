@@ -1,6 +1,6 @@
 <template>
   <div :class="name">
-    <BBubble :show-container="showContainer" :placement="bubblePlacement" :loading="bubbleLoading" :size="message.role === 'user' ? 'auto' : 'fill'">
+    <BBubble :show-container="showContainer" :placement="bubblePlacement" :loading="message.loading" :size="message.role === 'user' ? 'auto' : 'fill'">
       <template v-if="showHeader" #header>
         <div :class="bem('header')">
           <div v-if="imageFiles.length" :class="bem('images')">
@@ -142,22 +142,12 @@ const showContainer = computed(() => isCompressionMessage.value || !!props.messa
 /** 是否显示助手工具栏 */
 // eslint-disable-next-line no-use-before-define
 const showAssistantToolbar = computed(() => {
+  console.log('🚀 ~ props.message:', props.message);
   if (props.message.finished !== true || !isAssistantMessage.value) {
     return false;
   }
 
   return props.message.parts.some((part) => part.type !== 'error');
-});
-/**
- * 气泡加载状态，当消息包含等待用户确认的卡片或等待用户选择的问题时，不显示 loading
- */
-const bubbleLoading = computed(() => {
-  // 如果消息未加载，不显示 loading
-  if (!props.message.loading) return false;
-  // 如果没有 parts，显示 loading
-  if (!props.message.parts) return true;
-  // 如果有，不显示 loading
-  return !props.message.parts.some((part) => (part.type === 'confirmation' && part.confirmationStatus === 'pending') || isAwaitingUserChoiceResult(part));
 });
 
 /** 图片预览器显示状态 */
