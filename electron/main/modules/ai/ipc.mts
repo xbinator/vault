@@ -127,7 +127,10 @@ export function registerAIHandlers(): void {
         } else if (chunk.type === 'finish') {
           // 流式完成，携带 token 使用量
           const { inputTokens, outputTokens, totalTokens } = chunk.totalUsage;
-          win.webContents.send('ai:stream:finish', { usage: { inputTokens, outputTokens, totalTokens } });
+          win.webContents.send('ai:stream:finish', {
+            finishReason: chunk.finishReason,
+            usage: { inputTokens, outputTokens, totalTokens }
+          });
         }
       }
 

@@ -3,6 +3,7 @@
  * @description AI 服务核心类，封装文本生成和流式文本生成能力
  */
 import type { ToolSet } from 'ai';
+import type { FlexibleSchema, ToolExecutionOptions } from 'ai';
 import type { AICreateOptions, AIRequestOptions, AIInvokeResult, AIStreamResult, AIServiceError } from 'types/ai';
 import { tavilyExtract, tavilySearch } from '@tavily/ai-sdk';
 import { generateText, jsonSchema, Output, stepCountIs, streamText, tool } from 'ai';
@@ -11,6 +12,70 @@ import { AI_ERROR_CODE } from './errors/codes.mjs';
 import { AIProviderRegistry } from './providers/_index.mjs';
 
 // ─── 纯工具函数 ──────────────────────────────────────────────────────────────
+
+/**
+ * Tavily Extract 单 URL 输入。
+ */
+interface TavilyExtractSingleUrlInput {
+  /** 需要提取正文的页面 URL。 */
+  url: string;
+  /** 提取深度。 */
+  extractDepth?: 'basic' | 'advanced';
+  /** 可选的重排意图查询。 */
+  query?: string;
+}
+
+/**
+ * 对外暴露单 URL 版本的 Tavily Extract 工具。
+ * @description SDK 原生工具要求 `urls: string[]`，这里收敛成第一版产品约定的单 `url` 输入。
+ */
+function createTavilyExtractTool(tavily: NonNullable<AIRequestOptions['tavily']>) {
+  const sdkTool = tavilyExtract({
+    apiKey: tavily.apiKey,
+    includeImages: tavily.extractDefaults.includeImages,
+    extractDepth: tavily.extractDefaults.extractDepth,
+    format: tavily.extractDefaults.format
+  });
+  const inputSchema = jsonSchema({
+    type: 'object',
+    properties: {
+      url: {
+        type: 'string',
+        description: 'The URL to extract content from'
+      },
+      extractDepth: {
+        type: 'string',
+        enum: ['basic', 'advanced'],
+        description: "Extraction depth - 'basic' for main content, 'advanced' for comprehensive extraction"
+      },
+      query: {
+        type: 'string',
+        description: 'Optional user intent query for reranking extracted content chunks'
+      }
+    },
+    required: ['url'],
+    additionalProperties: false
+  }) as FlexibleSchema<TavilyExtractSingleUrlInput>;
+
+  return tool({
+    description: 'Extract clean, structured content from a single URL. Returns parsed content in markdown or text format, optimized for AI consumption.',
+    inputSchema,
+    /**
+     * 将单 URL 输入适配为 Tavily SDK 需要的 `urls` 数组。
+     */
+    execute: async ({
+      url,
+      extractDepth,
+      query
+    }: TavilyExtractSingleUrlInput, options: ToolExecutionOptions) => {
+      return sdkTool.execute?.({
+        urls: [url],
+        extractDepth,
+        query
+      }, options);
+    }
+  });
+}
 
 /**
  * 根据 Tavily 配置创建 SDK 工具集。
@@ -32,12 +97,7 @@ function createTavilySdkTools(tavily: AIRequestOptions['tavily']): ToolSet {
       searchDepth: tavily.searchDefaults.searchDepth,
       timeRange: tavily.searchDefaults.timeRange ?? undefined
     }),
-    tavily_extract: tavilyExtract({
-      apiKey: tavily.apiKey,
-      includeImages: tavily.extractDefaults.includeImages,
-      extractDepth: tavily.extractDefaults.extractDepth,
-      format: tavily.extractDefaults.format
-    })
+    tavily_extract: createTavilyExtractTool(tavily)
   };
 }
 

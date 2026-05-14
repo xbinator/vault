@@ -6,7 +6,7 @@
 import type { CachedModelMessagesResult } from '../utils/messageHelper';
 import type { Message, ServiceConfig, ToolLoopGuardConfig } from '../utils/types';
 import type { ModelMessage } from 'ai';
-import type { AIToolExecutor, AIToolContext, AIServiceError, AIStreamFinishChunk, AIStreamToolCallChunk, AIStreamToolResultChunk } from 'types/ai';
+import type { AIToolExecutor, AIToolContext, AIServiceError, AIStreamFinishChunk, AIStreamFinishReason, AIStreamToolCallChunk, AIStreamToolResultChunk } from 'types/ai';
 import type { AIUserChoiceAnswerData, ChatMessageConfirmationAction } from 'types/chat';
 import { nextTick, ref, shallowRef, type Ref } from 'vue';
 import dayjs from 'dayjs';
@@ -92,6 +92,7 @@ export function useChatStream(options: UseChatStreamOptions): UseChatStreamRetur
   let currentToolCallTracker: ToolCallTracker = createToolCallTracker();
   let currentToolLoopGuard: ToolLoopGuard = createToolLoopGuard(DEFAULT_TOOL_LOOP_GUARD_CONFIG);
   let currentModelMessageCache: CachedModelMessagesResult | undefined;
+  let lastFinishReason: AIStreamFinishReason | null = null;
 
   const { agent } = useChat({
     onText: async (content: string): Promise<void> => {
@@ -100,8 +101,9 @@ export function useChatStream(options: UseChatStreamOptions): UseChatStreamRetur
     onThinking: async (thinking: string): Promise<void> => {
       appendThinking(thinking);
     },
-    onFinish: async ({ usage }: AIStreamFinishChunk): Promise<void> => {
+    onFinish: async ({ usage, finishReason }: AIStreamFinishChunk): Promise<void> => {
       const message = messages.value[messages.value.length - 1];
+      lastFinishReason = finishReason;
       if (message) {
         message.usage = usage;
       }
@@ -123,6 +125,7 @@ export function useChatStream(options: UseChatStreamOptions): UseChatStreamRetur
     pendingToolResults.value = [];
     awaitingUserChoice.value = false;
     lastServiceConfig = null;
+    lastFinishReason = null;
   }
 
   /**
@@ -197,6 +200,36 @@ export function useChatStream(options: UseChatStreamOptions): UseChatStreamRetur
     }
 
     append.toolResultPart(message, chunk.toolCallId, chunk.toolName, chunk.result);
+  }
+
+  /**
+   * 判断助手消息是否已经包含最终可见回答。
+   */
+  function hasVisibleAssistantAnswer(message: Message): boolean {
+    return message.parts.some((part) => (part.type === 'text' && part.text.trim().length > 0) || part.type === 'error');
+  }
+
+  /**
+   * 判断助手消息是否只停留在 Tavily 等远端工具阶段。
+   */
+  function hasSdkManagedToolResult(message: Message): boolean {
+    return message.parts.some((part) => part.type === 'tool-result' && isSdkManagedToolName(part.toolName));
+  }
+
+  /**
+   * 为“工具执行完但模型没有继续回答”的静默结束场景追加提示。
+   */
+  function appendSilentSdkCompletionHint(message: Message): void {
+    if (hasVisibleAssistantAnswer(message) || !hasSdkManagedToolResult(message)) {
+      return;
+    }
+
+    const reasonText = lastFinishReason ? `（finishReason: ${lastFinishReason}）` : '';
+    message.parts.push({
+      type: 'error',
+      text: `工具已执行，但模型没有生成最终回答，请重试。${reasonText}`
+    });
+    message.content ||= `工具已执行，但模型没有生成最终回答，请重试。${reasonText}`;
   }
 
   /**
@@ -408,6 +441,7 @@ export function useChatStream(options: UseChatStreamOptions): UseChatStreamRetur
 
     const message = messages.value[messages.value.length - 1];
     if (message) {
+      appendSilentSdkCompletionHint(message);
       message.loading = false;
       message.finished = true;
     }

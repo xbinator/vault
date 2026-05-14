@@ -267,4 +267,66 @@ describe('useChatStream abort', () => {
       }
     ]);
   });
+
+  it('surfaces a hint when a Tavily tool finishes without any final assistant text', async () => {
+    const messages = ref<Message[]>([create.userMessage('搜索一下最新消息')]);
+    const { stream } = useChatStream({
+      messages,
+      tools: []
+    });
+
+    const config: ServiceConfig = {
+      providerId: 'openai',
+      modelId: 'gpt-4o',
+      toolSupport: {
+        supported: true
+      }
+    };
+
+    await stream.streamMessages(messages.value, config);
+    capturedCallbacks?.onToolCall?.({
+      toolCallId: 'tool-call-1',
+      toolName: 'tavily_search',
+      input: { query: 'AI news' }
+    });
+    capturedCallbacks?.onToolResult?.({
+      toolCallId: 'tool-call-1',
+      toolName: 'tavily_search',
+      result: {
+        toolName: 'tavily_search',
+        status: 'success',
+        data: { results: [{ title: 'Headline' }] }
+      }
+    });
+    capturedCallbacks?.onFinish?.({
+      finishReason: 'tool-calls',
+      usage: { inputTokens: 10, outputTokens: 20, totalTokens: 30 }
+    });
+    capturedCallbacks?.onComplete?.();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(messages.value[1].parts).toEqual([
+      {
+        type: 'tool-call',
+        toolCallId: 'tool-call-1',
+        toolName: 'tavily_search',
+        input: { query: 'AI news' }
+      },
+      {
+        type: 'tool-result',
+        toolCallId: 'tool-call-1',
+        toolName: 'tavily_search',
+        result: {
+          toolName: 'tavily_search',
+          status: 'success',
+          data: { results: [{ title: 'Headline' }] }
+        }
+      },
+      {
+        type: 'error',
+        text: '工具已执行，但模型没有生成最终回答，请重试。（finishReason: tool-calls）'
+      }
+    ]);
+  });
 });

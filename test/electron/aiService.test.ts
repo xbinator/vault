@@ -15,6 +15,7 @@ const toolMock = vi.fn();
 const stepCountIsMock = vi.fn();
 const tavilySearchMock = vi.fn();
 const tavilyExtractMock = vi.fn();
+const tavilyExtractExecuteMock = vi.fn();
 
 vi.mock('ai', () => ({
   Output: {
@@ -73,6 +74,8 @@ describe('aiService', () => {
     stepCountIsMock.mockReset();
     tavilySearchMock.mockReset();
     tavilyExtractMock.mockReset();
+    tavilyExtractExecuteMock.mockReset();
+    toolMock.mockImplementation((definition) => definition);
   });
 
   it('passes structured output schema to AI SDK when request asks for object output', async () => {
@@ -163,7 +166,7 @@ describe('aiService', () => {
     };
 
     tavilySearchMock.mockReturnValue({ kind: 'tavily-search-tool' });
-    tavilyExtractMock.mockReturnValue({ kind: 'tavily-extract-tool' });
+    tavilyExtractMock.mockReturnValue({ kind: 'tavily-extract-tool', execute: tavilyExtractExecuteMock });
     stepCountIsMock.mockReturnValue({ kind: 'stop-when-5' });
     generateTextMock.mockResolvedValue({
       text: 'ok',
@@ -196,7 +199,10 @@ describe('aiService', () => {
         stopWhen: { kind: 'stop-when-5' },
         tools: expect.objectContaining({
           tavily_search: { kind: 'tavily-search-tool' },
-          tavily_extract: { kind: 'tavily-extract-tool' }
+          tavily_extract: expect.objectContaining({
+            description: expect.stringContaining('single URL'),
+            execute: expect.any(Function)
+          })
         })
       })
     );
@@ -231,7 +237,7 @@ describe('aiService', () => {
     };
 
     tavilySearchMock.mockReturnValue({ kind: 'tavily-search-tool' });
-    tavilyExtractMock.mockReturnValue({ kind: 'tavily-extract-tool' });
+    tavilyExtractMock.mockReturnValue({ kind: 'tavily-extract-tool', execute: tavilyExtractExecuteMock });
     stepCountIsMock.mockReturnValue({ kind: 'stop-when-5' });
     streamTextMock.mockReturnValue({ fullStream: [] });
 
@@ -244,10 +250,66 @@ describe('aiService', () => {
         stopWhen: { kind: 'stop-when-5' },
         tools: expect.objectContaining({
           tavily_search: { kind: 'tavily-search-tool' },
-          tavily_extract: { kind: 'tavily-extract-tool' }
+          tavily_extract: expect.objectContaining({
+            description: expect.stringContaining('single URL'),
+            execute: expect.any(Function)
+          })
         })
       })
     );
+  });
+
+  it('adapts single url input to Tavily extract urls array', async () => {
+    const { aiService } = await import('../../electron/main/modules/ai/service.mjs');
+    const createOptions: AICreateOptions = { providerType: 'openai', providerId: 'provider-1', providerName: 'OpenAI' };
+    const request: AIRequestOptions = {
+      modelId: 'model-1',
+      prompt: '提取这个页面',
+      tavily: {
+        enabled: true,
+        apiKey: 'tvly-dev-key',
+        searchDefaults: {
+          searchDepth: 'basic',
+          topic: 'general',
+          timeRange: null,
+          country: 'china',
+          maxResults: 5,
+          includeAnswer: true,
+          includeImages: false,
+          includeDomains: [],
+          excludeDomains: []
+        },
+        extractDefaults: {
+          extractDepth: 'basic',
+          format: 'markdown',
+          includeImages: false
+        }
+      }
+    };
+
+    tavilySearchMock.mockReturnValue({ kind: 'tavily-search-tool' });
+    tavilyExtractMock.mockReturnValue({ kind: 'tavily-extract-tool', execute: tavilyExtractExecuteMock });
+    stepCountIsMock.mockReturnValue({ kind: 'stop-when-5' });
+    generateTextMock.mockImplementation(async (options) => {
+      await options.tools.tavily_extract.execute({
+        url: 'https://example.com/post',
+        extractDepth: 'advanced',
+        query: 'Summarize the article'
+      }, {});
+      return {
+        text: 'ok',
+        output: undefined,
+        usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 }
+      };
+    });
+
+    await aiService.generateText(createOptions, request);
+
+    expect(tavilyExtractExecuteMock).toHaveBeenCalledWith({
+      urls: ['https://example.com/post'],
+      extractDepth: 'advanced',
+      query: 'Summarize the article'
+    }, expect.any(Object));
   });
 
   it('does not register Tavily server tools when disabled', async () => {

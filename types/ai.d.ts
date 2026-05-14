@@ -504,6 +504,14 @@ export interface AIStreamResult {
   stream: StreamTextResult['textStream'];
 }
 
+/**
+ * AI 流式结束原因。
+ */
+export type AIStreamFinishReason = 'stop' | 'length' | 'content-filter' | 'tool-calls' | 'error' | 'other';
+
 export interface AIStreamFinishChunk {
+  /** 流式结束原因。 */
+  finishReason: AIStreamFinishReason;
+  /** token 使用量。 */
   usage: AIUsage;
 }

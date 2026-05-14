@@ -131,7 +131,7 @@ describe('useFilesStore openedAt actions', () => {
     await store.ensureLoaded();
     expect(store.recentFiles?.map((file) => file.id)).toEqual(['b', 'a']);
 
-    const opened = await store.openExistingFile('a', 'welcome');
+    const opened = await store.openExistingFile('a');
 
     expect(storageMocks.touchRecentFile).toHaveBeenCalledWith('a');
     expect(opened.id).toBe('a');
@@ -145,7 +145,7 @@ describe('useFilesStore openedAt actions', () => {
     const { useFilesStore } = await import('@/stores/files');
     const store = useFilesStore();
 
-    const opened = await store.openOrCreateByPath('/c.md', 'native-open');
+    const opened = await store.openOrCreateByPath('/c.md');
 
     expect(nativeMocks.readFile).toHaveBeenCalledWith('/c.md');
     expect(storageMocks.addRecentFile).toHaveBeenCalledTimes(1);
@@ -160,21 +160,44 @@ describe('useFilesStore openedAt actions', () => {
     nowSpy.mockRestore();
   });
 
+  it('openOrRefreshByPathFromDisk refreshes an existing stored file from disk while preserving its id', async () => {
+    const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(350);
+    const { useFilesStore } = await import('@/stores/files');
+    const store = useFilesStore();
+
+    await store.ensureLoaded();
+
+    const reopened = await store.openOrRefreshByPathFromDisk('/a.md');
+
+    expect(nativeMocks.readFile).toHaveBeenCalledWith('/a.md');
+    expect(storageMocks.updateRecentFile).toHaveBeenCalledWith('a', {
+      path: '/a.md',
+      name: 'a',
+      ext: 'md',
+      content: 'content:/a.md',
+      savedContent: 'content:/a.md',
+      openedAt: 350,
+      savedAt: 350
+    });
+    expect(reopened?.id).toBe('a');
+    expect(reopened?.content).toBe('content:/a.md');
+    expect(reopened?.savedContent).toBe('content:/a.md');
+
+    nowSpy.mockRestore();
+  });
+
   it('createAndOpen fills missing timestamps and refreshes recentFiles from storage', async () => {
     const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(500);
     const { useFilesStore } = await import('@/stores/files');
     const store = useFilesStore();
 
-    const created = await store.createAndOpen(
-      {
-        id: 'draft',
-        path: null,
-        name: 'draft',
-        ext: 'md',
-        content: 'draft'
-      },
-      'new'
-    );
+    const created = await store.createAndOpen({
+      id: 'draft',
+      path: null,
+      name: 'draft',
+      ext: 'md',
+      content: 'draft'
+    });
 
     expect(storageMocks.addRecentFile).toHaveBeenCalledTimes(1);
     expect(created.createdAt).toBe(500);

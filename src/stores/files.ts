@@ -182,6 +182,64 @@ export const useFilesStore = defineStore('files', {
     },
 
     /**
+     * 按磁盘路径强制读取最新内容；若最近文件已存在该路径，则覆盖缓存正文并保留原记录 ID。
+     * @param path - 磁盘绝对路径
+     * @returns 刷新后的文件记录；并发命中时返回 null
+     */
+    async openOrRefreshByPathFromDisk(path: string): Promise<StoredFile | null> {
+      if (inflightPaths.has(path)) return null;
+
+      inflightPaths.add(path);
+
+      try {
+        await this.ensureLoaded();
+
+        const diskFile = await native.readFile(path);
+        const existingFile = await this.getFileByPath(path);
+        const now = Date.now();
+
+        if (existingFile) {
+          const refreshedFile = await recentFilesStorage.updateRecentFile(existingFile.id, {
+            path,
+            name: diskFile.name,
+            ext: diskFile.ext,
+            content: diskFile.content,
+            savedContent: diskFile.content,
+            openedAt: now,
+            savedAt: now
+          });
+
+          await this.refreshRecentFiles();
+          await this.syncPlatformRecentFiles();
+          return refreshedFile;
+        }
+
+        const createdFile: StoredFile = {
+          id: createFileId(),
+          path,
+          content: diskFile.content,
+          savedContent: diskFile.content,
+          name: diskFile.name,
+          ext: diskFile.ext,
+          createdAt: now,
+          openedAt: now,
+          savedAt: now
+        };
+
+        await enqueueWrite(async () => {
+          await recentFilesStorage.addRecentFile(createdFile);
+        });
+
+        const files = await this.refreshRecentFiles();
+        await this.syncPlatformRecentFiles();
+
+        return files.find((item) => item.id === createdFile.id) ?? createdFile;
+      } finally {
+        inflightPaths.delete(path);
+      }
+    },
+
+    /**
      * 创建一个新文件记录并视为已打开。
      * @param file - 新文件记录
      * @param _source - 打开来源

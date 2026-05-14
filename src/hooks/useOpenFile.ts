@@ -8,6 +8,7 @@ import { customAlphabet } from 'nanoid';
 import { native } from '@/shared/platform';
 import type { StoredFile } from '@/shared/storage/files/types';
 import { useFilesStore } from '@/stores/files';
+import { useTabsStore } from '@/stores/tabs';
 
 const createFileId = customAlphabet('0123456789abcdefghijklmnopqrstuvwxyz_', 8);
 
@@ -24,6 +25,7 @@ export function useOpenFile(): {
 } {
   const router = useRouter();
   const filesStore = useFilesStore();
+  const tabsStore = useTabsStore();
 
   /**
    * 打开一个已存在的最近文件。
@@ -33,7 +35,43 @@ export function useOpenFile(): {
   async function openFile(file: StoredFile): Promise<StoredFile> {
     const openedFile = await filesStore.openExistingFile(file.id);
 
-    // 已存在于本地存储的文件应优先恢复草稿，避免重新打开时被磁盘旧内容覆盖。
+    // 无磁盘路径的未保存草稿仍然沿用最近文件缓存恢复。
+    await router.push({ name: 'editor', params: { id: openedFile.id } });
+    return openedFile;
+  }
+
+  /**
+   * 按磁盘路径查找当前已打开标签，命中时返回其路由路径。
+   * @param path - 目标文件绝对路径
+   * @returns 已打开标签的路由路径；未命中时返回 null
+   */
+  async function findOpenTabPathByFilePath(path: string): Promise<string | null> {
+    const tabEntries = await Promise.all(
+      tabsStore.tabs.map(async (tab) => ({
+        tab,
+        storedFile: await filesStore.getFileById(tab.id)
+      }))
+    );
+    const matchedEntry = tabEntries.find((entry) => entry.storedFile?.path === path);
+
+    return matchedEntry?.tab.path ?? null;
+  }
+
+  /**
+   * 通过磁盘路径打开文件；若已有打开标签则直接复用，否则强制从磁盘刷新记录后再跳转。
+   * @param path - 文件绝对路径
+   * @returns 打开的文件记录；未命中时返回 null
+   */
+  async function openFileByPath(path: string): Promise<StoredFile | null> {
+    const openedTabPath = await findOpenTabPathByFilePath(path);
+    if (openedTabPath) {
+      await router.push(openedTabPath);
+      return (await filesStore.getFileByPath(path)) ?? null;
+    }
+
+    const openedFile = await filesStore.openOrRefreshByPathFromDisk(path);
+    if (!openedFile) return null;
+
     await router.push({ name: 'editor', params: { id: openedFile.id } });
     return openedFile;
   }
@@ -47,20 +85,11 @@ export function useOpenFile(): {
     const file = await filesStore.getFileById(id);
     if (!file) return null;
 
+    if (file.path) {
+      return openFileByPath(file.path);
+    }
+
     return openFile(file);
-  }
-
-  /**
-   * 通过磁盘路径打开文件；若最近文件中不存在，则创建记录后再跳转。
-   * @param path - 文件绝对路径
-   * @returns 打开的文件记录；未命中时返回 null
-   */
-  async function openFileByPath(path: string): Promise<StoredFile | null> {
-    const openedFile = await filesStore.openOrCreateByPath(path);
-    if (!openedFile) return null;
-
-    await router.push({ name: 'editor', params: { id: openedFile.id } });
-    return openedFile;
   }
 
   /**
