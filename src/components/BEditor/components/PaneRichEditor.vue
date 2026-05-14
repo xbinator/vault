@@ -1,5 +1,5 @@
 <template>
-  <div ref="overlayRootRef" :class="name" @click="navigate.onLink" @focusout="handleEditorFocusOut">
+  <div ref="overlayRootRef" :class="name" @click="handleEditorClick" @focusout="handleEditorFocusOut">
     <!-- Front Matter 卡片 -->
     <FrontMatterCard
       v-if="shouldShowFrontMatterCard"
@@ -54,6 +54,7 @@ import { EditorContent } from '@tiptap/vue-3';
 import { useEventListener } from '@vueuse/core';
 import { useNavigate } from '@/hooks/useNavigate';
 import { createNamespace } from '@/utils/namespace';
+import { findHeadingElementByHash, scrollHeadingIntoView } from '../adapters/richEditorAnchorLinks';
 import { createRichSelectionAssistantAdapter } from '../adapters/richSelectionAssistant';
 import { mapSourceLineRangeToProseMirrorRange } from '../adapters/sourceLineMapping';
 import { setAISelectionHighlight } from '../extensions/aiRangeHighlight';
@@ -93,6 +94,7 @@ const editorContent = defineModel<string>('value', { default: '' });
 const outlineContent = defineModel<string>('outlineContent', { default: '' });
 
 const navigate = useNavigate();
+const overlayRootRef = ref<HTMLElement | null>(null);
 
 const editorInstanceId = computed<string>(() => props.editorState?.id || '');
 
@@ -116,6 +118,43 @@ function syncToExternal(): void {
  */
 function handleEditorFocusOut(event: FocusEvent): void {
   emit('editor-blur', event);
+}
+
+/**
+ * 处理富文本中的链接点击。
+ * 文内 hash 链接优先在当前编辑器内跳转，其余链接继续走统一导航逻辑。
+ * @param event - 当前点击事件
+ */
+function handleEditorClick(event: MouseEvent): void {
+  const { target } = event;
+
+  if (!(target instanceof Element)) {
+    return;
+  }
+
+  const anchor = target.closest('a[href]');
+  if (!(anchor instanceof HTMLAnchorElement)) {
+    return;
+  }
+
+  const rawHref = anchor.getAttribute('href');
+  if (!rawHref || !rawHref.startsWith('#')) {
+    navigate.onLink(event);
+    return;
+  }
+
+  const rootElement = overlayRootRef.value;
+  if (!rootElement) {
+    return;
+  }
+
+  const heading = findHeadingElementByHash(rootElement, rawHref);
+  if (!heading) {
+    return;
+  }
+
+  event.preventDefault();
+  scrollHeadingIntoView(heading);
 }
 
 /**
@@ -146,7 +185,6 @@ watch(
 
 // ---- Adapter & Orchestration ----
 
-const overlayRootRef = ref<HTMLElement | null>(null);
 const toolbarHostRef = ref<InstanceType<typeof SelectionToolbarRich> | null>(null);
 const adapter = shallowRef<SelectionAssistantAdapter | null>(null);
 
@@ -434,11 +472,23 @@ async function selectLineRange(startLine: number, endLine: number): Promise<bool
 }
 
 /**
- * 滚动到锚点
+ * 滚动到锚点。
+ * @param anchorId - 锚点 ID
  * @returns 是否成功滚动
  */
-function scrollToAnchor(): boolean {
-  return false;
+function scrollToAnchor(anchorId: string): boolean {
+  const rootElement = overlayRootRef.value;
+  if (!rootElement) {
+    return false;
+  }
+
+  const heading = findHeadingElementByHash(rootElement, `#${anchorId}`);
+  if (!heading) {
+    return false;
+  }
+
+  scrollHeadingIntoView(heading);
+  return true;
 }
 
 /**

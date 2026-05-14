@@ -142,7 +142,6 @@ const showContainer = computed(() => isCompressionMessage.value || !!props.messa
 /** 是否显示助手工具栏 */
 // eslint-disable-next-line no-use-before-define
 const showAssistantToolbar = computed(() => {
-  console.log('🚀 ~ props.message:', props.message);
   if (props.message.finished !== true || !isAssistantMessage.value) {
     return false;
   }
