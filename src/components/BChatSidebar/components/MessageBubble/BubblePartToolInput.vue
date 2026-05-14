@@ -92,6 +92,9 @@ const hasContent = computed(() => hasStructuredValueContent(previewValue.value))
 
 .message-bubble-tool-input__title {
   flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 @keyframes message-bubble-tool-input-spin {
