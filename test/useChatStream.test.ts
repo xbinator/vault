@@ -3,6 +3,7 @@
  * @description 校验聊天流在用户主动中止时会正确收尾助手消息并触发持久化回调。
  */
 import { ref } from 'vue';
+import { nextTick } from 'vue';
 import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useChatStream } from '@/components/BChatSidebar/hooks/useChatStream';
@@ -15,6 +16,8 @@ import type { Message, ServiceConfig } from '@/components/BChatSidebar/utils/typ
 interface MockChatCallbacks {
   /** 流式完成回调 */
   onComplete?: () => void;
+  /** 流式结束回调 */
+  onFinish?: (chunk: import('types/ai').AIStreamFinishChunk) => void;
   /** 工具调用回调 */
   onToolCall?: (chunk: import('types/ai').AIStreamToolCallChunk) => void;
   /** 工具结果回调 */
@@ -268,7 +271,7 @@ describe('useChatStream abort', () => {
     ]);
   });
 
-  it('surfaces a hint when a Tavily tool finishes without any final assistant text', async () => {
+  it('automatically continues after a Tavily tool result when the first stream stops at tool-calls', async () => {
     const messages = ref<Message[]>([create.userMessage('搜索一下最新消息')]);
     const { stream } = useChatStream({
       messages,
@@ -302,10 +305,11 @@ describe('useChatStream abort', () => {
       finishReason: 'tool-calls',
       usage: { inputTokens: 10, outputTokens: 20, totalTokens: 30 }
     });
-    capturedCallbacks?.onComplete?.();
-    await Promise.resolve();
+    await capturedCallbacks?.onComplete?.();
+    await nextTick();
     await Promise.resolve();
 
+    expect(streamSpy).toHaveBeenCalledTimes(2);
     expect(messages.value[1].parts).toEqual([
       {
         type: 'tool-call',
@@ -322,11 +326,8 @@ describe('useChatStream abort', () => {
           status: 'success',
           data: { results: [{ title: 'Headline' }] }
         }
-      },
-      {
-        type: 'error',
-        text: '工具已执行，但模型没有生成最终回答，请重试。（finishReason: tool-calls）'
       }
     ]);
+    expect(messages.value[1].parts.some((part) => part.type === 'error')).toBe(false);
   });
 });

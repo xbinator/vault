@@ -6,7 +6,15 @@
 import type { CachedModelMessagesResult } from '../utils/messageHelper';
 import type { Message, ServiceConfig, ToolLoopGuardConfig } from '../utils/types';
 import type { ModelMessage } from 'ai';
-import type { AIToolExecutor, AIToolContext, AIServiceError, AIStreamFinishChunk, AIStreamFinishReason, AIStreamToolCallChunk, AIStreamToolResultChunk } from 'types/ai';
+import type {
+  AIToolExecutor,
+  AIToolContext,
+  AIServiceError,
+  AIStreamFinishChunk,
+  AIStreamFinishReason,
+  AIStreamToolCallChunk,
+  AIStreamToolResultChunk
+} from 'types/ai';
 import type { AIUserChoiceAnswerData, ChatMessageConfirmationAction } from 'types/chat';
 import { nextTick, ref, shallowRef, type Ref } from 'vue';
 import dayjs from 'dayjs';
@@ -217,10 +225,17 @@ export function useChatStream(options: UseChatStreamOptions): UseChatStreamRetur
   }
 
   /**
+   * 判断本轮是否应基于远端 SDK 工具结果自动续答。
+   */
+  function shouldContinueAfterSdkToolResult(message: Message): boolean {
+    return lastFinishReason === 'tool-calls' && !hasVisibleAssistantAnswer(message) && hasSdkManagedToolResult(message);
+  }
+
+  /**
    * 为“工具执行完但模型没有继续回答”的静默结束场景追加提示。
    */
   function appendSilentSdkCompletionHint(message: Message): void {
-    if (hasVisibleAssistantAnswer(message) || !hasSdkManagedToolResult(message)) {
+    if (!shouldContinueAfterSdkToolResult(message)) {
       return;
     }
 
@@ -441,7 +456,6 @@ export function useChatStream(options: UseChatStreamOptions): UseChatStreamRetur
 
     const message = messages.value[messages.value.length - 1];
     if (message) {
-      appendSilentSdkCompletionHint(message);
       message.loading = false;
       message.finished = true;
     }
@@ -475,9 +489,25 @@ export function useChatStream(options: UseChatStreamOptions): UseChatStreamRetur
       return;
     }
 
+    if (message && lastServiceConfig && shouldContinueAfterSdkToolResult(message)) {
+      const roundGuardResult = currentToolLoopGuard.advanceRound();
+      if (!roundGuardResult.allowed) {
+        executedToolCallIds = new Set();
+        appendSilentSdkCompletionHint(message);
+        onComplete?.(message);
+        return;
+      }
+
+      nextTick(() => {
+        handleStreamMessages(messages.value, lastServiceConfig as ServiceConfig, true);
+      });
+      return;
+    }
+
     executedToolCallIds = new Set();
 
     if (message) {
+      appendSilentSdkCompletionHint(message);
       onComplete?.(message);
     }
   }
