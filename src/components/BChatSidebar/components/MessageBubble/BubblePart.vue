@@ -1,8 +1,11 @@
 <template>
   <div :class="bem({ [type]: true })">
     <div :class="bem('title', { clickable: hasContent })" @click="hasContent && toggleCollapse()">
+      <div :class="bem('title-text')">
+        <slot name="title"></slot>
+      </div>
+
       <Icon v-if="hasContent" :icon="collapsed ? 'lucide:chevron-down' : 'lucide:chevron-up'" width="14" height="14" />
-      <slot name="title"></slot>
     </div>
 
     <div v-show="hasContent && !collapsed" :class="bem('content')">
@@ -75,9 +78,16 @@ function toggleCollapse(): void {
   color: var(--text-primary);
 }
 
+.message-bubble-part__title-text {
+  display: flex;
+  flex: 1;
+  gap: 6px;
+  align-items: center;
+  width: 0;
+}
+
 .message-bubble-part__title--clickable {
   cursor: pointer;
-  user-select: none;
 }
 
 .message-bubble-part__content {
