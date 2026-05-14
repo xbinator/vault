@@ -4,7 +4,9 @@
  */
 import type { AIToolConfirmationAdapter, AIToolConfirmationRequest } from '../../confirmation';
 import type { AIToolExecutor } from 'types/ai';
-import type { EditorPageWidth, ThemeMode } from '@/stores/setting';
+import type { EditorPageWidth, EditorViewMode } from '@/stores/editorPreferences';
+import { useEditorPreferencesStore } from '@/stores/editorPreferences';
+import type { ThemeMode } from '@/stores/setting';
 import { useSettingStore } from '@/stores/setting';
 import { executeWithPermission } from '../../permission';
 import { createToolFailureResult } from '../../results';
@@ -145,8 +147,25 @@ function validateSettingsInput(input: UpdateSettingsInput): UpdateSettingsInput 
  */
 function getCurrentSettingValue(key: SupportedSettingKey): string | boolean | number {
   const settingStore = useSettingStore();
+  const editorPreferencesStore = useEditorPreferencesStore();
 
-  return settingStore[key];
+  if (key === 'theme') {
+    return settingStore.theme;
+  }
+
+  if (key === 'showOutline') {
+    return editorPreferencesStore.showOutline;
+  }
+
+  if (key === 'sourceMode') {
+    return editorPreferencesStore.viewMode === 'source';
+  }
+
+  if (key === 'editorPageWidth') {
+    return editorPreferencesStore.pageWidth;
+  }
+
+  return '';
 }
 
 /**
@@ -155,6 +174,7 @@ function getCurrentSettingValue(key: SupportedSettingKey): string | boolean | nu
  */
 function applySettingValue(input: UpdateSettingsInput): void {
   const settingStore = useSettingStore();
+  const editorPreferencesStore = useEditorPreferencesStore();
 
   if (input.key === 'theme' && isThemeMode(input.value)) {
     settingStore.setTheme(input.value);
@@ -162,17 +182,18 @@ function applySettingValue(input: UpdateSettingsInput): void {
   }
 
   if (input.key === 'showOutline' && typeof input.value === 'boolean') {
-    settingStore.setShowOutline(input.value);
+    editorPreferencesStore.setShowOutline(input.value);
     return;
   }
 
   if (input.key === 'sourceMode' && typeof input.value === 'boolean') {
-    settingStore.setSourceMode(input.value);
+    const viewMode: EditorViewMode = input.value ? 'source' : 'rich';
+    editorPreferencesStore.setViewMode(viewMode);
     return;
   }
 
   if (input.key === 'editorPageWidth' && isEditorPageWidth(input.value)) {
-    settingStore.setEditorPageWidth(input.value);
+    editorPreferencesStore.setPageWidth(input.value);
   }
 }
 
