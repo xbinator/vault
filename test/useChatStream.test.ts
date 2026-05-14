@@ -390,4 +390,49 @@ describe('useChatStream abort', () => {
     expect(onComplete).toHaveBeenCalledTimes(1);
     expect(onComplete).toHaveBeenCalledWith(messages.value[1]);
   });
+
+  it('appends tool-loop stop errors to the current assistant message instead of creating a new one', async () => {
+    const messages = ref<Message[]>([create.userMessage('继续读取文档')]);
+    const onComplete = vi.fn<(message: Message) => void>();
+    const { stream } = useChatStream({
+      messages,
+      onComplete
+    });
+
+    const config: ServiceConfig = {
+      providerId: 'openai',
+      modelId: 'gpt-4o',
+      toolSupport: {
+        supported: true
+      }
+    };
+
+    await stream.streamMessages(messages.value, config);
+    capturedCallbacks?.onToolCall?.({
+      toolCallId: 'tool-call-1',
+      toolName: 'read_current_document',
+      input: {}
+    });
+    capturedCallbacks?.onToolCall?.({
+      toolCallId: 'tool-call-2',
+      toolName: 'read_current_document',
+      input: {}
+    });
+    capturedCallbacks?.onToolCall?.({
+      toolCallId: 'tool-call-3',
+      toolName: 'read_current_document',
+      input: {}
+    });
+    await Promise.resolve();
+
+    expect(messages.value).toHaveLength(2);
+    expect(messages.value[1].role).toBe('assistant');
+    expect(messages.value[1].parts.at(-1)).toEqual({
+      type: 'error',
+      text: '工具 `read_current_document` 使用相同参数重复调用超过限制（2），已停止自动续轮。'
+    });
+    expect(messages.value[1].finished).toBe(true);
+    expect(onComplete).toHaveBeenCalledTimes(1);
+    expect(onComplete).toHaveBeenCalledWith(messages.value[1]);
+  });
 });

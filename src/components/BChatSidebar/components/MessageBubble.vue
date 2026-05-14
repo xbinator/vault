@@ -53,7 +53,7 @@
     </BBubble>
 
     <!-- 助手消息工具栏 -->
-    <div v-if="message.finished && isAssistantMessage" :class="bem('toolbar')">
+    <div v-if="showAssistantToolbar" :class="bem('toolbar')">
       <BButton type="text" size="small" square icon="lucide:copy" @click="handleCopy(message)" />
       <BButton square type="text" size="small" icon="lucide:refresh-cw" @click="$emit('regenerate', message)" />
     </div>
@@ -129,12 +129,19 @@ const isUserMessage = computed(() => props.message.role === 'user');
 const isAssistantMessage = computed(() => props.message.role === 'assistant');
 /** 是否为压缩消息 */
 const isCompressionMessage = computed(() => props.message.role === 'compression');
+/** 是否只包含错误片段的系统提示消息 */
+const isErrorOnlyAssistantMessage = computed(
+  () => isAssistantMessage.value && props.message.parts.length > 0 && props.message.parts.every((part) => part.type === 'error')
+);
 /** 气泡位置：助手和错误消息靠左，用户消息靠右 */
 const bubblePlacement = computed(() => (isUserMessage.value ? 'right' : 'left'));
 /** 是否显示头部（用户消息且有文件时显示） */
 const showHeader = computed(() => isUserMessage.value && (imageFiles.value.length || otherFiles.value.length));
 /** 是否显示气泡容器（用户消息且有文件时显示） */
 const showContainer = computed(() => isCompressionMessage.value || !!props.message.parts?.length);
+/** 是否显示助手工具栏 */
+// eslint-disable-next-line no-use-before-define
+const showAssistantToolbar = computed(() => messageIsFinishedAssistantMessage() && !isErrorOnlyAssistantMessage.value);
 
 /** 图片预览器显示状态 */
 const showImageViewer = ref(false);
@@ -167,6 +174,14 @@ function handleImageClick(index: number): void {
 function handleCopy(message: Message): void {
   const content = extractLastTextPart(message);
   clipboard(content, { successMessage: '已复制到剪贴板' });
+}
+
+/**
+ * 判断消息是否为可显示助手工具栏的已完成助手消息。
+ * @returns 是否为已完成助手消息
+ */
+function messageIsFinishedAssistantMessage(): boolean {
+  return props.message.finished === true && isAssistantMessage.value;
 }
 </script>
 

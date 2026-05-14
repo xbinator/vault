@@ -275,12 +275,13 @@ export function useChatStream(options: UseChatStreamOptions): UseChatStreamRetur
 
     if (lastMessage?.role !== 'user') {
       lastMessage.parts.push(...errorMessage.parts);
+      lastMessage.content = lastMessage.content ? `${lastMessage.content}\n${reason}` : reason;
       lastMessage.loading = false;
       lastMessage.finished = true;
-    } else {
-      messages.value.push(errorMessage);
+      lastMessage.createdAt ||= dayjs().toISOString();
+      return lastMessage;
     }
-
+    messages.value.push(errorMessage);
     return errorMessage;
   }
 

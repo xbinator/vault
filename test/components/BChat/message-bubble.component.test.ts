@@ -221,6 +221,26 @@ function createMessageWithAwaitingUserQuestion(): Message {
 }
 
 /**
+ * 创建只包含系统错误提示的助手消息。
+ * @returns assistant 消息
+ */
+function createAssistantErrorOnlyMessage(): Message {
+  return {
+    id: 'assistant-error-1',
+    role: 'assistant',
+    content: '工具调用轮次超过限制，已停止自动续轮。',
+    createdAt: '2026-05-14T00:10:00.000Z',
+    finished: true,
+    parts: [
+      {
+        type: 'error',
+        text: '工具调用轮次超过限制，已停止自动续轮。'
+      }
+    ]
+  };
+}
+
+/**
  * 挂载 MessageBubble。
  * @param message - 消息数据
  * @returns 挂载结果
@@ -293,5 +313,12 @@ describe('MessageBubble confirmation integration', () => {
     expect(wrapper.text()).toContain('官网');
     expect(wrapper.text()).toContain('提交选择');
     expect(wrapper.text()).not.toContain('工具结果：ask_user_question');
+  });
+
+  it('hides assistant toolbar actions for error-only system messages', () => {
+    const wrapper = mountMessageBubble(createAssistantErrorOnlyMessage());
+
+    expect(wrapper.text()).toContain('工具调用轮次超过限制，已停止自动续轮。');
+    expect(wrapper.find('.message-bubble__toolbar').exists()).toBe(false);
   });
 });
