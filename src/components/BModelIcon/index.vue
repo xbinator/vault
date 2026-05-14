@@ -67,7 +67,7 @@ const modelIcons: Record<string, string> = {
   chatglm: 'chatglm-color',
   kimi: 'kimi',
   qwen: 'qwen-color',
-  doubao: 'doubao',
+  doubao: 'doubao-color',
   mimo: 'xiaomimimo',
   minimax: 'minimax-color',
   longcat: 'longcat-color',
