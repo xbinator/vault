@@ -2,8 +2,8 @@
  * @file builtin/index.ts
  * @description 内置工具工厂函数，内置工具名称清单与默认暴露策略
  */
-import type { AIToolConfirmationAdapter } from '../confirmation';
-import type { AIToolContext, AIToolExecutor } from 'types/ai';
+import type { BuiltinToolBaseOptions } from '../shared/types';
+import type { AIToolExecutor } from 'types/ai';
 import { nanoid } from 'nanoid';
 import { ASK_USER_QUESTION_TOOL_NAME, createAskUserQuestionTool, type PendingQuestionSnapshot } from './AskUserQuestionTool';
 import { READ_CURRENT_DOCUMENT_TOOL_NAME, createBuiltinReadTools } from './DocumentTool';
@@ -86,27 +86,11 @@ export function isDefaultBuiltinWritableToolName(toolName: string): boolean {
 /**
  * 创建内置工具的选项
  */
-interface CreateBuiltinToolsOptions {
-  /** 确认适配器，用于写操作的用户确认 */
-  confirm?: AIToolConfirmationAdapter;
+interface CreateBuiltinToolsOptions extends BuiltinToolBaseOptions {
   /** 获取当前待回答问题，用于避免重复发起用户选择 */
   getPendingQuestion?: () => PendingQuestionSnapshot | null;
   /** 创建用户选择问题 ID */
   createQuestionId?: () => string;
-  /** 获取工作区根目录，无工作区时返回 null */
-  getWorkspaceRoot?: () => string | null;
-  /** 判断文件路径是否在最近文件列表中，命中时跳过绝对路径确认 */
-  isFileInRecent?: (filePath: string) => boolean;
-  /**
-   * 通过文件路径查询文件记录，用于获取文件 ID。
-   * 内部封装 filesStore.getFileByPath。
-   */
-  findFileByPath?: (filePath: string) => Promise<{ id: string } | null>;
-  /**
-   * 通过文件 ID 获取编辑器上下文，用于读取内存中的最新内容。
-   * 内部封装 editorToolContextRegistry.getContext。
-   */
-  getEditorContext?: (documentId: string) => AIToolContext | undefined;
 }
 
 /**
@@ -154,11 +138,11 @@ export function createBuiltinTools(options: CreateBuiltinToolsOptions = {}): AIT
 
   // 创建文件级写入工具
   const editFileTool = createBuiltinEditFileTool({
-    confirm: options.confirm,
+    confirm: options.confirm!,
     getWorkspaceRoot: options.getWorkspaceRoot
   });
   const writeFileTool = createBuiltinWriteFileTool({
-    confirm: options.confirm,
+    confirm: options.confirm!,
     getWorkspaceRoot: options.getWorkspaceRoot
   });
   // 创建设置修改工具

@@ -2,7 +2,7 @@
  * @file types.ts
  * @description fileEdit 工具模块内类型定义。
  */
-import type { AIToolConfirmationAdapter } from '../../confirmation';
+import type { ToolRequiredConfirmationOptions, ToolWorkspaceOptions } from '../../shared/types';
 import type { ReadWorkspaceFileOptions, ReadWorkspaceFileResult } from '@/shared/platform/native/types';
 
 /**
@@ -34,11 +34,7 @@ export interface EditFileResult {
 /**
  * 创建 edit_file 工具的选项。
  */
-export interface CreateBuiltinEditFileToolOptions {
-  /** 写操作确认适配器。 */
-  confirm: AIToolConfirmationAdapter;
-  /** 获取工作区根目录，无工作区时返回 null。 */
-  getWorkspaceRoot?: () => string | null;
+export interface CreateBuiltinEditFileToolOptions extends ToolRequiredConfirmationOptions, ToolWorkspaceOptions {
   /** 读取本地文件，测试时可注入替身。 */
   readWorkspaceFile?: (options: ReadWorkspaceFileOptions) => Promise<ReadWorkspaceFileResult>;
   /** 写入本地文件，测试时可注入替身。 */

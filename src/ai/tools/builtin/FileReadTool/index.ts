@@ -3,7 +3,8 @@
  * @description 内置本地文件读取工具实现。
  */
 import type { AIToolConfirmationAdapter, AIToolConfirmationRequest } from '../../confirmation';
-import type { AIToolContext, AIToolExecutionError, AIToolExecutor } from 'types/ai';
+import type { BuiltinToolBaseOptions } from '../../shared/types';
+import type { AIToolExecutionError, AIToolExecutor } from 'types/ai';
 import { native } from '@/shared/platform';
 import type {
   ReadWorkspaceDirectoryOptions,
@@ -59,27 +60,7 @@ export interface ReadFileResult {
 }
 
 /** 创建 read_file 工具的选项 */
-export interface CreateBuiltinReadFileToolOptions {
-  /** 读取工作区外绝对路径时使用的用户确认适配器 */
-  confirm?: AIToolConfirmationAdapter;
-  /** 获取工作区根目录，无工作区时返回 null */
-  getWorkspaceRoot?: () => string | null;
-  /** 判断文件路径是否在最近文件列表中，命中时跳过绝对路径确认 */
-  isFileInRecent?: (filePath: string) => boolean;
-  /**
-   * 通过文件路径查询文件记录，用于获取文件 ID。
-   * 内部封装 filesStore.getFileByPath。
-   * @param filePath - 文件绝对路径
-   * @returns 文件记录（含 id），未找到时返回 null
-   */
-  findFileByPath?: (filePath: string) => Promise<{ id: string } | null>;
-  /**
-   * 通过文件 ID 获取编辑器上下文，用于读取内存中的最新内容。
-   * 内部封装 editorToolContextRegistry.getContext。
-   * @param documentId - 文件 ID
-   * @returns 编辑器上下文，文件未打开时返回 undefined
-   */
-  getEditorContext?: (documentId: string) => AIToolContext | undefined;
+export interface CreateBuiltinReadFileToolOptions extends BuiltinToolBaseOptions {
   /** 读取本地文件，测试时可注入替身 */
   readWorkspaceFile?: (options: ReadWorkspaceFileOptions) => Promise<ReadWorkspaceFileResult>;
   /** 读取本地目录，测试时可注入替身 */
