@@ -3,7 +3,7 @@
  * @description 内置本地文件读取工具实现。
  */
 import type { AIToolConfirmationAdapter, AIToolConfirmationRequest } from '../../confirmation';
-import type { AIToolExecutionError, AIToolExecutor } from 'types/ai';
+import type { AIToolContext, AIToolExecutionError, AIToolExecutor } from 'types/ai';
 import { native } from '@/shared/platform';
 import type {
   ReadWorkspaceDirectoryOptions,
@@ -66,6 +66,20 @@ export interface CreateBuiltinReadFileToolOptions {
   getWorkspaceRoot?: () => string | null;
   /** 判断文件路径是否在最近文件列表中，命中时跳过绝对路径确认 */
   isFileInRecent?: (filePath: string) => boolean;
+  /**
+   * 通过文件路径查询文件记录，用于获取文件 ID。
+   * 内部封装 filesStore.getFileByPath。
+   * @param filePath - 文件绝对路径
+   * @returns 文件记录（含 id），未找到时返回 null
+   */
+  findFileByPath?: (filePath: string) => Promise<{ id: string } | null>;
+  /**
+   * 通过文件 ID 获取编辑器上下文，用于读取内存中的最新内容。
+   * 内部封装 editorToolContextRegistry.getContext。
+   * @param documentId - 文件 ID
+   * @returns 编辑器上下文，文件未打开时返回 undefined
+   */
+  getEditorContext?: (documentId: string) => AIToolContext | undefined;
   /** 读取本地文件，测试时可注入替身 */
   readWorkspaceFile?: (options: ReadWorkspaceFileOptions) => Promise<ReadWorkspaceFileResult>;
   /** 读取本地目录，测试时可注入替身 */
@@ -186,6 +200,33 @@ async function confirmAbsoluteDirectoryRead(adapter: AIToolConfirmationAdapter, 
 }
 
 /**
+ * 将原始文件内容按 offset/limit 切片并构造 ReadFileResult。
+ * @param filePath - 文件路径
+ * @param fullContent - 完整文件内容
+ * @param offset - 起始行号（1-based）
+ * @param limit - 读取行数，不传时读到末尾
+ * @returns 切片后的读取结果
+ */
+function buildReadFileResult(filePath: string, fullContent: string, offset: number, limit?: number): ReadFileResult {
+  const lines = fullContent.split('\n');
+  const totalLines = lines.length;
+  const startLine = Math.max(0, offset - 1);
+  const endLine = limit === undefined ? totalLines : Math.min(startLine + limit, totalLines);
+  const content = lines.slice(startLine, endLine).join('\n');
+  const readLines = endLine - startLine;
+  const hasMore = endLine < totalLines;
+
+  return {
+    path: filePath,
+    content,
+    totalLines,
+    readLines,
+    hasMore,
+    nextOffset: hasMore ? endLine + 1 : null
+  };
+}
+
+/**
  * 创建内置 read_file 工具。
  * @param options - 工具创建选项
  * @returns read_file 工具执行器
@@ -230,22 +271,44 @@ export function createBuiltinReadFileTool(options: CreateBuiltinReadFileToolOpti
         }
 
         const range = normalizeReadRange(input);
-        const lines = storedFile.content.split('\n');
-        const totalLines = lines.length;
-        const startLine = Math.max(1, range.offset) - 1;
-        const endLine = range.limit === undefined ? totalLines : Math.min(startLine + range.limit, totalLines);
-        const content = lines.slice(startLine, endLine).join('\n');
-        const readLines = endLine - startLine;
-        const hasMore = endLine < totalLines;
-        const result: ReadFileResult = {
-          path: filePath,
-          content,
-          totalLines,
-          readLines,
-          hasMore,
-          nextOffset: hasMore ? endLine + 1 : null
-        };
+        const result = buildReadFileResult(filePath, storedFile.content, range.offset, range.limit);
         return createToolSuccessResult<ReadFileResult>(READ_FILE_TOOL_NAME, result);
+      }
+
+      // 尝试从编辑器内存中获取已打开文件的最新内容（含未保存修改）。
+      if (options.findFileByPath && options.getEditorContext) {
+        try {
+          // 解析路径：相对路径需拼接 workspaceRoot
+          let resolvedPath = filePath;
+          if (!isAbsoluteFilePath(filePath)) {
+            const root = options.getWorkspaceRoot?.();
+            if (root) {
+              resolvedPath = `${root.replace(/\/$/, '')}/${filePath.replace(/^\//, '')}`;
+            } else {
+              // 无 workspaceRoot 时无法解析相对路径，跳过内存读取
+              resolvedPath = '';
+            }
+          }
+
+          if (resolvedPath) {
+            const file = await options.findFileByPath(resolvedPath);
+            if (file) {
+              const context = options.getEditorContext(file.id);
+              if (context) {
+                try {
+                  const range = normalizeReadRange(input);
+                  const content = context.document.getContent();
+                  const result = buildReadFileResult(filePath, content, range.offset, range.limit);
+                  return createToolSuccessResult(READ_FILE_TOOL_NAME, result);
+                } catch {
+                  // getContent() 异常，静默降级到文件系统读取
+                }
+              }
+            }
+          }
+        } catch {
+          // 注入函数异常，静默降级到文件系统读取
+        }
       }
 
       const workspaceRoot = options.getWorkspaceRoot?.() ?? null;

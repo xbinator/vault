@@ -162,4 +162,231 @@ describe('createBuiltinReadFileTool', () => {
     expect(result.status).toBe('failure');
     expect(result.error?.code).toBe('INVALID_INPUT');
   });
+
+  describe('memory-first read', () => {
+    /**
+     * 创建编辑器上下文的 mock 对象。
+     * @param content - 文件内容
+     * @returns 模拟的编辑器上下文
+     */
+    function createMockEditorContext(content: string) {
+      return {
+        document: {
+          id: 'file-1',
+          title: 'test.md',
+          path: '/workspace/test.md',
+          getContent: () => content
+        },
+        editor: {
+          getSelection: () => null,
+          insertAtCursor: async () => {},
+          replaceSelection: async () => {},
+          replaceDocument: async () => {}
+        }
+      };
+    }
+
+    it('reads from memory when file is open in editor tab', async () => {
+      let filesystemCalled = false;
+      const tool = createBuiltinReadFileTool({
+        getWorkspaceRoot: () => '/workspace',
+        findFileByPath: async () => ({ id: 'file-1' }),
+        getEditorContext: () => createMockEditorContext('line1\nline2\nline3\nline4\nline5'),
+        readWorkspaceFile: async () => {
+          filesystemCalled = true;
+          return { path: '', content: '', totalLines: 0, readLines: 0, hasMore: false, nextOffset: null };
+        }
+      });
+
+      const result = await tool.execute({ path: 'test.md' });
+
+      expect(result.status).toBe('success');
+      expect(filesystemCalled).toBe(false);
+      if (result.status === 'success') {
+        expect(result.data.content).toBe('line1\nline2\nline3\nline4\nline5');
+        expect(result.data.totalLines).toBe(5);
+        expect(result.data.readLines).toBe(5);
+        expect(result.data.hasMore).toBe(false);
+        expect(result.data.nextOffset).toBeNull();
+      }
+    });
+
+    it('supports offset and limit slicing on memory content', async () => {
+      const tool = createBuiltinReadFileTool({
+        getWorkspaceRoot: () => '/workspace',
+        findFileByPath: async () => ({ id: 'file-1' }),
+        getEditorContext: () => createMockEditorContext('line1\nline2\nline3\nline4\nline5'),
+        readWorkspaceFile: async () => ({ path: '', content: '', totalLines: 0, readLines: 0, hasMore: false, nextOffset: null })
+      });
+
+      const result = await tool.execute({ path: 'test.md', offset: 2, limit: 2 });
+
+      expect(result.status).toBe('success');
+      if (result.status === 'success') {
+        expect(result.data.content).toBe('line2\nline3');
+        expect(result.data.totalLines).toBe(5);
+        expect(result.data.readLines).toBe(2);
+        expect(result.data.hasMore).toBe(true);
+        expect(result.data.nextOffset).toBe(4);
+      }
+    });
+
+    it('falls back to filesystem when file is NOT open in editor', async () => {
+      const expectedResult = { path: '/workspace/test.md', content: 'disk content', totalLines: 1, readLines: 1, hasMore: false, nextOffset: null };
+      const tool = createBuiltinReadFileTool({
+        getWorkspaceRoot: () => '/workspace',
+        findFileByPath: async () => ({ id: 'file-2' }),
+        getEditorContext: () => undefined,
+        readWorkspaceFile: async () => expectedResult
+      });
+
+      const result = await tool.execute({ path: 'test.md' });
+
+      expect(result.status).toBe('success');
+      if (result.status === 'success') {
+        expect(result.data.content).toBe('disk content');
+      }
+    });
+
+    it('falls back to filesystem when findFileByPath returns null', async () => {
+      const expectedResult = { path: '/workspace/unknown.md', content: 'disk', totalLines: 1, readLines: 1, hasMore: false, nextOffset: null };
+      const tool = createBuiltinReadFileTool({
+        getWorkspaceRoot: () => '/workspace',
+        findFileByPath: async () => null,
+        getEditorContext: () => createMockEditorContext('memory'),
+        readWorkspaceFile: async () => expectedResult
+      });
+
+      const result = await tool.execute({ path: 'unknown.md' });
+
+      expect(result.status).toBe('success');
+      if (result.status === 'success') {
+        expect(result.data.content).toBe('disk');
+      }
+    });
+
+    it('falls back to filesystem when getContent throws', async () => {
+      const expectedResult = { path: '/workspace/broken.md', content: 'disk fallback', totalLines: 1, readLines: 1, hasMore: false, nextOffset: null };
+      const tool = createBuiltinReadFileTool({
+        getWorkspaceRoot: () => '/workspace',
+        findFileByPath: async () => ({ id: 'file-3' }),
+        getEditorContext: () => ({
+          document: {
+            id: 'file-3',
+            title: 'broken.md',
+            path: '/workspace/broken.md',
+            getContent: () => { throw new Error('getContent failed'); }
+          },
+          editor: {
+            getSelection: () => null,
+            insertAtCursor: async () => {},
+            replaceSelection: async () => {},
+            replaceDocument: async () => {}
+          }
+        }),
+        readWorkspaceFile: async () => expectedResult
+      });
+
+      const result = await tool.execute({ path: 'broken.md' });
+
+      expect(result.status).toBe('success');
+      if (result.status === 'success') {
+        expect(result.data.content).toBe('disk fallback');
+      }
+    });
+
+    it('returns empty content when editor content is empty string', async () => {
+      const tool = createBuiltinReadFileTool({
+        getWorkspaceRoot: () => '/workspace',
+        findFileByPath: async () => ({ id: 'file-4' }),
+        getEditorContext: () => createMockEditorContext(''),
+        readWorkspaceFile: async () => ({ path: '', content: '', totalLines: 0, readLines: 0, hasMore: false, nextOffset: null })
+      });
+
+      const result = await tool.execute({ path: 'empty.md' });
+
+      expect(result.status).toBe('success');
+      if (result.status === 'success') {
+        expect(result.data.content).toBe('');
+        expect(result.data.totalLines).toBe(1);
+        expect(result.data.readLines).toBe(1);
+      }
+    });
+
+    it('falls back to filesystem when findFileByPath throws', async () => {
+      const expectedResult = { path: '/workspace/error.md', content: 'disk', totalLines: 1, readLines: 1, hasMore: false, nextOffset: null };
+      const tool = createBuiltinReadFileTool({
+        getWorkspaceRoot: () => '/workspace',
+        findFileByPath: async () => { throw new Error('findFileByPath error'); },
+        getEditorContext: () => createMockEditorContext('memory'),
+        readWorkspaceFile: async () => expectedResult
+      });
+
+      const result = await tool.execute({ path: 'error.md' });
+
+      expect(result.status).toBe('success');
+      if (result.status === 'success') {
+        expect(result.data.content).toBe('disk');
+      }
+    });
+
+    it('skips memory read when workspaceRoot is null and path is relative', async () => {
+      const tool = createBuiltinReadFileTool({
+        getWorkspaceRoot: () => null,
+        findFileByPath: async () => ({ id: 'file-5' }),
+        getEditorContext: () => createMockEditorContext('memory'),
+        confirm: {
+          confirm: async () => true
+        },
+        readWorkspaceFile: async () => ({ path: '', content: '', totalLines: 0, readLines: 0, hasMore: false, nextOffset: null })
+      });
+
+      const result = await tool.execute({ path: 'src/readme.md' });
+
+      // 相对路径 + 无 workspaceRoot → 无法解析为绝对路径 → 跳过内存读取
+      // 回退到文件系统逻辑 → 相对路径无 workspaceRoot 拒绝
+      expect(result.status).toBe('failure');
+      expect(result.error?.code).toBe('PERMISSION_DENIED');
+    });
+
+    it('reads from memory for absolute path without workspaceRoot', async () => {
+      let filesystemCalled = false;
+      const tool = createBuiltinReadFileTool({
+        getWorkspaceRoot: () => null,
+        findFileByPath: async () => ({ id: 'file-6' }),
+        getEditorContext: () => createMockEditorContext('memory content'),
+        confirm: {
+          confirm: async () => true
+        },
+        readWorkspaceFile: async () => {
+          filesystemCalled = true;
+          return { path: '', content: '', totalLines: 0, readLines: 0, hasMore: false, nextOffset: null };
+        }
+      });
+
+      const result = await tool.execute({ path: '/abs/readme.md' });
+
+      expect(result.status).toBe('success');
+      expect(filesystemCalled).toBe(false);
+      if (result.status === 'success') {
+        expect(result.data.content).toBe('memory content');
+      }
+    });
+
+    it('behavior unchanged when findFileByPath is not injected', async () => {
+      let filesystemCalled = false;
+      const tool = createBuiltinReadFileTool({
+        getWorkspaceRoot: () => '/workspace',
+        readWorkspaceFile: async () => {
+          filesystemCalled = true;
+          return { path: '/workspace/test.md', content: 'disk', totalLines: 1, readLines: 1, hasMore: false, nextOffset: null };
+        }
+      });
+
+      const result = await tool.execute({ path: 'test.md' });
+
+      expect(filesystemCalled).toBe(true);
+      expect(result.status).toBe('success');
+    });
+  });
 });

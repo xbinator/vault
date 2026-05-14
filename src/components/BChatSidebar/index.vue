@@ -304,6 +304,21 @@ const tools = createBuiltinTools({
   isFileInRecent: (filePath: string) => {
     return Boolean(filesStore.recentFiles?.some((file) => file.path === filePath));
   },
+  /**
+   * 通过文件绝对路径查找文件 ID。
+   * 封装 filesStore.getFileByPath。
+   */
+  findFileByPath: async (filePath: string) => {
+    const file = await filesStore.getFileByPath(filePath);
+    return file ? { id: file.id } : null;
+  },
+  /**
+   * 通过文件 ID 获取编辑器上下文。
+   * 封装 editorToolContextRegistry.getContext。
+   */
+  getEditorContext: (documentId: string) => {
+    return editorToolContextRegistry.getContext(documentId);
+  },
   getPendingQuestion: () => {
     const pendingQuestion = userChoice.findPending(messages.value);
     if (!pendingQuestion) return null;
