@@ -83,7 +83,6 @@
 import type { CSSProperties } from 'vue';
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { Icon } from '@iconify/vue';
-import { findParentNodeClosestToPos } from '@tiptap/core';
 import { CellSelection, TableMap } from '@tiptap/pm/tables';
 import { NodeViewContent, NodeViewWrapper, nodeViewProps } from '@tiptap/vue-3';
 import { createNamespace } from '@/utils/namespace';
@@ -555,31 +554,58 @@ function handleScroll(): void {
 // ─── 编辑器操作 ──────────────────────────────────────────────────────────────
 
 /**
- * 聚焦到目标表格单元格。
+ * 读取当前 NodeView 对应表格在文档中的起始位置。
+ * @returns 表格起始位置，无法定位时返回 null
+ */
+function getCurrentTablePos(): number | null {
+  if (typeof props.getPos !== 'function') {
+    return null;
+  }
+
+  const position = props.getPos();
+  return typeof position === 'number' ? position : null;
+}
+
+/**
+ * 读取当前 NodeView 对应表格的映射信息。
+ * @returns 当前表格的 TableMap 与起始位置
+ */
+function getCurrentTableMap(): { map: TableMap; tablePos: number } | null {
+  const tablePos = getCurrentTablePos();
+  if (tablePos === null || props.node.type.name !== 'table') {
+    return null;
+  }
+
+  return {
+    map: TableMap.get(props.node),
+    tablePos
+  };
+}
+
+/**
+ * 聚焦到当前表格中的目标单元格。
  */
 function focusCellAt(position: { row: number; column: number }): boolean {
-  const { selection, tr, doc } = props.editor.state;
-  const tableInfo = findParentNodeClosestToPos(selection.$from, (node) => node.type.name === 'table');
-  if (!tableInfo) return false;
+  const { tr, doc } = props.editor.state;
+  const tableState = getCurrentTableMap();
+  if (!tableState) return false;
 
-  const map = TableMap.get(tableInfo.node);
-  const row = Math.min(position.row, map.height - 1);
-  const column = Math.min(position.column, map.width - 1);
-  const cellPos = tableInfo.pos + 1 + map.map[row * map.width + column];
+  const row = Math.min(position.row, tableState.map.height - 1);
+  const column = Math.min(position.column, tableState.map.width - 1);
+  const cellPos = tableState.tablePos + 1 + tableState.map.map[row * tableState.map.width + column];
 
   props.editor.view.dispatch(tr.setSelection(CellSelection.create(doc, cellPos)));
   return true;
 }
 
 /**
- * 读取当前表格行列数。
+ * 读取当前 NodeView 对应表格的行列数。
  */
 function getDimensions(): { rowCount: number; columnCount: number } {
-  const tableInfo = findParentNodeClosestToPos(props.editor.state.selection.$from, (node) => node.type.name === 'table');
-  if (!tableInfo) return { rowCount: FALLBACK.ROW_COUNT, columnCount: FALLBACK.COLUMN_COUNT };
+  const tableState = getCurrentTableMap();
+  if (!tableState) return { rowCount: FALLBACK.ROW_COUNT, columnCount: FALLBACK.COLUMN_COUNT };
 
-  const map = TableMap.get(tableInfo.node);
-  return { rowCount: map.height, columnCount: map.width };
+  return { rowCount: tableState.map.height, columnCount: tableState.map.width };
 }
 
 const editorContext = { editor: props.editor, focusCellAt, getDimensions };

@@ -118,7 +118,24 @@ function mapWorkspaceErrorCode(code: WorkspaceReadErrorCode | null): AIToolExecu
  * @returns 可展示错误消息
  */
 function readErrorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : '读取文件失败';
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return '读取文件失败';
+}
+
+/**
+ * 读取目录错误消息。
+ * @param error - 未知错误
+ * @returns 可展示错误消息
+ */
+function readDirectoryErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return '读取目录失败';
 }
 
 /**
@@ -137,7 +154,81 @@ function normalizeReadRange(input: ReadFileInput): { offset: number; limit?: num
     throw new Error('limit 必须是大于等于 1 的整数');
   }
 
-  return input.limit === undefined ? { offset } : { offset, limit: input.limit };
+  if (input.limit === undefined) {
+    return { offset };
+  }
+
+  return { offset, limit: input.limit };
+}
+
+/**
+ * 读取确认结果。
+ * @param decision - 用户确认结果
+ * @returns 是否允许执行
+ */
+function readConfirmationApproved(decision: boolean | { approved: boolean }): boolean {
+  if (typeof decision === 'boolean') {
+    return decision;
+  }
+
+  return decision.approved;
+}
+
+/**
+ * 构造读取范围描述文本。
+ * @param range - 读取行范围
+ * @returns 读取范围描述
+ */
+function buildReadRangeText(range: { offset: number; limit?: number }): string {
+  if (range.limit === undefined) {
+    return `从第 ${range.offset} 行开始读取到文件末尾`;
+  }
+
+  return `从第 ${range.offset} 行开始，读取 ${range.limit} 行`;
+}
+
+/**
+ * 构造 workspaceRoot 参数。
+ * @param workspaceRoot - 工作区根目录
+ * @returns workspaceRoot 参数对象
+ */
+function buildWorkspaceRootOptions(workspaceRoot: string | null): { workspaceRoot?: string } {
+  if (!workspaceRoot) {
+    return {};
+  }
+
+  return { workspaceRoot };
+}
+
+/**
+ * 构造 limit 参数。
+ * @param limit - 读取行数
+ * @returns limit 参数对象
+ */
+function buildLimitOptions(limit?: number): Partial<Pick<ReadWorkspaceFileOptions, 'limit'>> {
+  if (limit === undefined) {
+    return {};
+  }
+
+  return { limit };
+}
+
+/**
+ * 解析用于编辑器内存读取的真实路径。
+ * @param filePath - 文件路径
+ * @param workspaceRoot - 工作区根目录
+ * @returns 可用于匹配编辑器文件的路径，无法解析时返回空字符串
+ */
+function resolveEditorFilePath(filePath: string, workspaceRoot: string | null | undefined): string {
+  if (isAbsoluteFilePath(filePath)) {
+    return filePath;
+  }
+
+  if (!workspaceRoot) {
+    return '';
+  }
+
+  return `${workspaceRoot.replace(/\/$/, '')}/${filePath.replace(/^\//, '')}`;
 }
 
 /**
@@ -148,7 +239,7 @@ function normalizeReadRange(input: ReadFileInput): { offset: number; limit?: num
  * @returns 是否已确认
  */
 async function confirmAbsoluteRead(adapter: AIToolConfirmationAdapter, filePath: string, range: { offset: number; limit?: number }): Promise<boolean> {
-  const rangeText = range.limit === undefined ? `从第 ${range.offset} 行开始读取到文件末尾` : `从第 ${range.offset} 行开始，读取 ${range.limit} 行`;
+  const rangeText = buildReadRangeText(range);
   const request: AIToolConfirmationRequest = {
     toolName: READ_FILE_TOOL_NAME,
     title: 'AI 想要读取本地文件',
@@ -158,7 +249,7 @@ async function confirmAbsoluteRead(adapter: AIToolConfirmationAdapter, filePath:
   };
   const decision = await adapter.confirm(request);
 
-  return typeof decision === 'boolean' ? decision : decision.approved;
+  return readConfirmationApproved(decision);
 }
 
 /**
@@ -177,7 +268,7 @@ async function confirmAbsoluteDirectoryRead(adapter: AIToolConfirmationAdapter, 
   };
   const decision = await adapter.confirm(request);
 
-  return typeof decision === 'boolean' ? decision : decision.approved;
+  return readConfirmationApproved(decision);
 }
 
 /**
@@ -192,10 +283,20 @@ function buildReadFileResult(filePath: string, fullContent: string, offset: numb
   const lines = fullContent.split('\n');
   const totalLines = lines.length;
   const startLine = Math.max(0, offset - 1);
-  const endLine = limit === undefined ? totalLines : Math.min(startLine + limit, totalLines);
+
+  let endLine = totalLines;
+  if (limit !== undefined) {
+    endLine = Math.min(startLine + limit, totalLines);
+  }
+
   const content = lines.slice(startLine, endLine).join('\n');
   const readLines = endLine - startLine;
   const hasMore = endLine < totalLines;
+
+  let nextOffset: number | null = null;
+  if (hasMore) {
+    nextOffset = endLine + 1;
+  }
 
   return {
     path: filePath,
@@ -203,7 +304,7 @@ function buildReadFileResult(filePath: string, fullContent: string, offset: numb
     totalLines,
     readLines,
     hasMore,
-    nextOffset: hasMore ? endLine + 1 : null
+    nextOffset
   };
 }
 
@@ -236,7 +337,10 @@ export function createBuiltinReadFileTool(options: CreateBuiltinReadFileToolOpti
       }
     },
     async execute(input: ReadFileInput) {
-      const filePath = typeof input.path === 'string' ? input.path.trim() : '';
+      let filePath = '';
+      if (typeof input.path === 'string') {
+        filePath = input.path.trim();
+      }
 
       if (!filePath) {
         return createToolFailureResult(READ_FILE_TOOL_NAME, 'INVALID_INPUT', '文件路径不能为空');
@@ -245,7 +349,11 @@ export function createBuiltinReadFileTool(options: CreateBuiltinReadFileToolOpti
       // 检查是否为未保存文档虚拟路径，并读取对应草稿内容。
       if (isUnsavedPath(filePath)) {
         const unsavedReference = parseUnsavedPath(filePath);
-        const storedFile = unsavedReference ? await recentFilesStorage.getRecentFile(unsavedReference.fileId) : null;
+        let storedFile: Awaited<ReturnType<typeof recentFilesStorage.getRecentFile>> | null = null;
+
+        if (unsavedReference) {
+          storedFile = await recentFilesStorage.getRecentFile(unsavedReference.fileId);
+        }
 
         if (!storedFile || storedFile.content === undefined) {
           return createToolFailureResult(READ_FILE_TOOL_NAME, 'EXECUTION_FAILED', `未找到未保存文件：${filePath}`);
@@ -260,16 +368,8 @@ export function createBuiltinReadFileTool(options: CreateBuiltinReadFileToolOpti
       if (options.findFileByPath && options.getEditorContext) {
         try {
           // 解析路径：相对路径需拼接 workspaceRoot
-          let resolvedPath = filePath;
-          if (!isAbsoluteFilePath(filePath)) {
-            const root = options.getWorkspaceRoot?.();
-            if (root) {
-              resolvedPath = `${root.replace(/\/$/, '')}/${filePath.replace(/^\//, '')}`;
-            } else {
-              // 无 workspaceRoot 时无法解析相对路径，跳过内存读取
-              resolvedPath = '';
-            }
-          }
+          const root = options.getWorkspaceRoot?.();
+          const resolvedPath = resolveEditorFilePath(filePath, root);
 
           if (resolvedPath) {
             const file = await options.findFileByPath(resolvedPath);
@@ -306,7 +406,10 @@ export function createBuiltinReadFileTool(options: CreateBuiltinReadFileToolOpti
 
       try {
         const range = normalizeReadRange(input);
-        const needsConfirmation = !workspaceRoot && !options.isFileInRecent?.(filePath) && !sessionApprovedPaths.has(filePath);
+        const isRecentFile = options.isFileInRecent?.(filePath) === true;
+        const hasApproved = sessionApprovedPaths.has(filePath);
+        const needsConfirmation = !workspaceRoot && !isRecentFile && !hasApproved;
+
         if (needsConfirmation) {
           const confirmed = await confirmAbsoluteRead(confirmationAdapter!, filePath, range);
           if (!confirmed) {
@@ -317,9 +420,9 @@ export function createBuiltinReadFileTool(options: CreateBuiltinReadFileToolOpti
 
         const result = await readWorkspaceFile({
           filePath,
-          ...(workspaceRoot ? { workspaceRoot } : {}),
+          ...buildWorkspaceRootOptions(workspaceRoot),
           offset: range.offset,
-          ...(range.limit === undefined ? {} : { limit: range.limit })
+          ...buildLimitOptions(range.limit)
         });
         return createToolSuccessResult(READ_FILE_TOOL_NAME, result);
       } catch (error) {
@@ -361,7 +464,11 @@ export function createBuiltinReadDirectoryTool(
       }
     },
     async execute(input: ReadDirectoryInput) {
-      const directoryPath = typeof input.path === 'string' ? input.path.trim() : '';
+      let directoryPath = '';
+      if (typeof input.path === 'string') {
+        directoryPath = input.path.trim();
+      }
+
       if (!directoryPath) {
         return createToolFailureResult(READ_DIRECTORY_TOOL_NAME, 'INVALID_INPUT', '目录路径不能为空');
       }
@@ -379,7 +486,10 @@ export function createBuiltinReadDirectoryTool(
       }
 
       try {
-        const needsConfirmation = !workspaceRoot && !options.isFileInRecent?.(directoryPath) && !sessionApprovedPaths.has(directoryPath);
+        const isRecentFile = options.isFileInRecent?.(directoryPath) === true;
+        const hasApproved = sessionApprovedPaths.has(directoryPath);
+        const needsConfirmation = !workspaceRoot && !isRecentFile && !hasApproved;
+
         if (needsConfirmation) {
           const confirmed = await confirmAbsoluteDirectoryRead(confirmationAdapter!, directoryPath);
           if (!confirmed) {
@@ -390,13 +500,13 @@ export function createBuiltinReadDirectoryTool(
 
         const result = await readWorkspaceDirectory({
           directoryPath,
-          ...(workspaceRoot ? { workspaceRoot } : {})
+          ...buildWorkspaceRootOptions(workspaceRoot)
         });
 
         return createToolSuccessResult(READ_DIRECTORY_TOOL_NAME, result);
       } catch (error) {
         const code = mapWorkspaceErrorCode(readErrorCode(error));
-        return createToolFailureResult(READ_DIRECTORY_TOOL_NAME, code, error instanceof Error ? error.message : '读取目录失败');
+        return createToolFailureResult(READ_DIRECTORY_TOOL_NAME, code, readDirectoryErrorMessage(error));
       }
     }
   };

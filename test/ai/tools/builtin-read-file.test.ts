@@ -203,6 +203,7 @@ describe('createBuiltinReadFileTool', () => {
       expect(result.status).toBe('success');
       expect(filesystemCalled).toBe(false);
       if (result.status === 'success') {
+        expect(result.data.path).toBe('/workspace/test.md');
         expect(result.data.content).toBe('line1\nline2\nline3\nline4\nline5');
         expect(result.data.totalLines).toBe(5);
         expect(result.data.readLines).toBe(5);
@@ -228,6 +229,26 @@ describe('createBuiltinReadFileTool', () => {
         expect(result.data.readLines).toBe(2);
         expect(result.data.hasMore).toBe(true);
         expect(result.data.nextOffset).toBe(4);
+      }
+    });
+
+    it('normalizes CRLF content when slicing memory content', async () => {
+      const tool = createBuiltinReadFileTool({
+        getWorkspaceRoot: () => '/workspace',
+        findFileByPath: async () => ({ id: 'file-1' }),
+        getEditorContext: () => createMockEditorContext('line1\r\nline2\r\nline3'),
+        readWorkspaceFile: async () => ({ path: '', content: '', totalLines: 0, readLines: 0, hasMore: false, nextOffset: null })
+      });
+
+      const result = await tool.execute({ path: 'test.md', offset: 2, limit: 1 });
+
+      expect(result.status).toBe('success');
+      if (result.status === 'success') {
+        expect(result.data.content).toBe('line2');
+        expect(result.data.totalLines).toBe(3);
+        expect(result.data.readLines).toBe(1);
+        expect(result.data.hasMore).toBe(true);
+        expect(result.data.nextOffset).toBe(3);
       }
     });
 

@@ -40,6 +40,8 @@ vi.mock('@/components/BEditor/hooks/useSelectionAssistant', () => ({
 interface PaneRichEditorVm extends ComponentPublicInstance {
   /** 聚焦编辑器。 */
   focusEditor: () => void;
+  /** 聚焦编辑器起始位置。 */
+  focusEditorAtStart: () => void;
 }
 
 /**
@@ -175,6 +177,13 @@ function installTextGeometryFallback(): void {
       value: (): DOMRect => new DOMRect(0, 0, 0, 0)
     });
   }
+
+  if (typeof document.elementFromPoint !== 'function') {
+    Object.defineProperty(document, 'elementFromPoint', {
+      configurable: true,
+      value: (): Element | null => document.body
+    });
+  }
 }
 
 describe('table node view integration', () => {
@@ -194,7 +203,7 @@ describe('table node view integration', () => {
 
     const scroller = wrapper.get('.b-editor-table__scroller');
     await scroller.trigger('mousemove', { clientX: 321, clientY: 120 });
-    expect(wrapper.get('.b-editor-table__add-button').attributes('style')).toContain('left: 120px');
+    expect(wrapper.get('.b-editor-table__add-button').element.parentElement?.getAttribute('style')).toContain('left: 120px');
     await wrapper.get('.b-editor-table__add-button').trigger('click');
     await flushEditorWork();
 
@@ -205,6 +214,33 @@ describe('table node view integration', () => {
     });
 
     wrapper.unmount();
+  });
+
+  test('adds a column even when the current selection has moved outside the table', async () => {
+    const wrapper = mountPaneRichEditor('Before\n\n| A | B |\n| --- | --- |\n| 1 | 2 |\n| 3 | 4 |');
+
+    try {
+      await flushEditorWork();
+      applyTableGeometry(wrapper);
+
+      wrapper.vm.focusEditorAtStart();
+      await flushEditorWork();
+
+      const scroller = wrapper.get('.b-editor-table__scroller');
+      await scroller.trigger('mousemove', { clientX: 321, clientY: 160 });
+      expect(wrapper.get('.b-editor-table__add-button').isVisible()).toBe(true);
+
+      await wrapper.get('.b-editor-table__add-button').trigger('click');
+      await flushEditorWork();
+
+      const rows = wrapper.findAll('table tr');
+      expect(rows).toHaveLength(3);
+      rows.forEach((row) => {
+        expect(row.findAll('th,td')).toHaveLength(3);
+      });
+    } finally {
+      wrapper.unmount();
+    }
   });
 
   test('deletes a body row through the visible remove button in a real rich editor table', async () => {
@@ -243,7 +279,9 @@ describe('table node view integration', () => {
       expect(addButton.isVisible()).toBe(true);
 
       await wrapper.get('.b-editor-table__viewport').trigger('mouseleave', { relatedTarget: null });
-      await new Promise((resolve) => window.setTimeout(resolve, 120));
+      await new Promise<void>((resolve) => {
+        window.setTimeout(resolve, 120);
+      });
 
       expect(wrapper.get('.b-editor-table__add-button').isVisible()).toBe(true);
     } finally {
