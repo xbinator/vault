@@ -826,6 +826,19 @@ defineExpose({
     }
 
     &:last-child {
+      th {
+        border-right: none;
+        border-bottom: none;
+
+        &:first-child {
+          border-bottom-left-radius: 8px;
+        }
+
+        &:last-child {
+          border-bottom-right-radius: 8px;
+        }
+      }
+
       td {
         border-bottom: none;
 
