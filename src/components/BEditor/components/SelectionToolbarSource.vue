@@ -17,6 +17,7 @@ import { nextTick, onBeforeUnmount, ref, shallowRef, watch } from 'vue';
 import { useEventListener, useResizeObserver } from '@vueuse/core';
 import { createNamespace } from '@/utils/namespace';
 import SelectionToolbar from './SelectionToolbar.vue';
+import { resolveToolbarContainerRect, resolveToolbarLeft } from '../utils/selectionToolbarPosition';
 
 const [name] = createNamespace('', 'b-editor-selsource');
 
@@ -105,28 +106,6 @@ function hide(): void {
   style.value = HIDDEN_STYLE;
 }
 
-/**
- * 计算工具栏定位约束所需的容器尺寸。
- * 优先使用 adapter 提供的 containerRect（视口坐标系），
- * 回退到基于 overlayRoot 实时计算的视口可见区域。
- * @param position - 当前选区定位信息
- * @returns 归一化后的容器矩形
- */
-function resolveContainerRect(position: SelectionAssistantPosition) {
-  if (position.containerRect) {
-    return position.containerRect;
-  }
-
-  // 兜底：基于 overlayRoot 实时计算视口可见区域
-  const overlayEl = props.overlayRoot;
-  const overlayRect = overlayEl?.getBoundingClientRect() ?? new DOMRect();
-
-  const top = Math.max(0, -overlayRect.top);
-  const left = Math.max(0, -overlayRect.left);
-
-  return { top, left, width: window.innerWidth - left, height: window.innerHeight - top };
-}
-
 // ─── 定位计算 ─────────────────────────────────────────────────────────────────
 
 /**
@@ -152,16 +131,13 @@ function syncStyle(): void {
     return;
   }
 
-  const containerRect = resolveContainerRect(position!);
-  const anchorCenterX = position!.anchorRect.left + position!.anchorRect.width / 2;
+  const containerRect = resolveToolbarContainerRect(position!, props.overlayRoot);
   const belowRect = position!.selectionRect ?? position!.anchorRect;
   const topBelow = belowRect.top + belowRect.height + TOOLBAR_GAP;
   const preferBelow = position!.anchorRect.top < containerRect.top;
 
   // 水平：居中对齐锚点，并约束在容器内
-  const minLeft = containerRect.left + TOOLBAR_PADDING;
-  const maxLeft = containerRect.left + containerRect.width - toolbarWidth - TOOLBAR_PADDING;
-  const left = maxLeft >= minLeft ? Math.min(Math.max(anchorCenterX - toolbarWidth / 2, minLeft), maxLeft) : minLeft;
+  const left = resolveToolbarLeft(position!.anchorRect, containerRect, toolbarWidth, TOOLBAR_PADDING);
 
   // 垂直：优先显示在选区上方，空间不足时翻转到下方
   const topAbove = position!.anchorRect.top - toolbarHeight - TOOLBAR_GAP;
