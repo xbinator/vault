@@ -12,9 +12,10 @@ import type {
   TavilySearchTopic,
   TavilyTimeRange,
   TavilyToolSettings,
-  ToolSettingsState
+  ToolSettingsState,
+  MCPToolSettings
 } from './types';
-import { DEFAULT_TOOL_SETTINGS, TOOL_SETTINGS_STORAGE_KEY } from './types';
+import { DEFAULT_TOOL_SETTINGS, DEFAULT_MCP_TOOL_SETTINGS, TOOL_SETTINGS_STORAGE_KEY } from './types';
 
 /**
  * 判断值是否为 Search 深度。
@@ -183,6 +184,32 @@ function normalizeTavilySettings(value: unknown): TavilyToolSettings {
 }
 
 /**
+ * 归一化 MCP 工具设置（最小实现，完整归一化在 Task 3）。
+ */
+function normalizeMCPSettings(value: unknown): MCPToolSettings {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return DEFAULT_MCP_TOOL_SETTINGS;
+  }
+  const source = value as Partial<MCPToolSettings>;
+  return {
+    servers: Array.isArray(source.servers) ? source.servers : [],
+    invocationDefaults: source.invocationDefaults && typeof source.invocationDefaults === 'object' && !Array.isArray(source.invocationDefaults)
+      ? {
+          enabledServerIds: Array.isArray((source.invocationDefaults as Record<string, unknown>).enabledServerIds)
+            ? (source.invocationDefaults as Record<string, unknown>).enabledServerIds as string[]
+            : [],
+          enabledTools: Array.isArray((source.invocationDefaults as Record<string, unknown>).enabledTools)
+            ? (source.invocationDefaults as Record<string, unknown>).enabledTools as MCPToolSettings['invocationDefaults']['enabledTools']
+            : [],
+          toolInstructions: typeof (source.invocationDefaults as Record<string, unknown>).toolInstructions === 'string'
+            ? (source.invocationDefaults as Record<string, unknown>).toolInstructions as string
+            : ''
+        }
+      : { enabledServerIds: [], enabledTools: [], toolInstructions: '' }
+  };
+}
+
+/**
  * 归一化全部工具设置。
  * @param value - 原始持久化值
  * @returns 合法工具设置
@@ -191,7 +218,8 @@ export function normalizeToolSettings(value: unknown): ToolSettingsState {
   const source = value && typeof value === 'object' && !Array.isArray(value) ? (value as Partial<ToolSettingsState>) : {};
 
   return {
-    tavily: normalizeTavilySettings(source.tavily)
+    tavily: normalizeTavilySettings(source.tavily),
+    mcp: normalizeMCPSettings(source.mcp)
   };
 }
 
