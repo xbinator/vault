@@ -61,7 +61,14 @@
         </RouterView>
       </div>
 
-      <BPanelSplitter v-show="settingStore.sidebarVisible" v-model:size="settingStore.sidebarWidth" position="left" :min-width="300" :max-width="800">
+      <BPanelSplitter
+        v-show="settingStore.sidebarVisible"
+        v-model:size="settingStore.sidebarWidth"
+        position="left"
+        :min-width="300"
+        :max-width="600"
+        @close="settingStore.setSidebarVisible(false)"
+      >
         <BChatSidebar />
       </BPanelSplitter>
     </div>
@@ -114,8 +121,12 @@ function handleOpenSettings(): void {
 
 /**
  * 切换右侧辅助栏显示状态。
+ * 如果侧边栏宽度为 0（通过拖拽关闭），重新打开时恢复为默认宽度 340px。
  */
 function handleToggleSidebar(): void {
+  if (!settingStore.sidebarVisible && settingStore.sidebarWidth === 0) {
+    settingStore.setSidebarWidth(340);
+  }
   settingStore.toggleSidebar();
 }
 

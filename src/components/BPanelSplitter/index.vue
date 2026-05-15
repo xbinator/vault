@@ -22,13 +22,22 @@ const props = withDefaults(defineProps<Props>(), {
   position: 'left',
   minWidth: 200,
   maxWidth: 600,
-  sectionClass: ''
+  sectionClass: '',
+  closeThreshold: 60
 });
 
 const size = defineModel<number>('size', { default: 300 });
 
+const emit = defineEmits<{
+  (e: 'close'): void;
+}>();
+
 const isDragging = ref(false);
-const state = reactive({ startX: 0 });
+
+const state = reactive({
+  startX: 0,
+  startSize: 0
+});
 
 const isLeft = computed(() => props.position === 'left');
 
@@ -40,27 +49,64 @@ const splitterStyle = computed(() => {
   if (isLeft.value) {
     return { left: 0, transform: 'translateX(-100%)' };
   }
+
   return { right: 0, transform: 'translateX(100%)' };
 });
 
-function handleMouseMove(e: MouseEvent) {
+function getRawSize(e: MouseEvent) {
   const deltaX = e.clientX - state.startX;
-  size.value = clamp(size.value + (isLeft.value ? -deltaX : deltaX), props.minWidth, props.maxWidth);
-  state.startX = e.clientX;
+
+  return state.startSize + (isLeft.value ? -deltaX : deltaX);
 }
 
+/**
+ * 处理鼠标移动：
+ *
+ * rawSize 表示本次拖拽中的“理论宽度”。
+ *
+ * - rawSize > minWidth：正常调整宽度
+ * - minWidth >= rawSize > minWidth - closeThreshold：宽度保持 minWidth
+ * - rawSize <= minWidth - closeThreshold：关闭，size 设置为 0
+ *
+ * 关闭后，如果鼠标仍然按住并往打开方向拖动，
+ * 只要 rawSize 再次大于 minWidth - closeThreshold，
+ * 面板就会恢复到 minWidth。
+ */
+function handleMouseMove(e: MouseEvent) {
+  const rawSize = getRawSize(e);
+  const closeLine = props.minWidth - props.closeThreshold;
+
+  if (rawSize <= closeLine) {
+    size.value = 0;
+    return;
+  }
+
+  size.value = clamp(rawSize, props.minWidth, props.maxWidth);
+}
+
+/**
+ * 处理鼠标松开：清理拖拽状态。
+ */
 function handleMouseUp() {
   isDragging.value = false;
+
   document.body.classList.remove('cursor-col-resize');
   document.body.style.userSelect = '';
 
   window.removeEventListener('mousemove', handleMouseMove);
   window.removeEventListener('mouseup', handleMouseUp);
+
+  if (size.value === 0) {
+    emit('close');
+  }
 }
 
 function handleMouseDown(e: MouseEvent) {
+  e.preventDefault();
+
   isDragging.value = true;
   state.startX = e.clientX;
+  state.startSize = size.value;
 
   document.body.classList.add('cursor-col-resize');
   document.body.style.userSelect = 'none';

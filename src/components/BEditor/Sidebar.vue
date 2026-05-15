@@ -1,5 +1,5 @@
 <template>
-  <BPanelSplitter v-model:size="sidebarWidth" position="right" :min-width="180" :max-width="400">
+  <BPanelSplitter v-model:size="sidebarWidth" position="right" :min-width="180" :max-width="400" @close="emit('close')">
     <div class="b-editor-sidebar">
       <div v-if="title" class="sidebar__header">
         <div class="sidebar__main" @click="handleTitleClick">
@@ -55,7 +55,7 @@ const props = withDefaults(defineProps<Props>(), {
   activeId: ''
 });
 
-const emit = defineEmits(['change', 'rename-file', 'delete-file', 'show-in-folder', 'save', 'save-as', 'copy-path', 'copy-relative-path']);
+const emit = defineEmits(['change', 'rename-file', 'delete-file', 'show-in-folder', 'save', 'save-as', 'copy-path', 'copy-relative-path', 'close']);
 
 const sidebarWidth = ref(260);
 

@@ -18,6 +18,7 @@
       @copy-path="emit('copy-path')"
       @copy-relative-path="emit('copy-relative-path')"
       @show-in-folder="emit('show-in-folder')"
+      @close="emit('close-outline')"
     />
 
     <BScrollbar ref="scrollbarRef" class="b-editor-scrollbar" @scroll="handleEditorScrollEvent">
@@ -86,7 +87,7 @@ const props = withDefaults(defineProps<Props>(), {
   showOutline: true
 });
 
-const emit = defineEmits(['rename-file', 'save', 'save-as', 'copy-path', 'copy-relative-path', 'show-in-folder', 'editor-blur']);
+const emit = defineEmits(['rename-file', 'save', 'save-as', 'copy-path', 'copy-relative-path', 'show-in-folder', 'editor-blur', 'close-outline']);
 
 const isRichMode = computed<boolean>(() => props.viewMode === 'rich');
 
