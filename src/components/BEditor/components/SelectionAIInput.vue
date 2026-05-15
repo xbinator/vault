@@ -1,20 +1,20 @@
 <template>
   <div v-if="adapter && visible" ref="wrapperRef" :class="name" :style="wrapperStyle">
     <!-- AI 生成预览区 -->
-    <div v-if="previewText || loading" class="b-editor-selai__preview">
-      <div class="b-editor-selai__preview-text">
+    <div v-if="previewText || loading" :class="bem('preview')">
+      <div :class="bem('preview-text')">
         <BMessage :content="previewText" :max-height="200" type="text" status="streaming" :loading="loading" />
       </div>
-      <div class="b-editor-selai__preview-hint">
+      <div :class="bem('preview-hint')">
         <div v-if="loading" class="flex items-center justify-between">
           <div class="flex items-center gap-4">
-            <Icon icon="svg-spinners:ring-resize" class="b-editor-selai__loading-icon" />
+            <Icon icon="svg-spinners:ring-resize" :class="bem('loading-icon')" />
             <span>正在编写中...</span>
           </div>
           <BButton type="secondary" size="small" @click.stop="stopStreaming">停 止</BButton>
         </div>
         <div v-else class="flex items-center justify-between">
-          <div>点击应用 AI 生成内容</div>
+          <span>点击应用 AI 生成内容</span>
           <div class="flex items-center gap-4">
             <BButton type="secondary" size="small" @click.stop="closePanel">取 消</BButton>
             <BButton type="primary" size="small" @click.stop="applyGeneratedContent">应 用</BButton>
@@ -23,7 +23,7 @@
       </div>
     </div>
 
-    <AInput v-else ref="inputRef" v-model:value="inputValue" size="large" placeholder="输入指令，按 Enter 发送..." :disabled="loading" @keydown="onKeydown" />
+    <AInput v-else v-model:value="inputValue" v-focus size="large" placeholder="输入指令，按 Enter 发送..." :disabled="loading" @keydown="onKeydown" />
   </div>
 </template>
 
@@ -34,10 +34,11 @@
  */
 import type { SelectionAssistantAdapter, SelectionAssistantPosition, SelectionAssistantRange } from '../adapters/selectionAssistant';
 import type { CSSProperties } from 'vue';
-import { onBeforeUnmount, computed, nextTick, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue';
 import { Icon } from '@iconify/vue';
 import { onClickOutside, useEventListener, useResizeObserver } from '@vueuse/core';
 import { message } from 'ant-design-vue';
+import { vFocus } from '@/directives/focus';
 import { useChat } from '@/hooks/useChat';
 import { useShortcuts } from '@/hooks/useShortcuts';
 import type { ServiceModelUpdatedDetail } from '@/shared/storage/service-models/events';
@@ -46,7 +47,7 @@ import type { AvailableServiceModelConfig } from '@/stores/serviceModel';
 import { useServiceModelStore } from '@/stores/serviceModel';
 import { createNamespace } from '@/utils/namespace';
 
-const [name] = createNamespace('', 'b-editor-selai');
+const [name, bem] = createNamespace('', 'b-editor-selai');
 
 interface Props {
   /** 面板是否可见 */
@@ -75,7 +76,6 @@ const emit = defineEmits<{
 const inputValue = ref('');
 const previewText = ref('');
 const loading = ref(false);
-const inputRef = ref<{ focus: (options?: FocusOptions) => void } | null>(null);
 const wrapperRef = ref<HTMLElement | null>(null);
 const wrapperStyle = ref<CSSProperties>({});
 const hasMeasuredPosition = ref(false);
@@ -97,7 +97,13 @@ const PANEL_PADDING = 16;
 /**
  * AI 面板的期望宽度。
  */
-const PREFERRED_PANEL_WIDTH = 240;
+const PREFERRED_PANEL_WIDTH = 500;
+
+/**
+ * 用于替换提示词模板占位符的正则，模块级复用避免重复编译。
+ */
+const RE_SELECTED_TEXT = /\{\{SELECTED_TEXT\}\}/g;
+const RE_USER_INPUT = /\{\{USER_INPUT\}\}/g;
 
 const { agent } = useChat({
   providerId,
@@ -121,6 +127,108 @@ let unregisterEscape: (() => void) | null = null;
 
 // ---- Position ----
 
+/**
+ * 构造隐藏态面板样式，横向始终保持容器居中。
+ * @param width - 面板宽度
+ * @returns 隐藏态样式对象
+ */
+function createHiddenWrapperStyle(width: number): CSSProperties {
+  return {
+    top: '0px',
+    left: '50%',
+    transform: 'translateX(-50%)',
+    visibility: 'hidden',
+    width: `${width}px`
+  };
+}
+
+/**
+ * 读取面板当前尺寸，优先使用 offset 尺寸，缺失时回退到 DOMRect。
+ * @param element - 面板宿主节点
+ * @returns 面板宽高
+ */
+function getWrapperSize(element: HTMLElement): { width: number; height: number } {
+  const width = element.offsetWidth || element.getBoundingClientRect().width;
+  const height = element.offsetHeight || element.getBoundingClientRect().height;
+  return { width, height };
+}
+
+/**
+ * 根据容器宽度计算面板最终宽度。
+ * @param containerWidth - 浮层容器宽度
+ * @returns 受安全边距约束后的面板宽度
+ */
+function resolvePanelWidth(containerWidth: number): number {
+  const maxWidth = Math.max(0, containerWidth - PANEL_PADDING * 2);
+  return Math.min(PREFERRED_PANEL_WIDTH, maxWidth);
+}
+
+/**
+ * 在面板可见时根据内容重新同步宽度，避免横向居中时样式宽度滞后。
+ * @returns void
+ */
+function syncWrapperWidth(): void {
+  const wrapperElement = wrapperRef.value;
+  const containerWidth = props.position?.containerRect?.width ?? window.innerWidth;
+  if (!wrapperElement) return;
+
+  wrapperElement.style.width = `${resolvePanelWidth(containerWidth)}px`;
+}
+
+/**
+ * 当横向居中后，若面板宽度超出容器可用区域，则回退为左侧贴边。
+ * @param containerRect - 浮层容器矩形
+ * @param wrapperWidth - 面板宽度
+ * @returns 横向定位样式
+ */
+function resolveHorizontalStyle(containerRect: SelectionAssistantPosition['containerRect'], wrapperWidth: number): CSSProperties {
+  if (!containerRect) {
+    return {
+      left: '50%',
+      transform: 'translateX(-50%)'
+    };
+  }
+
+  const minLeft = containerRect.left + PANEL_PADDING;
+  const maxLeft = containerRect.left + containerRect.width - wrapperWidth - PANEL_PADDING;
+  const centeredLeft = containerRect.left + containerRect.width / 2 - wrapperWidth / 2;
+  const clampedLeft = Math.min(Math.max(centeredLeft, minLeft), maxLeft);
+
+  if (Math.abs(clampedLeft - centeredLeft) < 0.5) {
+    return {
+      left: '50%',
+      transform: 'translateX(-50%)'
+    };
+  }
+
+  return {
+    left: `${clampedLeft}px`,
+    transform: 'none'
+  };
+}
+
+/**
+ * 计算面板纵向位置，优先显示在选区下方，空间不足时回退到上方。
+ * @param position - 编排层注入的锚点信息
+ * @param containerRect - 浮层容器矩形
+ * @param wrapperHeight - 面板高度
+ * @returns 纵向像素值
+ */
+function resolvePanelTop(
+  position: SelectionAssistantPosition,
+  containerRect: NonNullable<SelectionAssistantPosition['containerRect']>,
+  wrapperHeight: number
+): number {
+  const preferredTop = position.anchorRect.top + position.lineHeight + PANEL_GAP;
+  const fallbackTop = position.anchorRect.top - wrapperHeight - PANEL_GAP;
+  const maxTop = containerRect.top + containerRect.height - wrapperHeight - PANEL_PADDING;
+  return preferredTop <= maxTop ? preferredTop : Math.max(containerRect.top + PANEL_PADDING, fallbackTop);
+}
+
+/**
+ * 面板接近窗口底部时滚动进视区，避免确认区被遮挡。
+ * @returns void
+ */
 function scrollIntoViewIfObscured(): void {
   if (!wrapperRef.value) return;
 
@@ -139,9 +247,7 @@ function scrollIntoViewIfObscured(): void {
 function syncFloatPosition(): void {
   const { position } = props;
   const wrapperElement = wrapperRef.value;
-  if (!position || !wrapperElement) {
-    return;
-  }
+  if (!position || !wrapperElement) return;
 
   const containerRect = position.containerRect ?? {
     top: 0,
@@ -149,37 +255,26 @@ function syncFloatPosition(): void {
     width: window.innerWidth,
     height: window.innerHeight
   };
-  const maxWidth = Math.max(0, containerRect.width - PANEL_PADDING * 2);
-  const width = Math.min(PREFERRED_PANEL_WIDTH, maxWidth);
-  const wrapperRect = wrapperElement.getBoundingClientRect();
-  const wrapperWidth = wrapperRect.width || wrapperElement.offsetWidth || width;
-  const wrapperHeight = wrapperRect.height || wrapperElement.offsetHeight;
+
+  const width = resolvePanelWidth(containerRect.width);
+
+  // 优先使用 offset 尺寸，未完成布局时回退到 DOMRect，兼容首帧与测试环境。
+  const { width: wrapperWidth, height: wrapperHeight } = getWrapperSize(wrapperElement);
+
   if (wrapperWidth <= 0 || wrapperHeight <= 0) {
     hasMeasuredPosition.value = false;
-    wrapperStyle.value = {
-      top: '0px',
-      left: '0px',
-      visibility: 'hidden',
-      width: `${width}px`
-    };
+    wrapperStyle.value = createHiddenWrapperStyle(width);
     return;
   }
 
-  const anchorCenterX = position.anchorRect.left + position.anchorRect.width / 2;
-  const minLeft = containerRect.left + PANEL_PADDING;
-  const maxLeft = containerRect.left + containerRect.width - wrapperWidth - PANEL_PADDING;
-  const preferredLeft = anchorCenterX - wrapperWidth / 2;
-  const left = maxLeft >= minLeft ? Math.min(Math.max(preferredLeft, minLeft), maxLeft) : minLeft;
-  const preferredTop = position.anchorRect.top + position.lineHeight + PANEL_GAP;
-  const fallbackTop = position.anchorRect.top - wrapperHeight - PANEL_GAP;
-  const maxTop = containerRect.top + containerRect.height - wrapperHeight - PANEL_PADDING;
-  const top = preferredTop <= maxTop ? preferredTop : Math.max(containerRect.top + PANEL_PADDING, fallbackTop);
+  const top = resolvePanelTop(position, containerRect, wrapperHeight);
+  const horizontalStyle = resolveHorizontalStyle(position.containerRect ?? containerRect, wrapperWidth);
 
   wrapperStyle.value = {
     top: `${top}px`,
-    left: `${left}px`,
     visibility: 'visible',
-    width: `${width}px`
+    width: `${width}px`,
+    ...horizontalStyle
   };
   hasMeasuredPosition.value = true;
 
@@ -192,8 +287,7 @@ function syncFloatPosition(): void {
  * 关闭面板时将光标收缩到原选区起始位置。
  */
 function collapseToSelectionStart(): void {
-  const { adapter } = props;
-  const range = props.selectionRange;
+  const { adapter, selectionRange: range } = props;
   if (!adapter || !range) return;
 
   adapter.restoreSelection({
@@ -233,9 +327,8 @@ async function fetchModelConfig(): Promise<void> {
   modelConfig.value = await serviceModelStore.getAvailableServiceConfig('polish');
 }
 
-function onServiceModelUpdated(event: Event): void {
-  const { detail } = event as CustomEvent<ServiceModelUpdatedDetail>;
-  if (detail.serviceType !== 'polish') return;
+function onServiceModelUpdated(event: CustomEvent<ServiceModelUpdatedDetail>): void {
+  if (event.detail.serviceType !== 'polish') return;
   fetchModelConfig();
 }
 
@@ -250,15 +343,13 @@ watch(
   (isVisible) => {
     if (isVisible) {
       hasMeasuredPosition.value = false;
-      wrapperStyle.value = {
-        top: '0px',
-        left: '0px',
-        visibility: 'hidden',
-        width: `${PREFERRED_PANEL_WIDTH}px`
-      };
+      wrapperStyle.value = createHiddenWrapperStyle(PREFERRED_PANEL_WIDTH);
       fetchModelConfig();
-      nextTick(syncFloatPosition);
-      nextTick(() => inputRef.value?.focus({ preventScroll: true }));
+      // 合并到同一个 nextTick，减少微任务调度
+      nextTick(() => {
+        syncWrapperWidth();
+        syncFloatPosition();
+      });
       unregisterEscape = registerShortcut({ key: 'escape', handler: closePanel });
     } else {
       hasMeasuredPosition.value = false;
@@ -274,17 +365,12 @@ watch(
 watch(
   () => props.position,
   () => {
-    if (props.visible) {
-      if (!hasMeasuredPosition.value) {
-        wrapperStyle.value = {
-          top: '0px',
-          left: '0px',
-          visibility: 'hidden',
-          width: `${PREFERRED_PANEL_WIDTH}px`
-        };
-      }
-      nextTick(syncFloatPosition);
+    if (!props.visible) return;
+    if (!hasMeasuredPosition.value) {
+      wrapperStyle.value = createHiddenWrapperStyle(PREFERRED_PANEL_WIDTH);
     }
+    syncWrapperWidth();
+    nextTick(syncFloatPosition);
   }
 );
 
@@ -293,34 +379,29 @@ useResizeObserver(wrapperRef, (): void => {
 });
 
 useEventListener(window, 'resize', (): void => {
-  if (props.visible) {
-    syncFloatPosition();
-  }
+  if (props.visible) syncFloatPosition();
 });
 
 // ---- AI ----
 
 function buildAIPrompt(selectedText: string, userInput: string): string {
   const template = modelConfig.value?.customPrompt ?? '';
-  return template.replace(/\{\{SELECTED_TEXT\}\}/g, selectedText).replace(/\{\{USER_INPUT\}\}/g, userInput);
+  return template.replace(RE_SELECTED_TEXT, selectedText).replace(RE_USER_INPUT, userInput);
 }
 
 async function sendInstruction(): Promise<void> {
   const value = inputValue.value.trim();
   const range = props.selectionRange;
-  if (!value || loading.value || !range) return;
-
   const config = modelConfig.value;
+
+  if (!value || loading.value || !range || range.from === range.to) return;
+
   if (!config?.providerId || !config?.modelId) {
     message.warning('未找到可用的模型配置');
     return;
   }
 
-  if (range.from === range.to) return;
-
-  const selectedText = range.text;
-  const prompt = buildAIPrompt(selectedText, value);
-
+  const prompt = buildAIPrompt(range.text, value);
   loading.value = true;
   emit('streaming-change', true);
   agent.stream({ modelId: config.modelId, prompt });
@@ -359,7 +440,7 @@ onBeforeUnmount(() => {
 </script>
 
 <style lang="less" scoped>
-.ai-input-wrapper {
+.b-editor-selai {
   position: absolute;
   z-index: 1000;
   display: flex;
@@ -369,7 +450,7 @@ onBeforeUnmount(() => {
 }
 
 // ---- 预览确认区 ----
-.ai-preview {
+.b-editor-selai__preview {
   background: var(--bg-primary);
   border: 1px solid var(--border-secondary);
   border-radius: 8px;
@@ -381,7 +462,7 @@ onBeforeUnmount(() => {
   }
 }
 
-.ai-preview-text {
+.b-editor-selai__preview-text {
   padding: 9px 12px;
   font-size: 14px;
   line-height: 1.6;
@@ -389,7 +470,7 @@ onBeforeUnmount(() => {
   white-space: pre-wrap;
 }
 
-.ai-preview-hint {
+.b-editor-selai__preview-hint {
   padding: 6px 12px;
   font-size: 12px;
   color: var(--text-tertiary);
@@ -398,25 +479,8 @@ onBeforeUnmount(() => {
   border-radius: 0 0 8px 8px;
 }
 
-.ai-loading-icon,
-.ai-apply-icon {
+.b-editor-selai__loading-icon {
   flex-shrink: 0;
   font-size: 12px;
-}
-
-.ai-cancel-btn {
-  padding: 2px 8px;
-  font-size: 12px;
-  color: var(--text-secondary);
-  cursor: pointer;
-  background: transparent;
-  border: 1px solid var(--border-secondary);
-  border-radius: 4px;
-  transition: all 0.2s;
-
-  &:hover {
-    color: var(--text-primary);
-    border-color: var(--border-primary);
-  }
 }
 </style>

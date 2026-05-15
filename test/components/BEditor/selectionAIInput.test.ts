@@ -1,6 +1,6 @@
 /**
  * @file selectionAIInput.test.ts
- * @description SelectionAIInput 浮层边界收敛测试。
+ * @description SelectionAIInput 浮层定位与边界收敛测试。
  * @vitest-environment jsdom
  */
 
@@ -207,7 +207,7 @@ describe('SelectionAIInput', () => {
     expect(panel.style.visibility).toBe('hidden');
   });
 
-  test('clamps horizontal position within the overlay container', async () => {
+  test('pins the panel horizontally to the container center', async () => {
     const wrapper = mount(SelectionAIInput, {
       props: {
         visible: true,
@@ -243,8 +243,9 @@ describe('SelectionAIInput', () => {
     window.dispatchEvent(new Event('resize'));
     await nextTick();
 
-    expect(readPx(panel, 'left')).toBe(64);
-    expect(readPx(panel, 'width')).toBe(240);
+    expect(panel.style.left).toBe('50%');
+    expect(panel.style.transform).toBe('translateX(-50%)');
+    expect(readPx(panel, 'width')).toBe(288);
     expect(panel.style.visibility).toBe('visible');
   });
 
@@ -285,8 +286,9 @@ describe('SelectionAIInput', () => {
     window.dispatchEvent(new Event('resize'));
     await nextTick();
 
-    expect(readPx(panel, 'left')).toBe(64);
-    expect(readPx(panel, 'width')).toBe(240);
+    expect(panel.style.left).toBe('50%');
+    expect(panel.style.transform).toBe('translateX(-50%)');
+    expect(readPx(panel, 'width')).toBe(288);
     expect(panel.style.visibility).toBe('visible');
   });
 
