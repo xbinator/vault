@@ -530,10 +530,10 @@ defineExpose(controller);
 
 .b-editor-source__codemirror {
   width: 100%;
-  min-height: 100%;
 
   .cm-editor {
-    min-height: 100%;
+    min-height: calc(100vh - 42px);
+    padding: 20px 40px 90px;
     font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
     color: var(--source-editor-markdown-foreground);
     background-color: transparent;

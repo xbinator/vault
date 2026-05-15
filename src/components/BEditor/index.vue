@@ -314,10 +314,12 @@ defineExpose({
 
   --selection-color: #fff;
   --selection-bg: #ff6b6b;
+  --native-selection-color: var(--selection-color);
+  --native-selection-bg: var(--selection-bg);
 
   ::selection {
-    color: var(--selection-color);
-    background: var(--selection-bg);
+    color: var(--native-selection-color);
+    background: var(--native-selection-bg);
   }
 }
 
@@ -331,7 +333,6 @@ defineExpose({
 .b-editor-container {
   position: relative;
   max-width: var(--editor-page-max-width);
-  padding: 20px 40px 90px;
   margin: 0 auto;
   font-size: 16px;
 }
