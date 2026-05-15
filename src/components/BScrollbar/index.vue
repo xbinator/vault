@@ -1,22 +1,18 @@
 <template>
-  <div :class="['scrollbar', { 'scrollbar--visible': barVisible, 'scrollbar--inset': !!inset }]" @mouseenter="onMouseEnter" @mouseleave="onMouseLeave">
-    <!-- container：统一包裹 -->
-    <div class="scrollbar__container">
-      <!-- wrap -->
-      <div ref="wrap" class="scrollbar__wrap" :style="wrapStyle" @scroll="onScroll">
-        <div ref="view" class="scrollbar__view">
+  <div :class="bem([{ visible: barVisible, inset: !!inset }])" @mouseenter="onMouseEnter" @mouseleave="onMouseLeave">
+    <div :class="bem('container')">
+      <div ref="wrap" :class="bem('wrap')" :style="wrapStyle" @scroll="onScroll">
+        <div ref="view" :class="bem('view')">
           <slot></slot>
         </div>
       </div>
 
-      <!-- vertical bar -->
-      <div v-if="showVertical" ref="barY" class="scrollbar__bar scrollbar__bar--vertical">
-        <div class="scrollbar__thumb" :style="thumbStyleY" @mousedown.prevent.stop="onThumbDownY"></div>
+      <div v-if="showVertical" ref="barY" :class="bem('bar', 'vertical')">
+        <div :class="bem('thumb')" :style="thumbStyleY" @mousedown.prevent.stop="onThumbDownY"></div>
       </div>
 
-      <!-- horizontal bar -->
-      <div v-if="showHorizontal" ref="barX" class="scrollbar__bar scrollbar__bar--horizontal">
-        <div class="scrollbar__thumb" :style="thumbStyleX" @mousedown.prevent.stop="onThumbDownX"></div>
+      <div v-if="showHorizontal" ref="barX" :class="bem('bar', 'horizontal')">
+        <div :class="bem('thumb')" :style="thumbStyleX" @mousedown.prevent.stop="onThumbDownX"></div>
       </div>
     </div>
   </div>
@@ -27,6 +23,9 @@ import { ref, computed, onMounted, onUnmounted, nextTick, watch, CSSProperties }
 import { useTimeoutFn, useEventListener, useElementSize } from '@vueuse/core';
 import { addCssUnit } from '../../utils/css';
 import { isDefined } from '../../utils/is';
+import { createNamespace } from '../../utils/namespace';
+
+const [, bem] = createNamespace('scrollbar');
 
 interface Props {
   // 是否一直显示滚动条
@@ -296,45 +295,45 @@ defineExpose({
 </script>
 
 <style lang="less">
-.scrollbar {
+.b-scrollbar {
   position: relative;
   width: 100%;
   height: 100%;
 
   &--visible {
-    .scrollbar__bar {
+    .b-scrollbar__bar {
       opacity: 1;
     }
   }
 
   &--inset {
-    .scrollbar__bar--vertical {
+    .b-scrollbar__bar--vertical {
       right: 0;
     }
 
-    .scrollbar__bar--horizontal {
+    .b-scrollbar__bar--horizontal {
       bottom: 0;
     }
   }
 }
 
-.scrollbar__container {
+.b-scrollbar__container {
   position: relative;
   width: 100%;
   height: 100%;
 }
 
-.scrollbar__wrap {
+.b-scrollbar__wrap {
   width: 100%;
   height: 100%;
   overflow: auto;
 }
 
-.scrollbar__view {
+.b-scrollbar__view {
   min-width: 100%;
 }
 
-.scrollbar__bar {
+.b-scrollbar__bar {
   position: absolute;
   pointer-events: none;
   opacity: 0;
@@ -357,7 +356,7 @@ defineExpose({
   }
 }
 
-.scrollbar__thumb {
+.b-scrollbar__thumb {
   position: absolute;
   cursor: pointer;
   background: var(--scrollbar-bg);
@@ -373,7 +372,7 @@ defineExpose({
   }
 }
 
-.dark .scrollbar__thumb {
+.dark .b-scrollbar__thumb {
   background: var(--scrollbar-light-bg);
 
   &:hover {
