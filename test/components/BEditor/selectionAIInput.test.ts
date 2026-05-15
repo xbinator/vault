@@ -11,6 +11,21 @@ import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import type { SelectionAssistantAdapter, SelectionAssistantPosition } from '@/components/BEditor/adapters/selectionAssistant';
 import SelectionAIInput from '@/components/BEditor/components/SelectionAIInput.vue';
 
+/**
+ * 通用空操作函数。
+ */
+function noop(): void {
+  // noop
+}
+
+/**
+ * 通用异步空操作函数。
+ * @returns 已完成 Promise
+ */
+async function noopAsync(): Promise<void> {
+  // noop
+}
+
 vi.mock('@/hooks/useChat', () => ({
   /**
    * 提供最小 chat hook mock，避免测试触发真实流式请求。
@@ -30,7 +45,7 @@ vi.mock('@/hooks/useShortcuts', () => ({
    * @returns mock shortcut registrar
    */
   useShortcuts: () => ({
-    registerShortcut: () => (): void => {}
+    registerShortcut: () => noop
   })
 }));
 
@@ -79,12 +94,20 @@ const InputStub = defineComponent({
    */
   setup(_props, context) {
     context.expose({
-      focus: (): void => {}
+      focus: noop
     });
     return {};
   },
-  template:
-    '<input class="mock-ai-input" :value="value" :disabled="disabled" :placeholder="placeholder" @input="$emit(\'update:value\', $event.target.value)" @keydown="$emit(\'keydown\', $event)" />'
+  template: `
+    <input
+      class="mock-ai-input"
+      :value="value"
+      :disabled="disabled"
+      :placeholder="placeholder"
+      @input="$emit('update:value', $event.target.value)"
+      @keydown="$emit('keydown', $event)"
+    />
+  `
 });
 
 /**
@@ -117,14 +140,14 @@ function createAdapter(): SelectionAssistantAdapter {
     getCapabilities: () => ({ actions: {} }),
     isEditable: () => true,
     getSelection: () => null,
-    restoreSelection: (): void => {},
+    restoreSelection: noop,
     getPanelPosition: () => null,
     getToolbarPosition: () => null,
-    showSelectionHighlight: (): void => {},
-    clearSelectionHighlight: (): void => {},
-    applyGeneratedContent: async (): Promise<void> => {},
+    showSelectionHighlight: noop,
+    clearSelectionHighlight: noop,
+    applyGeneratedContent: noopAsync,
     buildSelectionReference: () => null,
-    bindSelectionEvents: () => (): void => {}
+    bindSelectionEvents: () => noop
   };
 }
 
@@ -170,6 +193,30 @@ function mockPanelRect(element: HTMLElement): void {
   Object.defineProperty(element, 'getBoundingClientRect', {
     configurable: true,
     value: (): DOMRect => new DOMRect(0, 0, 240, 80)
+  });
+}
+
+/**
+ * 设置面板宿主尺寸，模拟真实布局测量结果。
+ * @param element - 面板宿主节点
+ * @param rectTop - 面板视口顶部位置
+ */
+function mockPanelSize(element: HTMLElement, rectTop = 0): void {
+  Object.defineProperty(element, 'offsetWidth', {
+    configurable: true,
+    get(): number {
+      return 240;
+    }
+  });
+  Object.defineProperty(element, 'offsetHeight', {
+    configurable: true,
+    get(): number {
+      return 80;
+    }
+  });
+  Object.defineProperty(element, 'getBoundingClientRect', {
+    configurable: true,
+    value: (): DOMRect => new DOMRect(0, rectTop, 240, 80)
   });
 }
 
@@ -329,5 +376,44 @@ describe('SelectionAIInput', () => {
     await nextTick();
 
     expect(readPx(panel, 'top')).toBe(44);
+  });
+
+  test('scrolls into view only once after opening even if the panel position keeps updating', async () => {
+    const wrapper = mount(SelectionAIInput, {
+      props: {
+        visible: true,
+        adapter: createAdapter(),
+        position: createPosition(160, 40)
+      },
+      global: {
+        stubs: {
+          AInput: InputStub,
+          BButton: ButtonStub,
+          BMessage: MessageStub,
+          Icon: IconStub
+        }
+      }
+    });
+
+    await nextTick();
+
+    const panel = wrapper.get('.b-editor-selai').element as HTMLElement;
+    mockPanelSize(panel, 700);
+    const scrollIntoView = vi.fn();
+    panel.scrollIntoView = scrollIntoView;
+
+    window.dispatchEvent(new Event('resize'));
+    await nextTick();
+    await nextTick();
+
+    expect(scrollIntoView).toHaveBeenCalledTimes(1);
+
+    await wrapper.setProps({
+      position: createPosition(160, 60)
+    });
+    await nextTick();
+    await nextTick();
+
+    expect(scrollIntoView).toHaveBeenCalledTimes(1);
   });
 });

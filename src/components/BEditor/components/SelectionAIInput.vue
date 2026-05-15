@@ -79,6 +79,7 @@ const loading = ref(false);
 const wrapperRef = ref<HTMLElement | null>(null);
 const wrapperStyle = ref<CSSProperties>({});
 const hasMeasuredPosition = ref(false);
+const hasAutoScrolledIntoView = ref(false);
 const modelConfig = ref<AvailableServiceModelConfig | null>(null);
 const serviceModelStore = useServiceModelStore();
 
@@ -230,12 +231,13 @@ function resolvePanelTop(
  * @returns void
  */
 function scrollIntoViewIfObscured(): void {
-  if (!wrapperRef.value) return;
+  if (!wrapperRef.value || hasAutoScrolledIntoView.value) return;
 
   const rect = wrapperRef.value.getBoundingClientRect();
   const isObscured = rect.bottom > window.innerHeight - 400;
 
   if (isObscured) {
+    hasAutoScrolledIntoView.value = true;
     wrapperRef.value.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
 }
@@ -343,6 +345,7 @@ watch(
   (isVisible) => {
     if (isVisible) {
       hasMeasuredPosition.value = false;
+      hasAutoScrolledIntoView.value = false;
       wrapperStyle.value = createHiddenWrapperStyle(PREFERRED_PANEL_WIDTH);
       fetchModelConfig();
       // 合并到同一个 nextTick，减少微任务调度
@@ -353,6 +356,7 @@ watch(
       unregisterEscape = registerShortcut({ key: 'escape', handler: closePanel });
     } else {
       hasMeasuredPosition.value = false;
+      hasAutoScrolledIntoView.value = false;
       resetState();
       unregisterEscape?.();
       unregisterEscape = null;
