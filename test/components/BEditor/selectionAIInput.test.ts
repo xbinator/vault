@@ -26,6 +26,32 @@ async function noopAsync(): Promise<void> {
   // noop
 }
 
+const scrollToElement = vi.fn();
+const getScrollerRect = vi.fn<() => DOMRect>(() => new DOMRect(0, 0, 320, 800));
+
+vi.mock('@/hooks/useScroller', () => ({
+  /**
+   * 提供最小滚动容器 hook mock，避免测试依赖真实滚动布局。
+   * @returns mock scroller
+   */
+  useScroller: () => ({
+    scrollTop: 0,
+    isTop: true,
+    isBottom: false,
+    scrollDirection: 'none',
+    isScrolling: false,
+    scrollInfo: {
+      top: 0,
+      height: 800,
+      total: 1600
+    },
+    scrollTo: vi.fn(),
+    scrollToElement,
+    elementTop: vi.fn(() => 0),
+    getBoundingClientRect: getScrollerRect
+  })
+}));
+
 vi.mock('@/hooks/useChat', () => ({
   /**
    * 提供最小 chat hook mock，避免测试触发真实流式请求。
@@ -224,6 +250,9 @@ describe('SelectionAIInput', () => {
   beforeEach(() => {
     document.body.innerHTML = '';
     setActivePinia(createPinia());
+    scrollToElement.mockReset();
+    getScrollerRect.mockReset();
+    getScrollerRect.mockReturnValue(new DOMRect(0, 0, 320, 800));
   });
 
   afterEach(() => {
@@ -399,14 +428,12 @@ describe('SelectionAIInput', () => {
 
     const panel = wrapper.get('.b-editor-selai').element as HTMLElement;
     mockPanelSize(panel, 700);
-    const scrollIntoView = vi.fn();
-    panel.scrollIntoView = scrollIntoView;
-
     window.dispatchEvent(new Event('resize'));
     await nextTick();
     await nextTick();
 
-    expect(scrollIntoView).toHaveBeenCalledTimes(1);
+    expect(scrollToElement).toHaveBeenCalledTimes(1);
+    expect(scrollToElement).toHaveBeenLastCalledWith(panel, 'smooth');
 
     await wrapper.setProps({
       position: createPosition(160, 60)
@@ -414,6 +441,6 @@ describe('SelectionAIInput', () => {
     await nextTick();
     await nextTick();
 
-    expect(scrollIntoView).toHaveBeenCalledTimes(1);
+    expect(scrollToElement).toHaveBeenCalledTimes(1);
   });
 });

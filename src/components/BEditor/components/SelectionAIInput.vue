@@ -40,6 +40,7 @@ import { onClickOutside, useEventListener, useResizeObserver } from '@vueuse/cor
 import { message } from 'ant-design-vue';
 import { vFocus } from '@/directives/focus';
 import { useChat } from '@/hooks/useChat';
+import { useScroller } from '@/hooks/useScroller';
 import { useShortcuts } from '@/hooks/useShortcuts';
 import type { ServiceModelUpdatedDetail } from '@/shared/storage/service-models/events';
 import { SERVICE_MODEL_UPDATED_EVENT } from '@/shared/storage/service-models/events';
@@ -82,6 +83,7 @@ const hasMeasuredPosition = ref(false);
 const hasAutoScrolledIntoView = ref(false);
 const modelConfig = ref<AvailableServiceModelConfig | null>(null);
 const serviceModelStore = useServiceModelStore();
+const scroller = useScroller(wrapperRef);
 
 const providerId = computed(() => modelConfig.value?.providerId ?? '');
 
@@ -227,18 +229,21 @@ function resolvePanelTop(
 }
 
 /**
- * 面板接近窗口底部时滚动进视区，避免确认区被遮挡。
+ * 面板接近滚动容器底部时滚动进视区，避免确认区被遮挡。
  * @returns void
  */
 function scrollIntoViewIfObscured(): void {
-  if (!wrapperRef.value || hasAutoScrolledIntoView.value) return;
+  const wrapperElement = wrapperRef.value;
+  if (!wrapperElement || hasAutoScrolledIntoView.value) return;
 
-  const rect = wrapperRef.value.getBoundingClientRect();
-  const isObscured = rect.bottom > window.innerHeight - 400;
+  const rect = wrapperElement.getBoundingClientRect();
+  const scrollerRect = scroller.getBoundingClientRect();
+  const containerBottom = scrollerRect.height > 0 ? scrollerRect.bottom : scroller.scrollInfo.height;
+  const isObscured = rect.bottom > containerBottom - 400;
 
   if (isObscured) {
     hasAutoScrolledIntoView.value = true;
-    wrapperRef.value.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    scroller.scrollToElement(wrapperElement, 'smooth');
   }
 }
 
