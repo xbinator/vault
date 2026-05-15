@@ -62,6 +62,7 @@ import { getSearchSnapshot } from '../extensions/editorSearch';
 import { useFrontMatter } from '../hooks/useFrontMatter';
 import { useRichEditor } from '../hooks/useRichEditor';
 import { useSelectionAssistant } from '../hooks/useSelectionAssistant';
+import { getPersistedMarkdown } from '../utils/editorMarkdown';
 import CurrentBlockMenu from './CurrentBlockMenu.vue';
 import FrontMatterCard from './FrontMatterCard.vue';
 import SelectionAIInput from './SelectionAIInput.vue';
@@ -454,7 +455,7 @@ async function selectLineRange(startLine: number, endLine: number): Promise<bool
     return false;
   }
 
-  const mappedRange = mapSourceLineRangeToProseMirrorRange(instance.state.doc, startLine, endLine, instance.getMarkdown());
+  const mappedRange = mapSourceLineRangeToProseMirrorRange(instance.state.doc, startLine, endLine, getPersistedMarkdown(instance));
   if (!mappedRange) {
     return false;
   }

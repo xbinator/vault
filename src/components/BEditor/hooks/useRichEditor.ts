@@ -4,6 +4,7 @@ import { ref, watch } from 'vue';
 import { TextSelection } from '@tiptap/pm/state';
 import { useEditor, type Editor } from '@tiptap/vue-3';
 import { normalizeEditorContent } from '../extensions/emptyContent';
+import { getPersistedMarkdown } from '../utils/editorMarkdown';
 import { useContent } from './useContent';
 import { useExtensions } from './useExtensions';
 
@@ -179,7 +180,7 @@ export function useRichEditor({ bodyContent, editable, editorInstanceId, onConte
     const instance = editorInstanceRef.value;
     if (!instance) return;
 
-    const currentContent = instance.getMarkdown();
+    const currentContent = getPersistedMarkdown(instance);
     if (isEquivalentToImportedContent(content, currentContent)) return;
     if (currentContent === content) return;
 

@@ -14,6 +14,7 @@ import { mount } from '@vue/test-utils';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 import PaneRichEditor from '@/components/BEditor/components/PaneRichEditor.vue';
 import { useExtensions } from '@/components/BEditor/hooks/useExtensions';
+import { getPersistedMarkdown } from '@/components/BEditor/utils/editorMarkdown';
 
 vi.mock('vue-router', () => ({
   useRouter: () => ({
@@ -96,7 +97,7 @@ function roundTripMarkdown(markdown: string): string {
     contentType: 'markdown'
   });
 
-  const exportedMarkdown = editor.getMarkdown();
+  const exportedMarkdown = getPersistedMarkdown(editor);
   editor.destroy();
 
   return exportedMarkdown;

@@ -6,6 +6,7 @@ import { ref, type Ref } from 'vue';
 import { Editor } from '@tiptap/core';
 import { describe, expect, test } from 'vitest';
 import { useExtensions } from '@/components/BEditor/hooks/useExtensions';
+import { getPersistedMarkdown } from '@/components/BEditor/utils/editorMarkdown';
 
 /**
  * 创建带有当前 BEditor 扩展集的 Markdown 编辑器。
@@ -34,7 +35,7 @@ function roundTripMarkdown(markdown: string): string {
     contentType: 'markdown'
   });
 
-  const exportedMarkdown = editor.getMarkdown();
+  const exportedMarkdown = getPersistedMarkdown(editor);
   editor.destroy();
 
   return exportedMarkdown;

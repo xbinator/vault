@@ -654,9 +654,6 @@ export function useExtensions(editorInstanceId: Ref<string>, options: UseExtensi
       link: false,
       listItem: false,
       paragraph: false,
-      trailingNode: {
-        notAfter: ['table']
-      },
       strike: false,
       underline: false,
       // 禁用拖拽光标（拖拽时的蓝色插入线）
