@@ -1,12 +1,12 @@
 <template>
-  <div class="b-panel-splitter">
-    <div :class="['b-panel-splitter__section', sectionClass]" :style="sectionStyle">
+  <div :class="name">
+    <div :class="[bem('section'), sectionClass]" :style="sectionStyle">
       <slot></slot>
     </div>
 
-    <div class="b-panel-splitter__line" :class="{ 'b-panel-splitter__line--dragging': isDragging }" :style="splitterStyle" @mousedown="handleMouseDown">
-      <div class="b-panel-splitter__resizer"></div>
-      <div class="b-panel-splitter__bar"></div>
+    <div :class="bem('line', { dragging: isDragging })" :style="splitterStyle" @mousedown="handleMouseDown">
+      <div :class="bem('resizer')"></div>
+      <div :class="bem('bar')"></div>
     </div>
   </div>
 </template>
@@ -15,8 +15,11 @@
 import type { BPanelSplitterProps as Props } from './types';
 import { computed, reactive, ref } from 'vue';
 import { clamp } from 'lodash-es';
+import { createNamespace } from '@/utils/namespace';
 
 defineOptions({ name: 'BPanelSplitter' });
+
+const [name, bem] = createNamespace('panel-splitter');
 
 const props = withDefaults(defineProps<Props>(), {
   position: 'left',
