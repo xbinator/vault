@@ -77,6 +77,7 @@ const electronAPI: ElectronAPI = {
   readFile: (filePath: string) => ipcRenderer.invoke('fs:readFile', filePath),
   readWorkspaceFile: (options) => ipcRenderer.invoke('fs:readWorkspaceTextFile', options),
   readWorkspaceDirectory: (options) => ipcRenderer.invoke('fs:readWorkspaceDirectory', options),
+  getPathStatus: (targetPath: string) => ipcRenderer.invoke('fs:getPathStatus', targetPath),
 
   // ==================== 文件对话框操作 ====================
 

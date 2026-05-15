@@ -1,4 +1,4 @@
-import type { ElectronDialogFilter, ElectronOpenFileOptions, ElectronSaveFileOptions, PlatformRecentFile } from 'types/electron-api';
+import type { ElectronDialogFilter, ElectronFilePathStatus, ElectronOpenFileOptions, ElectronSaveFileOptions, PlatformRecentFile } from 'types/electron-api';
 
 export type FileFilter = ElectronDialogFilter;
 
@@ -18,6 +18,8 @@ export interface ReadFileResult {
   name: string;
   ext: string;
 }
+
+export type FilePathStatus = ElectronFilePathStatus;
 
 /**
  * 工作区文件读取参数。
@@ -91,6 +93,8 @@ export interface FileChangeEvent {
 
 export interface Native {
   readFile(path: string): Promise<ReadFileResult>;
+
+  getPathStatus(path: string): Promise<FilePathStatus>;
 
   readWorkspaceFile(options: ReadWorkspaceFileOptions): Promise<ReadWorkspaceFileResult>;
 

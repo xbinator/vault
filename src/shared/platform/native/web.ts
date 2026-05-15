@@ -1,6 +1,7 @@
 /* eslint-disable class-methods-use-this */
 import type {
   Native,
+  FilePathStatus,
   OpenFileOptions,
   SaveFileOptions,
   File,
@@ -16,6 +17,14 @@ import type { PlatformRecentFile } from 'types/electron-api';
 export class WebNative implements Native {
   async readFile(): Promise<ReadFileResult> {
     throw new Error('Web platform does not support reading files by path');
+  }
+
+  async getPathStatus(): Promise<FilePathStatus> {
+    return {
+      exists: false,
+      isFile: false,
+      isDirectory: false
+    };
   }
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars

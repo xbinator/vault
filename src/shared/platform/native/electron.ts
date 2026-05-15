@@ -1,6 +1,7 @@
 /* eslint-disable class-methods-use-this */
 import type {
   Native,
+  FilePathStatus,
   OpenFileOptions,
   SaveFileOptions,
   FileChangeEvent,
@@ -17,6 +18,20 @@ export class ElectronNative implements Native {
   async readFile(filePath: string): Promise<ReadFileResult> {
     const result = await getElectronAPI().readFile(filePath);
     return { content: result.content, name: result.fileName, ext: result.ext };
+  }
+
+  async getPathStatus(filePath: string): Promise<FilePathStatus> {
+    const { getPathStatus } = getElectronAPI();
+
+    if (!getPathStatus) {
+      return {
+        exists: false,
+        isFile: false,
+        isDirectory: false
+      };
+    }
+
+    return getPathStatus(filePath);
   }
 
   async readWorkspaceFile(options: ReadWorkspaceFileOptions): Promise<ReadWorkspaceFileResult> {
