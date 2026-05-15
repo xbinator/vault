@@ -131,7 +131,7 @@ const isVisible = computed(() =>
   Boolean(props.editor && currentBlock.value && !shouldHideForCurrentBlock.value && (hoveredBlockPos.value !== null || open.value || isHoveringMenu.value))
 );
 const buttonStyle = computed(() => ({
-  left: '-20px',
+  left: '20px',
   top: `${position.value.top}px`,
   transform: 'translateX(-50%)'
 }));
