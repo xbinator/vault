@@ -1,7 +1,14 @@
 <template>
   <NodeViewWrapper :class="name">
-    <div ref="viewportRef" :class="bem('viewport')" @mouseleave="handleViewportMouseLeave">
-      <div ref="scrollerRef" :class="bem('scroller')" @mousemove="handleMouseMove" @mouseleave="handleScrollerMouseLeave" @scroll="handleScroll">
+    <div ref="viewportRef" :class="[bem('viewport'), { 'is-cell-dragging': isDraggingCellSelection }]" @mouseleave="handleViewportMouseLeave">
+      <div
+        ref="scrollerRef"
+        :class="bem('scroller')"
+        @mousedown="handleScrollerMouseDown"
+        @mousemove="handleMouseMove"
+        @mouseleave="handleScrollerMouseLeave"
+        @scroll="handleScroll"
+      >
         <NodeViewContent as="table" :class="bem('table')" />
       </div>
 
@@ -110,6 +117,7 @@ const UI = {
   LINE_THICKNESS: 2,
   OVERLAY_GUTTER: 0,
   SEGMENT_HIDE_DELAY: 90,
+  DRAG_SELECTION_THRESHOLD: 4,
   // 外侧按钮悬挂在表格边界外，需要更长缓冲时间让鼠标穿过间隙。
   OVERLAY_HIDE_DELAY: 220
 } as const;
@@ -135,6 +143,39 @@ const addRowButtonRef = ref<HTMLButtonElement | null>(null);
 const removeRowButtonRef = ref<HTMLButtonElement | null>(null);
 const removeColumnButtonRef = ref<HTMLButtonElement | null>(null);
 
+/**
+ * 表格单元格的逻辑坐标。
+ */
+interface TableCellPosition {
+  /** 行索引。 */
+  row: number;
+  /** 列索引。 */
+  column: number;
+}
+
+/**
+ * 当前拖拽选区状态。
+ */
+interface DragSelectionState {
+  /** 拖拽起始单元格。 */
+  anchor: TableCellPosition;
+  /** 拖拽当前经过的单元格。 */
+  head: TableCellPosition;
+}
+
+/**
+ * 尚未跨过拖拽阈值时的候选拖拽状态。
+ */
+interface PendingDragState {
+  /** 按下时命中的起始单元格。 */
+  anchor: TableCellPosition;
+  /** 鼠标按下时的起始坐标。 */
+  startPointer: {
+    clientX: number;
+    clientY: number;
+  };
+}
+
 // ─── hover 状态 ─────────────────────────────────────────────────────────────
 
 /**
@@ -150,6 +191,8 @@ const segmentHover = ref<SegmentHover | null>(null);
  */
 const activeOverlay = ref<'none' | 'divider' | 'segment'>('none');
 const lastPointer = ref<{ clientX: number; clientY: number } | null>(null);
+const dragSelection = ref<DragSelectionState | null>(null);
+const pendingDrag = ref<PendingDragState | null>(null);
 
 let segmentHideTimer = 0;
 let overlayHideTimer = 0;
@@ -338,6 +381,96 @@ function readTableGeometry(): { columnRects: DOMRectLike[]; rowRects: DOMRectLik
   return { columnRects, rowRects };
 }
 
+/**
+ * 读取当前表格下的所有可命中单元格。
+ * @returns 单元格节点列表
+ */
+function getTableCells(): HTMLTableCellElement[] {
+  const tableElement = scrollerRef.value?.querySelector('table');
+  if (!(tableElement instanceof HTMLTableElement)) {
+    return [];
+  }
+
+  return Array.from(tableElement.querySelectorAll('th,td')).filter((cell): cell is HTMLTableCellElement => cell instanceof HTMLTableCellElement);
+}
+
+/**
+ * 根据指针坐标命中当前表格中的单元格。
+ * @param clientX - 视口横坐标
+ * @param clientY - 视口纵坐标
+ * @returns 命中的单元格；未命中时返回 null
+ */
+function findCellElementByPoint(clientX: number, clientY: number): HTMLTableCellElement | null {
+  return (
+    getTableCells().find((cell) => {
+      const rect = cell.getBoundingClientRect();
+      return clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom;
+    }) ?? null
+  );
+}
+
+/**
+ * 计算单元格在当前行中的逻辑列索引。
+ * 简单表格下直接累加前序单元格的 `colSpan`，兼容基础跨列场景。
+ * @param cell - 当前单元格
+ * @returns 逻辑列索引；无法定位时返回 null
+ */
+function getCellColumnIndex(cell: HTMLTableCellElement): number | null {
+  const row = cell.parentElement;
+  if (!(row instanceof HTMLTableRowElement)) {
+    return null;
+  }
+
+  let columnIndex = 0;
+  for (const currentCell of Array.from(row.cells)) {
+    if (currentCell === cell) {
+      return columnIndex;
+    }
+    columnIndex += currentCell.colSpan || 1;
+  }
+
+  return null;
+}
+
+/**
+ * 读取单元格在表格中的逻辑坐标。
+ * @param cell - 当前单元格
+ * @returns 行列坐标；无法定位时返回 null
+ */
+function getCellPosition(cell: HTMLTableCellElement): TableCellPosition | null {
+  const row = cell.parentElement;
+  if (!(row instanceof HTMLTableRowElement) || row.sectionRowIndex < 0) {
+    return null;
+  }
+
+  const column = getCellColumnIndex(cell);
+  if (column === null) {
+    return null;
+  }
+
+  return {
+    row: row.sectionRowIndex,
+    column
+  };
+}
+
+/**
+ * 从当前事件或指针坐标中解析命中的单元格位置。
+ * @param target - 事件目标
+ * @param clientX - 视口横坐标
+ * @param clientY - 视口纵坐标
+ * @returns 命中的单元格位置；未命中时返回 null
+ */
+function resolveCellPosition(target: EventTarget | null, clientX: number, clientY: number): TableCellPosition | null {
+  const targetCell = target instanceof Element ? target.closest('th,td') : null;
+  if (targetCell instanceof HTMLTableCellElement && scrollerRef.value?.contains(targetCell)) {
+    return getCellPosition(targetCell);
+  }
+
+  const pointedCell = findCellElementByPoint(clientX, clientY);
+  return pointedCell ? getCellPosition(pointedCell) : null;
+}
+
 // ─── 滚动区域矩形工具 ────────────────────────────────────────────────────────
 
 /**
@@ -437,7 +570,7 @@ function toLocalPointer(clientX: number, clientY: number, scroller: HTMLElement)
  */
 function updateHoverState(clientX: number, clientY: number): void {
   clearOverlayHideTimer();
-  if (!props.editor.isEditable) {
+  if (!props.editor.isEditable || dragSelection.value) {
     clearHoverState();
     return;
   }
@@ -478,9 +611,25 @@ function updateHoverState(clientX: number, clientY: number): void {
   scheduleOverlayHide();
 }
 
-function handleMouseMove(event: MouseEvent): void {
-  lastPointer.value = { clientX: event.clientX, clientY: event.clientY };
-  updateHoverState(event.clientX, event.clientY);
+/**
+ * 判断两个单元格坐标是否相同。
+ * @param first - 第一个坐标
+ * @param second - 第二个坐标
+ * @returns 完全相同时返回 true
+ */
+function isSameCellPosition(first: TableCellPosition, second: TableCellPosition): boolean {
+  return first.row === second.row && first.column === second.column;
+}
+
+/**
+ * 判断当前位置是否已经跨过拖拽阈值。
+ * @param startPointer - 鼠标按下时的起始坐标
+ * @param clientX - 当前横坐标
+ * @param clientY - 当前纵坐标
+ * @returns 超过阈值时返回 true
+ */
+function hasExceededDragThreshold(startPointer: { clientX: number; clientY: number }, clientX: number, clientY: number): boolean {
+  return Math.abs(clientX - startPointer.clientX) >= UI.DRAG_SELECTION_THRESHOLD || Math.abs(clientY - startPointer.clientY) >= UI.DRAG_SELECTION_THRESHOLD;
 }
 
 /**
@@ -526,31 +675,6 @@ function isPointerInsideViewportBounds(clientX: number, clientY: number): boolea
 /**
  * 在鼠标离开表格几何区域后，继续追踪通往外侧按钮的移动轨迹。
  */
-function handleWindowMouseMove(event: MouseEvent): void {
-  lastPointer.value = { clientX: event.clientX, clientY: event.clientY };
-  if (activeOverlay.value === 'none') return;
-
-  if (isPointerInsideViewportBounds(event.clientX, event.clientY) || isPointerWithinOverlayTransitionZone(event.clientX, event.clientY)) {
-    clearOverlayHideTimer();
-    return;
-  }
-
-  scheduleOverlayHide();
-}
-
-/**
- * 滚动时用 rAF 节流，重新计算 hover 命中。
- */
-function handleScroll(): void {
-  cancelAnimationFrame(scrollFrame);
-  scrollFrame = requestAnimationFrame(() => {
-    scrollFrame = 0;
-    if (lastPointer.value) {
-      updateHoverState(lastPointer.value.clientX, lastPointer.value.clientY);
-    }
-  });
-}
-
 // ─── 编辑器操作 ──────────────────────────────────────────────────────────────
 
 /**
@@ -599,6 +723,177 @@ function focusCellAt(position: { row: number; column: number }): boolean {
 }
 
 /**
+ * 读取指定单元格的文档位置。
+ * @param position - 单元格逻辑坐标
+ * @returns 单元格位置；无法定位时返回 null
+ */
+function getCellDocumentPosition(position: TableCellPosition): number | null {
+  const tableState = getCurrentTableMap();
+  if (!tableState) {
+    return null;
+  }
+
+  const row = Math.min(position.row, tableState.map.height - 1);
+  const column = Math.min(position.column, tableState.map.width - 1);
+  return tableState.tablePos + 1 + tableState.map.map[row * tableState.map.width + column];
+}
+
+/**
+ * 将当前拖拽范围同步为矩形单元格选区。
+ * @param anchor - 起始单元格
+ * @param head - 当前单元格
+ * @returns 是否成功更新选区
+ */
+function setDraggedCellSelection(anchor: TableCellPosition, head: TableCellPosition): boolean {
+  const anchorPos = getCellDocumentPosition(anchor);
+  const headPos = getCellDocumentPosition(head);
+  if (anchorPos === null || headPos === null) {
+    return false;
+  }
+
+  const { doc, tr } = props.editor.state;
+  props.editor.view.dispatch(tr.setSelection(CellSelection.create(doc, anchorPos, headPos)).scrollIntoView());
+  return true;
+}
+
+/**
+ * 开始表格拖拽选区。
+ * @param event - 鼠标按下事件
+ */
+function handleScrollerMouseDown(event: MouseEvent): void {
+  if (!props.editor.isEditable || event.button !== 0) {
+    return;
+  }
+
+  const position = resolveCellPosition(event.target, event.clientX, event.clientY);
+  if (!position) {
+    return;
+  }
+
+  lastPointer.value = { clientX: event.clientX, clientY: event.clientY };
+  pendingDrag.value = {
+    anchor: position,
+    startPointer: {
+      clientX: event.clientX,
+      clientY: event.clientY
+    }
+  };
+}
+
+/**
+ * 按当前鼠标位置扩展拖拽选区。
+ * @param target - 当前事件目标
+ * @param clientX - 视口横坐标
+ * @param clientY - 视口纵坐标
+ */
+function updateDragSelection(target: EventTarget | null, clientX: number, clientY: number): void {
+  const currentDrag = dragSelection.value;
+  if (!currentDrag) {
+    return;
+  }
+
+  const position = resolveCellPosition(target, clientX, clientY);
+  if (!position || isSameCellPosition(position, currentDrag.head)) {
+    return;
+  }
+
+  dragSelection.value = {
+    anchor: currentDrag.anchor,
+    head: position
+  };
+  setDraggedCellSelection(currentDrag.anchor, position);
+}
+
+/**
+ * 结束当前拖拽选区。
+ */
+function stopDragSelection(): void {
+  dragSelection.value = null;
+  pendingDrag.value = null;
+}
+
+/**
+ * 清理浏览器原生文字选区，避免表格矩形拖拽时同时出现文本选中。
+ */
+function clearDomTextSelection(): void {
+  window.getSelection()?.removeAllRanges();
+}
+
+/**
+ * 处理表格内部鼠标移动。
+ * 拖拽时优先扩展单元格选区，否则继续走 hover 控件逻辑。
+ * @param event - 当前鼠标移动事件
+ */
+function handleMouseMove(event: MouseEvent): void {
+  lastPointer.value = { clientX: event.clientX, clientY: event.clientY };
+  if (dragSelection.value) {
+    updateDragSelection(event.target, event.clientX, event.clientY);
+    return;
+  }
+
+  const currentPendingDrag = pendingDrag.value;
+  if (currentPendingDrag) {
+    if ((event.buttons & 1) === 0) {
+      pendingDrag.value = null;
+    } else {
+      const currentCellPosition = resolveCellPosition(event.target, event.clientX, event.clientY);
+      const hasExceededThreshold = hasExceededDragThreshold(currentPendingDrag.startPointer, event.clientX, event.clientY);
+      const hasCrossedIntoAnotherCell = currentCellPosition !== null && !isSameCellPosition(currentCellPosition, currentPendingDrag.anchor);
+
+      if (hasExceededThreshold && hasCrossedIntoAnotherCell) {
+        clearHoverState();
+        clearDomTextSelection();
+        dragSelection.value = {
+          anchor: currentPendingDrag.anchor,
+          head: currentPendingDrag.anchor
+        };
+        pendingDrag.value = null;
+        updateDragSelection(event.target, event.clientX, event.clientY);
+        return;
+      }
+
+      return;
+    }
+  }
+
+  updateHoverState(event.clientX, event.clientY);
+}
+
+/**
+ * 在鼠标离开表格几何区域后，继续追踪通往外侧按钮的移动轨迹。
+ * 拖拽期间改为继续扩展单元格选区。
+ * @param event - 当前全局鼠标移动事件
+ */
+function handleWindowMouseMove(event: MouseEvent): void {
+  lastPointer.value = { clientX: event.clientX, clientY: event.clientY };
+  if (dragSelection.value) {
+    updateDragSelection(event.target, event.clientX, event.clientY);
+    return;
+  }
+  if (activeOverlay.value === 'none') return;
+
+  if (isPointerInsideViewportBounds(event.clientX, event.clientY) || isPointerWithinOverlayTransitionZone(event.clientX, event.clientY)) {
+    clearOverlayHideTimer();
+    return;
+  }
+
+  scheduleOverlayHide();
+}
+
+/**
+ * 滚动时用 rAF 节流，重新计算 hover 命中。
+ */
+function handleScroll(): void {
+  cancelAnimationFrame(scrollFrame);
+  scrollFrame = requestAnimationFrame(() => {
+    scrollFrame = 0;
+    if (lastPointer.value) {
+      updateHoverState(lastPointer.value.clientX, lastPointer.value.clientY);
+    }
+  });
+}
+
+/**
  * 读取当前 NodeView 对应表格的行列数。
  */
 function getDimensions(): { rowCount: number; columnCount: number } {
@@ -615,6 +910,7 @@ const editorContext = { editor: props.editor, focusCellAt, getDimensions };
  */
 function handleAdd(hit: DividerHit | null): void {
   if (hit) applyAddAction(editorContext, hit);
+  clearHoverState();
 }
 
 /**
@@ -622,6 +918,7 @@ function handleAdd(hit: DividerHit | null): void {
  */
 function handleRemove(hit: SegmentHit | null): void {
   if (hit) applyRemoveAction(editorContext, hit);
+  clearHoverState();
 }
 
 // ─── 样式计算 ────────────────────────────────────────────────────────────────
@@ -682,42 +979,49 @@ const removeColumnButtonStyle = computed<CSSProperties | null>(() => {
  * 当前是否显示分割线 overlay。
  */
 const showDividerOverlay = computed<boolean>(() => {
-  return activeOverlay.value === 'divider' && Boolean(addHover.value?.row || addHover.value?.column);
+  return !dragSelection.value && activeOverlay.value === 'divider' && Boolean(addHover.value?.row || addHover.value?.column);
 });
 
 /**
  * 当前是否显示区段 overlay。
  */
-const showSegmentOverlay = computed<boolean>(() => activeOverlay.value === 'segment' && segmentHover.value !== null);
+const showSegmentOverlay = computed<boolean>(() => !dragSelection.value && activeOverlay.value === 'segment' && segmentHover.value !== null);
 
 /**
  * 当前是否显示新增行按钮。
  */
-const showAddRowButton = computed<boolean>(() => addRowButtonStyle.value !== null && shouldShowAddButton('row'));
+const showAddRowButton = computed<boolean>(() => !dragSelection.value && addRowButtonStyle.value !== null && shouldShowAddButton('row'));
 
 /**
  * 当前是否显示新增列按钮。
  */
-const showAddColumnButton = computed<boolean>(() => addColumnButtonStyle.value !== null && shouldShowAddButton('column'));
+const showAddColumnButton = computed<boolean>(() => !dragSelection.value && addColumnButtonStyle.value !== null && shouldShowAddButton('column'));
 
 /**
  * 当前是否显示删除行按钮。
  */
-const showRemoveRowButton = computed<boolean>(() => removeRowButtonStyle.value !== null);
+const showRemoveRowButton = computed<boolean>(() => !dragSelection.value && removeRowButtonStyle.value !== null);
 
 /**
  * 当前是否显示删除列按钮。
  */
-const showRemoveColumnButton = computed<boolean>(() => removeColumnButtonStyle.value !== null);
+const showRemoveColumnButton = computed<boolean>(() => !dragSelection.value && removeColumnButtonStyle.value !== null);
+
+/**
+ * 当前是否处于表格矩形拖拽选区中。
+ */
+const isDraggingCellSelection = computed<boolean>(() => dragSelection.value !== null);
 
 // ─── 生命周期 ────────────────────────────────────────────────────────────────
 
 onMounted(() => {
   window.addEventListener('mousemove', handleWindowMouseMove);
+  window.addEventListener('mouseup', stopDragSelection);
 });
 
 onBeforeUnmount(() => {
   window.removeEventListener('mousemove', handleWindowMouseMove);
+  window.removeEventListener('mouseup', stopDragSelection);
   cancelAnimationFrame(scrollFrame);
   clearOverlayHideTimer();
   clearSegmentHideTimer();
@@ -736,6 +1040,12 @@ onBeforeUnmount(() => {
   box-sizing: border-box;
   width: 100%;
   overflow: visible;
+
+  &.is-cell-dragging,
+  &.is-cell-dragging * {
+    user-select: none;
+    -webkit-user-select: none;
+  }
 }
 
 .b-editor-table__scroller {

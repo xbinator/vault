@@ -194,7 +194,10 @@ export function createRichSelectionAssistantAdapter(editor: Editor, context: Sel
 
     getSelection(): SelectionAssistantRange | null {
       const { selection } = editor.state;
-      if (selection.from === selection.to) {
+      if (selection.empty) return null;
+
+      // 仅对文本选区显示格式工具栏，过滤表格单元格选区与节点选区
+      if (!(selection instanceof TextSelection)) {
         return null;
       }
 
