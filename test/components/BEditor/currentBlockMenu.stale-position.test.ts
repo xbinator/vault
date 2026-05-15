@@ -25,6 +25,9 @@ type EditorEventName = 'selectionUpdate' | 'transaction' | 'focus' | 'blur';
  * 最小可测编辑器替身。
  */
 interface TestEditor {
+  commands: {
+    focus: () => void;
+  };
   isFocused: boolean;
   on: (event: EditorEventName, handler: () => void) => void;
   off: (event: EditorEventName, handler: () => void) => void;
@@ -90,6 +93,9 @@ function createEditorStub(): { editor: TestEditor; blockElement: HTMLElement } {
   });
 
   const editor: TestEditor = {
+    commands: {
+      focus: () => undefined
+    },
     isFocused: true,
     on(event, handler) {
       const set = handlers.get(event) ?? new Set<() => void>();
@@ -117,6 +123,20 @@ function createEditorStub(): { editor: TestEditor; blockElement: HTMLElement } {
   };
 
   return { editor, blockElement };
+}
+
+/**
+ * 等待 block 菜单触发按钮出现。
+ * @param wrapper - 组件包装器
+ */
+async function showBlockMenu(wrapper: VueWrapper<CurrentBlockMenuVm>, blockElement: HTMLElement): Promise<void> {
+  document.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX: 80, clientY: 90 }));
+  Object.defineProperty(document, 'activeElement', {
+    configurable: true,
+    value: blockElement
+  });
+  blockElement.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX: 80, clientY: 90 }));
+  await flushUi();
 }
 
 /**
@@ -164,5 +184,101 @@ describe('CurrentBlockMenu stale position guard', () => {
 
     expect(wrapper.find('.current-block-menu').exists()).toBe(false);
     wrapper.unmount();
+  });
+
+  test('falls back to bottom placement when left placement is unavailable', async () => {
+    const { editor, blockElement } = createEditorStub();
+    const hostElement = document.createElement('div');
+    hostElement.style.overflowY = 'auto';
+    document.body.appendChild(hostElement);
+    Object.defineProperty(hostElement, 'getBoundingClientRect', {
+      configurable: true,
+      value: (): DOMRect => new DOMRect(260, 40, 190, 300)
+    });
+
+    const wrapper = mount(CurrentBlockMenu, {
+      attachTo: hostElement,
+      props: {
+        editor
+      },
+      global: {
+        stubs: {
+          BScrollbar: {
+            template: '<div><slot /></div>'
+          },
+          Icon: {
+            template: '<span />'
+          }
+        }
+      }
+    }) as VueWrapper<CurrentBlockMenuVm>;
+
+    await showBlockMenu(wrapper, blockElement);
+
+    const trigger = wrapper.find('.b-editor-blockmenu__trigger');
+    expect(trigger.exists()).toBe(true);
+    Object.defineProperty(trigger.element, 'getBoundingClientRect', {
+      configurable: true,
+      value: (): DOMRect => new DOMRect(300, 100, 28, 28)
+    });
+
+    await trigger.trigger('mousedown');
+    await flushUi();
+
+    const panel = wrapper.find('.b-editor-blockmenu__panel');
+    expect(panel.exists()).toBe(true);
+    expect(panel.classes()).toContain('is-placement-bottom');
+    expect(panel.classes()).not.toContain('is-placement-left-bottom');
+
+    wrapper.unmount();
+    hostElement.remove();
+  });
+
+  test('uses top-left placement when left side is unavailable but top space is sufficient', async () => {
+    const { editor, blockElement } = createEditorStub();
+    const hostElement = document.createElement('div');
+    hostElement.style.overflowY = 'auto';
+    document.body.appendChild(hostElement);
+    Object.defineProperty(hostElement, 'getBoundingClientRect', {
+      configurable: true,
+      value: (): DOMRect => new DOMRect(260, 40, 190, 620)
+    });
+
+    const wrapper = mount(CurrentBlockMenu, {
+      attachTo: hostElement,
+      props: {
+        editor
+      },
+      global: {
+        stubs: {
+          BScrollbar: {
+            template: '<div><slot /></div>'
+          },
+          Icon: {
+            template: '<span />'
+          }
+        }
+      }
+    }) as VueWrapper<CurrentBlockMenuVm>;
+
+    await showBlockMenu(wrapper, blockElement);
+
+    const trigger = wrapper.find('.b-editor-blockmenu__trigger');
+    expect(trigger.exists()).toBe(true);
+    Object.defineProperty(trigger.element, 'getBoundingClientRect', {
+      configurable: true,
+      value: (): DOMRect => new DOMRect(300, 500, 28, 28)
+    });
+
+    await trigger.trigger('mousedown');
+    await flushUi();
+
+    const panel = wrapper.find('.b-editor-blockmenu__panel');
+    expect(panel.exists()).toBe(true);
+    expect(panel.classes()).toContain('is-placement-top-left');
+    expect(panel.classes()).not.toContain('is-placement-bottom');
+
+    wrapper.unmount();
+    hostElement.remove();
   });
 });

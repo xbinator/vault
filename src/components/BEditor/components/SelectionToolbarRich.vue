@@ -20,7 +20,7 @@
  * @file SelectionToolbarRich.vue
  * @description Rich 模式选区工具栏宿主，使用绝对定位浮层承载内容组件。
  */
-import type { SelectionAssistantPosition, SelectionToolbarAction, SelectionAssistantRect } from '../adapters/selectionAssistant';
+import type { SelectionAssistantPosition, SelectionToolbarAction } from '../adapters/selectionAssistant';
 import type { Editor } from '@tiptap/vue-3';
 import type { CSSProperties } from 'vue';
 import { computed, nextTick, onBeforeUnmount, ref, shallowRef, watch } from 'vue';
@@ -28,6 +28,7 @@ import { useEventListener, useResizeObserver } from '@vueuse/core';
 import { createNamespace } from '@/utils/namespace';
 import LinkPopover from './LinkPopover.vue';
 import SelectionToolbar from './SelectionToolbar.vue';
+import { resolveToolbarContainerRect, resolveToolbarLeft } from '../utils/selectionToolbarPosition';
 
 const [name] = createNamespace('', 'b-editor-selrich');
 
@@ -121,26 +122,6 @@ function hide(): void {
 }
 
 /**
- * 计算工具栏定位约束所需的容器尺寸。
- * 优先使用 adapter 提供的 containerRect（视口坐标系），
- * 回退到基于 overlayRoot 实时计算的视口可见区域。
- * @param position - 当前选区定位信息
- * @returns 归一化后的容器矩形
- */
-function resolveContainerRect(position: SelectionAssistantPosition): SelectionAssistantRect {
-  if (position.containerRect) {
-    return position.containerRect;
-  }
-
-  const overlayEl = props.overlayRoot;
-  const overlayRect = overlayEl?.getBoundingClientRect() ?? new DOMRect();
-  const top = Math.max(0, -overlayRect.top);
-  const left = Math.max(0, -overlayRect.left);
-
-  return { top, left, width: window.innerWidth - left, height: window.innerHeight - top };
-}
-
-/**
  * 基于当前锚点、工具栏尺寸和容器边界同步最终定位。
  * rich 模式下只做“上方 / selection 底部”二选一，不再把下方位置钉到视图底边。
  */
@@ -161,14 +142,11 @@ function syncStyle(): void {
     return;
   }
 
-  const containerRect = resolveContainerRect(position!);
-  const anchorCenterX = position!.anchorRect.left + position!.anchorRect.width / 2;
+  const containerRect = resolveToolbarContainerRect(position!, props.overlayRoot);
   const belowRect = position!.selectionRect ?? position!.anchorRect;
   const topBelow = belowRect.top + belowRect.height + TOOLBAR_GAP;
   const preferBelow = position!.anchorRect.top < containerRect.top;
-  const minLeft = containerRect.left + TOOLBAR_PADDING;
-  const maxLeft = containerRect.left + containerRect.width - toolbarWidth - TOOLBAR_PADDING;
-  const left = maxLeft >= minLeft ? Math.min(Math.max(anchorCenterX - toolbarWidth / 2, minLeft), maxLeft) : minLeft;
+  const left = resolveToolbarLeft(position!.anchorRect, containerRect, toolbarWidth, TOOLBAR_PADDING);
   const topAbove = position!.anchorRect.top - toolbarHeight - TOOLBAR_GAP;
   const minTop = containerRect.top + TOOLBAR_PADDING;
   let top = topBelow;

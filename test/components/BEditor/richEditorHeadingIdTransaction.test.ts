@@ -7,6 +7,7 @@ import { ref, type Ref } from 'vue';
 import { Editor } from '@tiptap/core';
 import { describe, expect, test } from 'vitest';
 import { useExtensions } from '@/components/BEditor/hooks/useExtensions';
+import { getPersistedMarkdown } from '@/components/BEditor/utils/editorMarkdown';
 
 /**
  * 创建包含标题扩展的编辑器与 ID 补齐函数。
@@ -65,7 +66,7 @@ describe('rich editor heading id transaction', () => {
     assignHeadingIds(editor);
 
     expect(transactionFlags).toEqual([true]);
-    expect(editor.getMarkdown()).toBe('# 标题');
+    expect(getPersistedMarkdown(editor)).toBe('# 标题');
     expect(editor.getJSON().content?.[0]?.attrs).toMatchObject({
       id: 'heading-id-test-heading-0',
       level: 1

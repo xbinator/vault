@@ -1,6 +1,6 @@
 <template>
   <div v-if="isVisible" ref="rootRef" :class="name" :style="buttonStyle" @mouseenter="isHoveringMenu = true" @mouseleave="handleMenuMouseLeave">
-    <button type="button" class="b-editor-blockmenu__trigger" :class="{ 'is-open': open }" @mousedown.prevent="toggleMenu" @click.prevent>
+    <button ref="triggerRef" type="button" class="b-editor-blockmenu__trigger" :class="{ 'is-open': open }" @mousedown.prevent="toggleMenu" @click.prevent>
       <Icon :icon="triggerIcon" />
     </button>
 
@@ -40,6 +40,7 @@ import { Icon } from '@iconify/vue';
 import { EditorState, TextSelection } from '@tiptap/pm/state';
 import { onClickOutside, useEventListener } from '@vueuse/core';
 import BScrollbar from '@/components/BScrollbar/index.vue';
+import { useScroller } from '@/hooks/useScroller';
 import { createNamespace } from '@/utils/namespace';
 
 const [name] = createNamespace('', 'b-editor-blockmenu');
@@ -81,6 +82,7 @@ const props = withDefaults(defineProps<Props>(), {
 });
 
 const rootRef = ref<HTMLElement | null>(null);
+const triggerRef = ref<HTMLElement | null>(null);
 const open = ref(false);
 const isFocused = ref(false);
 const isHoveringMenu = ref(false);
@@ -88,7 +90,8 @@ const currentBlock = ref<BlockPosition | null>(null);
 const hoveredBlockPos = ref<number | null>(null);
 const triggerSize = 28;
 const position = ref({ top: 0 });
-const placement = ref<'left-top' | 'left-bottom' | 'bottom'>('left-bottom');
+const placement = ref<'left-top' | 'left-bottom' | 'top-left' | 'bottom'>('left-bottom');
+const scroller = useScroller(rootRef);
 
 const hiddenBlockTypes = new Set(['codeBlock', 'table', 'tableRow', 'tableCell', 'tableHeader']);
 
@@ -128,13 +131,14 @@ const isVisible = computed(() =>
   Boolean(props.editor && currentBlock.value && !shouldHideForCurrentBlock.value && (hoveredBlockPos.value !== null || open.value || isHoveringMenu.value))
 );
 const buttonStyle = computed(() => ({
-  left: '-20px',
+  left: '20px',
   top: `${position.value.top}px`,
   transform: 'translateX(-50%)'
 }));
 const panelClass = computed(() => ({
   'is-placement-left-top': placement.value === 'left-top',
   'is-placement-left-bottom': placement.value === 'left-bottom',
+  'is-placement-top-left': placement.value === 'top-left',
   'is-placement-bottom': placement.value === 'bottom'
 }));
 const triggerIcon = computed(() => {
@@ -324,24 +328,20 @@ function updatePosition(): void {
 }
 
 function updatePlacement(): void {
-  const triggerElement = rootRef.value?.querySelector('.b-editor-blockmenu__trigger');
-  const rootElement = getPositionContainer();
+  if (!triggerRef.value) return;
 
-  if (!(triggerElement instanceof HTMLElement) || !rootElement) {
-    return;
-  }
-
-  const triggerRect = triggerElement.getBoundingClientRect();
-  const containerRect = rootElement.getBoundingClientRect();
+  const triggerRect = triggerRef.value.getBoundingClientRect();
   const estimatedPanelWidth = 180;
   const estimatedPanelHeight = 400;
+  const boundaryRect = scroller.getBoundingClientRect();
 
-  const spaceLeft = triggerRect.left - containerRect.left;
-  const spaceBelow = containerRect.bottom - triggerRect.bottom;
-  const spaceAbove = triggerRect.top - containerRect.top;
+  // 优先使用左侧展开；左侧放不下时，若上方空间足够则改为上方左对齐，否则回退到底部。
+  const spaceLeft = triggerRect.left - boundaryRect.left;
+  const spaceBelow = boundaryRect.bottom - triggerRect.bottom;
+  const spaceAbove = triggerRect.top - boundaryRect.top;
 
   if (spaceLeft < estimatedPanelWidth) {
-    placement.value = 'bottom';
+    placement.value = spaceAbove >= estimatedPanelHeight ? 'top-left' : 'bottom';
   } else if (spaceBelow < estimatedPanelHeight && spaceAbove > spaceBelow) {
     placement.value = 'left-top';
   } else {
@@ -518,6 +518,14 @@ const menuItems = computed<MenuItem[]>(() => {
       icon: 'lucide:square-code',
       active: editor.isActive('codeBlock'),
       onClick: () => runCommand(() => editor.chain().focus().toggleCodeBlock().run())
+    },
+    {
+      type: 'item',
+      value: 'table',
+      label: '表格',
+      icon: 'lucide:table',
+      active: editor.isActive('table'),
+      onClick: () => runCommand(() => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run())
     },
     {
       type: 'divider',
@@ -751,6 +759,12 @@ onBeforeUnmount(() => {
 
 .b-editor-blockmenu__panel.is-placement-left-top {
   bottom: 0;
+}
+
+.b-editor-blockmenu__panel.is-placement-top-left {
+  right: auto;
+  bottom: calc(100% + 8px);
+  left: 0;
 }
 
 .b-editor-blockmenu__panel.is-placement-bottom {

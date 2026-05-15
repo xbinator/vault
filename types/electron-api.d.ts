@@ -45,6 +45,18 @@ export interface ElectronReadFileResult {
 }
 
 /**
+ * Electron 文件路径状态。
+ */
+export interface ElectronFilePathStatus {
+  /** 路径是否存在。 */
+  exists: boolean;
+  /** 路径是否为普通文件。 */
+  isFile: boolean;
+  /** 路径是否为目录。 */
+  isDirectory: boolean;
+}
+
+/**
  * Electron 工作区文件读取参数。
  */
 export interface ElectronReadWorkspaceFileOptions {
@@ -240,6 +252,7 @@ export interface ElectronAPI {
   readFile: (filePath: string) => Promise<ElectronReadFileResult>;
   readWorkspaceFile: (options: ElectronReadWorkspaceFileOptions) => Promise<ElectronReadWorkspaceFileResult>;
   readWorkspaceDirectory: (options: ElectronReadWorkspaceDirectoryOptions) => Promise<ElectronReadWorkspaceDirectoryResult>;
+  getPathStatus?: (targetPath: string) => Promise<ElectronFilePathStatus>;
 
   // 文件对话框操作
   openFile: (options?: ElectronOpenFileOptions) => Promise<ElectronFileResult>;

@@ -4,12 +4,19 @@
  * @vitest-environment jsdom
  */
 
-import { createPinia, setActivePinia } from 'pinia';
 import { defineComponent, nextTick } from 'vue';
+import { createPinia, setActivePinia } from 'pinia';
 import { mount } from '@vue/test-utils';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import type { SelectionAssistantPosition } from '@/components/BEditor/adapters/selectionAssistant';
 import SelectionToolbarSource from '@/components/BEditor/components/SelectionToolbarSource.vue';
+
+/**
+ * 通用空操作函数。
+ */
+function noop(): void {
+  // noop
+}
 
 vi.mock('@/hooks/useChat', () => ({
   useChat: () => ({
@@ -22,7 +29,7 @@ vi.mock('@/hooks/useChat', () => ({
 
 vi.mock('@/hooks/useShortcuts', () => ({
   useShortcuts: () => ({
-    registerShortcut: () => (): void => {}
+    registerShortcut: () => noop
   })
 }));
 
@@ -110,6 +117,27 @@ function mockToolbarSize(element: HTMLElement): void {
     }
   });
   mockToolbarRect(element);
+}
+
+/**
+ * 设置 overlayRoot 的可用尺寸，模拟编辑器容器宽高。
+ * @param element - overlayRoot 容器
+ * @param width - 容器宽度
+ * @param height - 容器高度
+ */
+function mockOverlaySize(element: HTMLElement, width: number, height: number): void {
+  Object.defineProperty(element, 'clientWidth', {
+    configurable: true,
+    get(): number {
+      return width;
+    }
+  });
+  Object.defineProperty(element, 'clientHeight', {
+    configurable: true,
+    get(): number {
+      return height;
+    }
+  });
 }
 
 /**
@@ -227,6 +255,36 @@ describe('SelectionToolbarSource', () => {
     await nextTick();
 
     expect(readPx(toolbar, 'left')).toBe(72);
+    expect(toolbar.style.visibility).toBe('visible');
+  });
+
+  test('clamps horizontal position within the overlay root when the visible viewport is wider than the editor container', async () => {
+    const overlayRoot = document.createElement('div');
+    mockOverlaySize(overlayRoot, 160, 160);
+    document.body.appendChild(overlayRoot);
+
+    mount(SelectionToolbarSource, {
+      props: {
+        visible: true,
+        overlayRoot,
+        position: createPosition(150, 60)
+      },
+      global: {
+        stubs: {
+          SelectionToolbar: SelectionToolbarStub
+        }
+      }
+    });
+
+    await nextTick();
+
+    const toolbar = getToolbarElement();
+    mockToolbarSize(toolbar);
+
+    window.dispatchEvent(new Event('resize'));
+    await nextTick();
+
+    expect(readPx(toolbar, 'left')).toBe(32);
     expect(toolbar.style.visibility).toBe('visible');
   });
 

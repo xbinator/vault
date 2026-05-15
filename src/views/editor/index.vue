@@ -15,6 +15,7 @@
           @copy-path="actions.onCopyPath"
           @copy-relative-path="actions.onCopyRelativePath"
           @show-in-folder="actions.onShowInFolder"
+          @close-outline="editorPreferencesStore.setShowOutline(false)"
         />
       </div>
     </div>

@@ -18,6 +18,7 @@
       @copy-path="emit('copy-path')"
       @copy-relative-path="emit('copy-relative-path')"
       @show-in-folder="emit('show-in-folder')"
+      @close="emit('close-outline')"
     />
 
     <BScrollbar ref="scrollbarRef" class="b-editor-scrollbar" @scroll="handleEditorScrollEvent">
@@ -86,7 +87,7 @@ const props = withDefaults(defineProps<Props>(), {
   showOutline: true
 });
 
-const emit = defineEmits(['rename-file', 'save', 'save-as', 'copy-path', 'copy-relative-path', 'show-in-folder', 'editor-blur']);
+const emit = defineEmits(['rename-file', 'save', 'save-as', 'copy-path', 'copy-relative-path', 'show-in-folder', 'editor-blur', 'close-outline']);
 
 const isRichMode = computed<boolean>(() => props.viewMode === 'rich');
 
@@ -314,10 +315,12 @@ defineExpose({
 
   --selection-color: #fff;
   --selection-bg: #ff6b6b;
+  --native-selection-color: var(--selection-color);
+  --native-selection-bg: var(--selection-bg);
 
   ::selection {
-    color: var(--selection-color);
-    background: var(--selection-bg);
+    color: var(--native-selection-color);
+    background: var(--native-selection-bg);
   }
 }
 
@@ -331,7 +334,6 @@ defineExpose({
 .b-editor-container {
   position: relative;
   max-width: var(--editor-page-max-width);
-  padding: 20px 40px 90px;
   margin: 0 auto;
   font-size: 16px;
 }

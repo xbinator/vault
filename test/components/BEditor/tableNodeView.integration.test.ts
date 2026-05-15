@@ -306,4 +306,78 @@ describe('table node view integration', () => {
       wrapper.unmount();
     }
   });
+
+  test('creates a rectangular cell selection while dragging across table cells', async () => {
+    const wrapper = mountPaneRichEditor('| A | B |\n| --- | --- |\n| 1 | 2 |\n| 3 | 4 |');
+
+    try {
+      await flushEditorWork();
+      applyTableGeometry(wrapper);
+
+      const scroller = wrapper.get('.b-editor-table__scroller');
+      const firstHeaderCell = wrapper.findAll('th')[0];
+      expect(firstHeaderCell).toBeDefined();
+
+      await scroller.trigger('mousemove', { clientX: 321, clientY: 120 });
+      expect(wrapper.get('.b-editor-table__add-button').isVisible()).toBe(true);
+
+      await firstHeaderCell!.trigger('mousedown', { clientX: 260, clientY: 120, button: 0 });
+      await scroller.trigger('mousemove', { clientX: 380, clientY: 160, buttons: 1 });
+      await flushEditorWork();
+
+      expect(wrapper.find('.b-editor-table__add-button').exists()).toBe(true);
+      expect(wrapper.get('.b-editor-table__add-button').isVisible()).toBe(false);
+      expect(wrapper.findAll('th.selectedCell, td.selectedCell')).toHaveLength(4);
+
+      window.dispatchEvent(new MouseEvent('mouseup', { clientX: 380, clientY: 160, button: 0 }));
+      await flushEditorWork();
+    } finally {
+      wrapper.unmount();
+    }
+  });
+
+  test('does not turn a plain click into a cell selection before dragging starts', async () => {
+    const wrapper = mountPaneRichEditor('| A | B |\n| --- | --- |\n| 1 | 2 |\n| 3 | 4 |');
+
+    try {
+      await flushEditorWork();
+      applyTableGeometry(wrapper);
+
+      const firstHeaderCell = wrapper.findAll('th')[0];
+      expect(firstHeaderCell).toBeDefined();
+
+      await firstHeaderCell!.trigger('mousedown', { clientX: 260, clientY: 120, button: 0 });
+      await flushEditorWork();
+
+      expect(wrapper.findAll('th.selectedCell, td.selectedCell')).toHaveLength(0);
+
+      window.dispatchEvent(new MouseEvent('mouseup', { clientX: 260, clientY: 120, button: 0 }));
+      await flushEditorWork();
+    } finally {
+      wrapper.unmount();
+    }
+  });
+
+  test('does not start cell selection while dragging stays within the same cell', async () => {
+    const wrapper = mountPaneRichEditor('| A | B |\n| --- | --- |\n| 1 | 2 |\n| 3 | 4 |');
+
+    try {
+      await flushEditorWork();
+      applyTableGeometry(wrapper);
+
+      const firstHeaderCell = wrapper.findAll('th')[0];
+      expect(firstHeaderCell).toBeDefined();
+
+      await firstHeaderCell!.trigger('mousedown', { clientX: 260, clientY: 120, button: 0 });
+      await firstHeaderCell!.trigger('mousemove', { clientX: 300, clientY: 120, buttons: 1 });
+      await flushEditorWork();
+
+      expect(wrapper.findAll('th.selectedCell, td.selectedCell')).toHaveLength(0);
+
+      window.dispatchEvent(new MouseEvent('mouseup', { clientX: 300, clientY: 120, button: 0 }));
+      await flushEditorWork();
+    } finally {
+      wrapper.unmount();
+    }
+  });
 });

@@ -78,12 +78,164 @@ export interface TavilyToolSettings {
   extractDefaults: TavilyExtractDefaults;
 }
 
+// ─── MCP Transport ────────────────────────────────────────────────────────────
+
+/**
+ * MCP transport 类型。
+ */
+export type MCPTransportType = 'stdio';
+
+// ─── MCP Sandbox 运行时 ───────────────────────────────────────────────────────
+
+/**
+ * @vercel/sandbox 支持的运行时标识。
+ */
+export type MCPSandboxRuntime = 'node22' | 'python3.13';
+
+/**
+ * Sandbox 网络策略字符串模式。
+ */
+export type MCPSandboxNetworkPolicyString = 'allow-all' | 'deny-all';
+
+/**
+ * Sandbox 网络策略对象模式。
+ */
+export interface MCPSandboxNetworkPolicyObject {
+  allow: string[];
+}
+
+/**
+ * Sandbox 网络策略联合。
+ */
+export type MCPSandboxNetworkPolicy = MCPSandboxNetworkPolicyString | MCPSandboxNetworkPolicyObject;
+
+// ─── MCP Server Config ───────────────────────────────────────────────────────
+
+/**
+ * MCP server 配置。
+ */
+export interface MCPServerConfig {
+  /** 稳定 ID */
+  id: string;
+  /** 展示名称 */
+  name: string;
+  /** 是否启用 */
+  enabled: boolean;
+  /** transport 类型 */
+  transport: MCPTransportType;
+  /** 启动命令 */
+  command: string;
+  /** 启动参数 */
+  args: string[];
+  /** 环境变量 */
+  env: Record<string, string>;
+  /** Vercel Sandbox 运行时字符串 */
+  runtime: string;
+  /** Sandbox 生命周期超时 */
+  sandboxTimeoutMs: number;
+  /** Sandbox 网络策略 */
+  networkPolicy: MCPSandboxNetworkPolicy;
+  /** 可选的基础快照 ID */
+  baseSnapshotId?: string | null;
+  /** 默认允许暴露的 tool 名称 */
+  toolAllowlist: string[];
+  /** 连接与握手超时 */
+  connectTimeoutMs: number;
+  /** 单次工具调用超时 */
+  toolCallTimeoutMs: number;
+}
+
+// ─── MCP Tool Selector ──────────────────────────────────────────────────────
+
+/**
+ * MCP tool 的结构化选择器。
+ */
+export interface MCPToolSelector {
+  /** 所属 server ID */
+  serverId: string;
+  /** 原始 tool 名称 */
+  toolName: string;
+}
+
+// ─── MCP Invocation Defaults ─────────────────────────────────────────────────
+
+/**
+ * MCP 默认调用配置。
+ */
+export interface MCPInvocationDefaults {
+  /** 默认启用的 server ID */
+  enabledServerIds: string[];
+  /** 默认允许的 tool 标识 */
+  enabledTools: MCPToolSelector[];
+  /** 默认附加说明词 */
+  toolInstructions: string;
+}
+
+// ─── MCP Tool Settings ──────────────────────────────────────────────────────
+
+/**
+ * MCP 设置总结构。
+ */
+export interface MCPToolSettings {
+  /** server 列表 */
+  servers: MCPServerConfig[];
+  /** 默认调用配置 */
+  invocationDefaults: MCPInvocationDefaults;
+}
+
+// ─── MCP Discovery Snapshot ─────────────────────────────────────────────────
+
+/**
+ * Discovery cache 中的工具快照。
+ */
+export interface MCPDiscoveredToolSnapshot {
+  serverId: string;
+  toolName: string;
+  description?: string;
+}
+
+/**
+ * 单个 server 的 discovery cache。
+ */
+export interface MCPServerDiscoveryCache {
+  serverId: string;
+  tools: MCPDiscoveredToolSnapshot[];
+  discoveredAt: number;
+}
+
+// ─── MCP Defaults ────────────────────────────────────────────────────────────
+
+export const DEFAULT_MCP_CONNECT_TIMEOUT_MS = 20000;
+export const DEFAULT_MCP_TOOL_CALL_TIMEOUT_MS = 30000;
+export const DEFAULT_MCP_SANDBOX_TIMEOUT_MS = 300000;
+export const MIN_SANDBOX_TIMEOUT_MS = 60000;
+export const MAX_SANDBOX_TIMEOUT_MS = 3600000;
+export const MIN_CONNECT_TIMEOUT_MS = 1000;
+export const MAX_CONNECT_TIMEOUT_MS = 120000;
+export const MIN_TOOL_CALL_TIMEOUT_MS = 1000;
+export const MAX_TOOL_CALL_TIMEOUT_MS = 120000;
+
+export const VALID_SANDBOX_RUNTIMES: readonly MCPSandboxRuntime[] = ['node22', 'python3.13'] as const;
+
+export const DEFAULT_MCP_TOOL_SETTINGS: MCPToolSettings = {
+  servers: [],
+  invocationDefaults: {
+    enabledServerIds: [],
+    enabledTools: [],
+    toolInstructions: ''
+  }
+};
+
+// ─── ToolSettingsState ───────────────────────────────────────────────────────
+
 /**
  * 工具设置总结构。
  */
 export interface ToolSettingsState {
   /** Tavily 配置 */
   tavily: TavilyToolSettings;
+  /** MCP 配置 */
+  mcp: MCPToolSettings;
 }
 
 /**
@@ -92,7 +244,7 @@ export interface ToolSettingsState {
 export const TOOL_SETTINGS_STORAGE_KEY = 'tool_settings';
 
 /**
- * Tavily 默认配置。
+ * 默认配置。
  */
 export const DEFAULT_TOOL_SETTINGS: ToolSettingsState = {
   tavily: {
@@ -114,5 +266,6 @@ export const DEFAULT_TOOL_SETTINGS: ToolSettingsState = {
       format: 'markdown',
       includeImages: false
     }
-  }
+  },
+  mcp: DEFAULT_MCP_TOOL_SETTINGS
 };

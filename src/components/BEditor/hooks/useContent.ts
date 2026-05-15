@@ -2,6 +2,7 @@ import type { Editor } from '@tiptap/core';
 import type { Ref } from 'vue';
 import { watch } from 'vue';
 import { normalizeEditorContent } from '../extensions/emptyContent';
+import { getPersistedMarkdown } from '../utils/editorMarkdown';
 
 interface UseBEditorContentParams {
   assignHeadingIds: (editor: Editor) => void;
@@ -36,7 +37,7 @@ export function useContent({
   function rememberImportedContent(text: string): void {
     const instance = getEditorInstance();
     lastImportedRawContent = text;
-    lastImportedCanonicalContent = instance ? instance.getMarkdown() : text;
+    lastImportedCanonicalContent = instance ? getPersistedMarkdown(instance) : text;
   }
 
   function setEditorContent(text: string, emitUpdate = true): void {
@@ -79,7 +80,7 @@ export function useContent({
 
   function onEditorUpdate({ editor }: { editor: Editor }): void {
     assignHeadingIds(editor);
-    const markdown = editor.getMarkdown();
+    const markdown = getPersistedMarkdown(editor);
 
     editorContent.value = markdown === lastImportedCanonicalContent ? lastImportedRawContent : markdown;
     onContentChange?.();

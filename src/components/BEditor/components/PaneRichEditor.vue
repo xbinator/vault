@@ -62,6 +62,7 @@ import { getSearchSnapshot } from '../extensions/editorSearch';
 import { useFrontMatter } from '../hooks/useFrontMatter';
 import { useRichEditor } from '../hooks/useRichEditor';
 import { useSelectionAssistant } from '../hooks/useSelectionAssistant';
+import { getPersistedMarkdown } from '../utils/editorMarkdown';
 import CurrentBlockMenu from './CurrentBlockMenu.vue';
 import FrontMatterCard from './FrontMatterCard.vue';
 import SelectionAIInput from './SelectionAIInput.vue';
@@ -454,7 +455,7 @@ async function selectLineRange(startLine: number, endLine: number): Promise<bool
     return false;
   }
 
-  const mappedRange = mapSourceLineRangeToProseMirrorRange(instance.state.doc, startLine, endLine, instance.getMarkdown());
+  const mappedRange = mapSourceLineRangeToProseMirrorRange(instance.state.doc, startLine, endLine, getPersistedMarkdown(instance));
   if (!mappedRange) {
     return false;
   }
@@ -548,10 +549,13 @@ defineExpose({
 
 .b-editor-rich__content {
   height: 100%;
-  min-height: 100%;
 
   .ProseMirror {
-    min-height: 100%;
+    --native-selection-color: var(--selection-color);
+    --native-selection-bg: var(--selection-bg);
+
+    min-height: calc(100vh - 42px);
+    padding: 20px 40px 90px;
     margin: 0;
     line-height: 1.74;
     color: var(--editor-text);
@@ -559,11 +563,15 @@ defineExpose({
     outline: none;
 
     &::selection {
-      background: transparent;
+      color: var(--native-selection-color) !important;
+      background: var(--native-selection-bg) !important;
+      -webkit-text-fill-color: var(--native-selection-color) !important;
     }
 
     *::selection {
-      background: transparent;
+      color: var(--native-selection-color) !important;
+      background: var(--native-selection-bg) !important;
+      -webkit-text-fill-color: var(--native-selection-color) !important;
     }
 
     > *:first-child {
@@ -793,6 +801,12 @@ defineExpose({
     background-color: var(--editor-table-header-bg);
     border-right: 1px solid var(--editor-table-border);
     border-bottom: 1px solid var(--editor-table-border);
+
+    &.selectedCell {
+      color: var(--editor-text);
+      background-color: color-mix(in srgb, var(--editor-link) 12%, var(--editor-table-header-bg));
+      -webkit-text-fill-color: var(--editor-text);
+    }
   }
 
   td {
@@ -804,6 +818,12 @@ defineExpose({
     background-color: var(--bg-primary);
     border-right: 1px solid var(--editor-table-border);
     border-bottom: 1px solid var(--editor-table-border);
+
+    &.selectedCell {
+      color: var(--editor-text);
+      background-color: color-mix(in srgb, var(--editor-link) 12%, var(--bg-primary));
+      -webkit-text-fill-color: var(--editor-text);
+    }
 
     &:last-child {
       border-right: none;
@@ -826,6 +846,19 @@ defineExpose({
     }
 
     &:last-child {
+      th {
+        border-right: none;
+        border-bottom: none;
+
+        &:first-child {
+          border-bottom-left-radius: 8px;
+        }
+
+        &:last-child {
+          border-bottom-right-radius: 8px;
+        }
+      }
+
       td {
         border-bottom: none;
 
@@ -840,15 +873,23 @@ defineExpose({
     }
   }
 
-  tr:hover td {
-    background-color: var(--editor-table-even-bg);
-  }
-
   th p,
   td p {
     min-height: auto;
     margin: 0;
     color: inherit;
+  }
+
+  .b-editor-table__viewport.is-cell-dragging {
+    th.selectedCell,
+    td.selectedCell {
+      &::selection,
+      *::selection {
+        color: var(--editor-text) !important;
+        background: transparent !important;
+        -webkit-text-fill-color: var(--editor-text) !important;
+      }
+    }
   }
 }
 </style>
