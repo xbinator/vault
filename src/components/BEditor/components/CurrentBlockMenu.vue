@@ -520,6 +520,14 @@ const menuItems = computed<MenuItem[]>(() => {
       onClick: () => runCommand(() => editor.chain().focus().toggleCodeBlock().run())
     },
     {
+      type: 'item',
+      value: 'table',
+      label: '表格',
+      icon: 'lucide:table',
+      active: editor.isActive('table'),
+      onClick: () => runCommand(() => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run())
+    },
+    {
       type: 'divider',
       value: 'divider-block-actions'
     },
