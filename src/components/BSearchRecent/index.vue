@@ -18,7 +18,6 @@
               <div class="b-search-recent-item-main">
                 <span class="b-search-recent-item-title">{{ item.title }}</span>
                 <span class="b-search-recent-item-path" :class="item.pathClass">{{ item.pathLabel }}</span>
-                <span v-if="item.meta" class="b-search-recent-item-meta">{{ item.meta }}</span>
               </div>
 
               <div v-if="item.removable" class="b-search-recent-item-delete" @click.stop="item.onRemove">
