@@ -1,5 +1,5 @@
 <template>
-  <BMessage :class="name" :content="formattedContent" />
+  <BMessage :class="name" type="text" :content="formattedContent" />
 </template>
 
 <script setup lang="ts">
