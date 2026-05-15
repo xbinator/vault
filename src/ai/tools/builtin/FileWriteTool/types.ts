@@ -2,7 +2,7 @@
  * @file types.ts
  * @description fileWrite 工具模块内类型定义。
  */
-import type { ToolRequiredConfirmationOptions, ToolWorkspaceOptions } from '../../shared/types';
+import type { ToolRequiredConfirmationOptions, ToolWorkspaceOptions, OpenDraftInput, OpenDraftResult } from '../../shared/types';
 import type { ReadWorkspaceFileOptions, ReadWorkspaceFileResult } from '@/shared/platform/native/types';
 import type { StoredFile } from '@/shared/storage/files/types';
 
@@ -40,4 +40,6 @@ export interface CreateBuiltinWriteFileToolOptions extends ToolRequiredConfirmat
   getUnsavedDraft?: (fileId: string) => Promise<StoredFile | null>;
   /** 更新未保存文件内容，测试时可注入替身。 */
   updateUnsavedDraft?: (fileId: string, updates: Partial<StoredFile>) => Promise<StoredFile>;
+  /** 打开草稿，无工作区 + 相对路径时降级调用。 */
+  openDraft?: (input: OpenDraftInput) => Promise<OpenDraftResult>;
 }

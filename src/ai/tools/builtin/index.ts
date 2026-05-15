@@ -143,7 +143,8 @@ export function createBuiltinTools(options: CreateBuiltinToolsOptions = {}): AIT
   });
   const writeFileTool = createBuiltinWriteFileTool({
     confirm: options.confirm!,
-    getWorkspaceRoot: options.getWorkspaceRoot
+    getWorkspaceRoot: options.getWorkspaceRoot,
+    openDraft: options.openDraft
   });
   // 创建设置修改工具
   const settingsTools = createBuiltinSettingsTools(options.confirm);

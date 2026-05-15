@@ -4,6 +4,27 @@
  */
 import type { AIToolConfirmationAdapter } from '../confirmation';
 import type { AIToolContext } from 'types/ai';
+import type { StoredFile } from '@/shared/storage/files/types';
+
+/**
+ * 草稿打开的输入参数。
+ */
+export interface OpenDraftInput {
+  /** 模型传入的原始相对路径。 */
+  originalPath: string;
+  /** 草稿内容。 */
+  content: string;
+}
+
+/**
+ * 草稿打开的返回结果。
+ */
+export interface OpenDraftResult {
+  /** 创建的文件记录。 */
+  file: StoredFile;
+  /** 未保存文档虚拟路径。 */
+  unsavedPath: string;
+}
 
 /**
  * 工具基础选项 - 工作区相关能力
@@ -51,6 +72,14 @@ export interface ToolRequiredConfirmationOptions {
 }
 
 /**
+ * 工具基础选项 - 草稿能力
+ */
+export interface ToolDraftOptions {
+  /** 打开草稿，无工作区 + 相对路径时降级调用。 */
+  openDraft?: (input: OpenDraftInput) => Promise<OpenDraftResult>;
+}
+
+/**
  * 内置工具共享基础选项
  */
-export interface BuiltinToolBaseOptions extends ToolConfirmationOptions, ToolWorkspaceOptions, ToolFileLookupOptions {}
+export interface BuiltinToolBaseOptions extends ToolConfirmationOptions, ToolWorkspaceOptions, ToolFileLookupOptions, ToolDraftOptions {}

@@ -50,7 +50,7 @@ function mapNativeError(error: unknown): { code: AIToolExecutionError['code']; m
 
 // ─── 路径解析 ─────────────────────────────────────────────────────────────────
 
-type ResolveResult = { path: string } | { error: ReturnType<typeof createToolFailureResult> };
+type ResolveResult = { path: string } | { draft: true; originalPath: string } | { error: ReturnType<typeof createToolFailureResult> };
 
 /**
  * 解析输入路径并执行工作区边界校验。
@@ -62,7 +62,7 @@ function resolveTargetPath(filePath: string, workspaceRoot: string | null): Reso
 
   if (!workspaceRoot) {
     if (!isAbsoluteFilePath(filePath)) {
-      return { error: fail('PERMISSION_DENIED', '未配置工作区根目录时只能写入绝对路径文件') };
+      return { draft: true, originalPath: filePath };
     }
     return { path: filePath };
   }
@@ -151,6 +151,37 @@ async function executeConfirmedWrite(
 }
 
 // ─── 写入路径：未保存草稿 ──────────────────────────────────────────────────────
+
+/**
+ * 处理无工作区 + 相对路径降级为草稿的写入流程。
+ */
+async function handleDraftWrite(
+  options: CreateBuiltinWriteFileToolOptions,
+  originalPath: string,
+  content: string
+): Promise<
+  ReturnType<typeof createToolSuccessResult<WriteFileResult>> | ReturnType<typeof createToolFailureResult> | ReturnType<typeof createToolCancelledResult>
+> {
+  if (!options.openDraft) {
+    return fail('EXECUTION_FAILED', '当前环境不支持创建未保存草稿');
+  }
+
+  const request: AIToolConfirmationRequest = {
+    toolName: WRITE_FILE_TOOL_NAME,
+    title: 'AI 想要创建未保存草稿',
+    description: `当前没有可写入的工作区路径。AI 请求将内容创建为应用内草稿：${originalPath}`,
+    riskLevel: 'write',
+    afterText: content
+  };
+
+  const cancelled = await confirmOrCancel(options.confirm, request);
+  if (cancelled) return cancelled;
+
+  return executeConfirmedWrite(options.confirm, request, async () => {
+    const result = await options.openDraft!({ originalPath, content });
+    return { path: result.unsavedPath, content, created: true };
+  });
+}
 
 /**
  * 处理目标为未保存草稿的写入流程。
@@ -333,6 +364,10 @@ export function createBuiltinWriteFileTool(options: CreateBuiltinWriteFileToolOp
       const workspaceRoot = options.getWorkspaceRoot?.() ?? null;
       const resolved = resolveTargetPath(filePath, workspaceRoot);
       if ('error' in resolved) return resolved.error;
+
+      if ('draft' in resolved) {
+        return handleDraftWrite(options, resolved.originalPath, content);
+      }
 
       if (isUnsavedPath(resolved.path)) {
         return handleUnsavedWrite(options, context, resolved.path, content);

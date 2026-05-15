@@ -106,6 +106,7 @@ import BButton from '@/components/BButton/index.vue';
 import BModelSelect from '@/components/BModelSelect/index.vue';
 import BPromptEditor from '@/components/BPromptEditor/index.vue';
 import { useNavigate } from '@/hooks/useNavigate';
+import { useOpenDraft } from '@/hooks/useOpenDraft';
 import { useChatStore } from '@/stores/chat';
 import { useFilesStore } from '@/stores/files';
 import { useSettingStore } from '@/stores/setting';
@@ -298,6 +299,7 @@ const fileReference = useFileReference({
 
 /** 聊天工具列表 */
 const filesStore = useFilesStore();
+const { openDraft } = useOpenDraft();
 
 const tools = createBuiltinTools({
   confirm: confirmationController.createAdapter(),
@@ -319,6 +321,7 @@ const tools = createBuiltinTools({
   getEditorContext: (documentId: string) => {
     return editorToolContextRegistry.getContext(documentId);
   },
+  openDraft,
   getPendingQuestion: () => {
     const pendingQuestion = userChoice.findPending(messages.value);
     if (!pendingQuestion) return null;

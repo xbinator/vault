@@ -5,6 +5,7 @@
 import type { AIToolContext } from 'types/ai';
 import { describe, expect, it, vi } from 'vitest';
 import { createBuiltinWriteFileTool } from '@/ai/tools/builtin/FileWriteTool';
+import type { OpenDraftInput, OpenDraftResult } from '@/ai/tools/shared/types';
 import type { StoredFile } from '@/shared/storage/files/types';
 
 /**
@@ -262,5 +263,163 @@ describe('createBuiltinWriteFileTool', () => {
       modifiedAt: expect.any(Number)
     });
     expect(writeFile).not.toHaveBeenCalled();
+  });
+
+  describe('draft fallback (no workspace + relative path)', () => {
+    it('enters draft branch when no workspace and relative path', async () => {
+      const openDraft = vi.fn(async (input: OpenDraftInput): Promise<OpenDraftResult> => {
+        return {
+          file: createUnsavedDraft({ id: 'abc123', name: 'idea', ext: 'md', content: input.content }),
+          unsavedPath: 'unsaved://abc123/idea.md'
+        };
+      });
+      const tool = createBuiltinWriteFileTool({
+        confirm: { confirm: async () => true },
+        getWorkspaceRoot: () => null,
+        openDraft
+      });
+
+      const result = await tool.execute({
+        path: 'notes/idea',
+        content: '# My Idea\n'
+      });
+
+      expect(result.status).toBe('success');
+      if (result.status === 'success') {
+        expect(result.data.path).toBe('unsaved://abc123/idea.md');
+        expect(result.data.content).toBe('# My Idea\n');
+        expect(result.data.created).toBe(true);
+      }
+      expect(openDraft).toHaveBeenCalledWith({ originalPath: 'notes/idea', content: '# My Idea\n' });
+    });
+
+    it('requests user confirmation before creating draft', async () => {
+      const confirmFn = vi.fn(async () => ({ approved: true }));
+      const openDraft = vi.fn(async (input: OpenDraftInput): Promise<OpenDraftResult> => {
+        return {
+          file: createUnsavedDraft({ id: 'abc123', content: input.content }),
+          unsavedPath: 'unsaved://abc123/idea.md'
+        };
+      });
+      const tool = createBuiltinWriteFileTool({
+        confirm: { confirm: confirmFn },
+        getWorkspaceRoot: () => null,
+        openDraft
+      });
+
+      await tool.execute({
+        path: 'notes/idea',
+        content: '# My Idea\n'
+      });
+
+      expect(confirmFn).toHaveBeenCalledTimes(1);
+      const request = confirmFn.mock.calls[0][0];
+      expect(request.title).toBe('AI 想要创建未保存草稿');
+      expect(request.riskLevel).toBe('write');
+    });
+
+    it('returns cancelled when user rejects draft creation', async () => {
+      const openDraft = vi.fn(async (input: OpenDraftInput): Promise<OpenDraftResult> => {
+        return {
+          file: createUnsavedDraft({ id: 'abc123', content: input.content }),
+          unsavedPath: 'unsaved://abc123/idea.md'
+        };
+      });
+      const tool = createBuiltinWriteFileTool({
+        confirm: { confirm: async () => ({ approved: false }) },
+        getWorkspaceRoot: () => null,
+        openDraft
+      });
+
+      const result = await tool.execute({
+        path: 'notes/idea',
+        content: '# My Idea\n'
+      });
+
+      expect(result.status).toBe('cancelled');
+      expect(openDraft).not.toHaveBeenCalled();
+    });
+
+    it('returns failure when openDraft is not injected', async () => {
+      const tool = createBuiltinWriteFileTool({
+        confirm: { confirm: async () => true },
+        getWorkspaceRoot: () => null
+      });
+
+      const result = await tool.execute({
+        path: 'notes/idea',
+        content: '# My Idea\n'
+      });
+
+      expect(result.status).toBe('failure');
+    });
+
+    it('returns failure when openDraft throws', async () => {
+      const openDraft = vi.fn(async (): Promise<OpenDraftResult> => {
+        throw new Error('存储失败');
+      });
+      const tool = createBuiltinWriteFileTool({
+        confirm: { confirm: async () => true },
+        getWorkspaceRoot: () => null,
+        openDraft
+      });
+
+      const result = await tool.execute({
+        path: 'notes/idea',
+        content: '# My Idea\n'
+      });
+
+      expect(result.status).toBe('failure');
+    });
+
+    it('preserves original behavior for no workspace + absolute path', async () => {
+      const writeFile = vi.fn(async () => undefined);
+      const openDraft = vi.fn();
+      const tool = createBuiltinWriteFileTool({
+        confirm: { confirm: async () => true },
+        getWorkspaceRoot: () => null,
+        readWorkspaceFile: async () => {
+          const error = new Error('missing') as Error & { code: string };
+          error.code = 'FILE_NOT_FOUND';
+          throw error;
+        },
+        writeFile,
+        openDraft
+      });
+
+      const result = await tool.execute({
+        path: '/absolute/path/file.txt',
+        content: 'content'
+      });
+
+      expect(result.status).toBe('success');
+      expect(openDraft).not.toHaveBeenCalled();
+      expect(writeFile).toHaveBeenCalledWith('/absolute/path/file.txt', 'content');
+    });
+
+    it('preserves original behavior for workspace + relative path', async () => {
+      const writeFile = vi.fn(async () => undefined);
+      const openDraft = vi.fn();
+      const tool = createBuiltinWriteFileTool({
+        confirm: { confirm: async () => true },
+        getWorkspaceRoot: () => '/workspace',
+        readWorkspaceFile: async () => {
+          const error = new Error('missing') as Error & { code: string };
+          error.code = 'FILE_NOT_FOUND';
+          throw error;
+        },
+        writeFile,
+        openDraft
+      });
+
+      const result = await tool.execute({
+        path: 'src/new-file.ts',
+        content: 'export const value = 1;\n'
+      });
+
+      expect(result.status).toBe('success');
+      expect(openDraft).not.toHaveBeenCalled();
+      expect(writeFile).toHaveBeenCalledWith('/workspace/src/new-file.ts', 'export const value = 1;\n');
+    });
   });
 });
