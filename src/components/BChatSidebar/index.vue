@@ -574,7 +574,8 @@ const { handleCompactContext } = useCompactContext({
   finishCompactTask: () => taskRuntime.finishTask('compact'),
   persistMessage: (sessionId, nextMessage) => chatStore.addSessionMessage(sessionId, nextMessage),
   persistMessages: (sessionId, nextMessages) => chatStore.setSessionMessages(sessionId, nextMessages),
-  scrollToBottom: () => conversationRef.value?.scrollToBottom({ behavior: 'auto' })
+  scrollToBottom: () => conversationRef.value?.scrollToBottom({ behavior: 'auto' }),
+  showToast: interactionAPI.showToast
 });
 
 /**

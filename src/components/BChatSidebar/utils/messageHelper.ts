@@ -54,6 +54,8 @@ export type ToolResult = Extract<ChatMessagePart, { type: 'tool-result' }>['resu
 
 /** 兼容历史消息与新工具实现的用户提问工具名称。 */
 const ASK_USER_QUESTION_TOOL_NAMES = new Set(['ask_user_choice', 'ask_user_question']);
+/** 旧压缩记忆召回的最大数量。 */
+const MAX_RECALLED_COMPRESSION_MEMORY_COUNT = 2;
 
 // ─── 内部工具函数 ────────────────────────────────────────────────────────────
 
@@ -288,6 +290,71 @@ export function findLatestCompressionBoundaryIndex(sourceMessages: Message[]): n
 }
 
 /**
+ * 从最近用户消息中提取召回关键词。
+ * @param sourceMessages - 原始消息列表
+ * @returns 去重后的关键词列表
+ */
+function extractRecallKeywords(sourceMessages: Message[]): string[] {
+  const latestUserMessage = [...sourceMessages].reverse().find((message) => message.role === 'user');
+  if (!latestUserMessage) {
+    return [];
+  }
+
+  const referenceKeywords = latestUserMessage.references?.map((reference) => reference.path.split('/').pop() ?? reference.path) ?? [];
+  const contentKeywords = latestUserMessage.content
+    .toLowerCase()
+    .replace(/[^\w\s./@_\-\u4e00-\u9fff]/g, ' ')
+    .split(/\s+/)
+    .filter((word) => word.length >= 2);
+
+  return [...new Set([...contentKeywords, ...referenceKeywords.map((keyword) => keyword.toLowerCase())])];
+}
+
+/**
+ * 计算旧压缩消息与当前用户消息的匹配分。
+ * @param message - 旧压缩消息
+ * @param keywords - 当前用户消息关键词
+ * @returns 匹配分
+ */
+function scoreCompressionRecallMessage(message: Message, keywords: string[]): number {
+  const text = `${message.content}\n${message.compression?.recordText ?? ''}`.toLowerCase();
+  return keywords.reduce((score, keyword) => {
+    if (!keyword) {
+      return score;
+    }
+    return text.includes(keyword) ? score + 1 : score;
+  }, 0);
+}
+
+/**
+ * 选择与当前用户消息相关的旧压缩记忆。
+ * @param sourceMessages - 原始消息列表
+ * @param latestBoundaryIndex - 最新压缩边界索引
+ * @returns 按时间顺序排列的旧压缩消息
+ */
+function selectRelevantPreviousCompressionMessages(sourceMessages: Message[], latestBoundaryIndex: number): Message[] {
+  const keywords = extractRecallKeywords(sourceMessages);
+  if (!keywords.length) {
+    return [];
+  }
+
+  const scoredMessages = sourceMessages
+    .slice(0, latestBoundaryIndex)
+    .filter((message) => is.modelBoundaryCompressionMessage(message))
+    .map((message, index) => ({
+      message,
+      index,
+      score: scoreCompressionRecallMessage(message, keywords)
+    }))
+    .filter((item) => item.score > 0)
+    .sort((a, b) => b.score - a.score || b.index - a.index)
+    .slice(0, MAX_RECALLED_COMPRESSION_MEMORY_COUNT)
+    .sort((a, b) => a.index - b.index);
+
+  return scoredMessages.map((item) => item.message);
+}
+
+/**
  * 从最后一条成功压缩消息开始裁剪消息列表，作为后续模型上下文起点。
  * @param sourceMessages - 原始消息列表
  * @returns 裁剪后的消息列表
@@ -300,11 +367,12 @@ export function sliceMessagesFromCompressionBoundary(sourceMessages: Message[]):
   }
 
   const boundaryMessage = sourceMessages[boundaryIndex];
+  const recalledCompressionMessages = selectRelevantPreviousCompressionMessages(sourceMessages, boundaryIndex);
   const coveredUntilMessageId = boundaryMessage.compression?.coveredUntilMessageId;
   const coveredUntilIndex = coveredUntilMessageId ? sourceMessages.findIndex((message) => message.id === coveredUntilMessageId) : -1;
   const preservedTailMessages = coveredUntilIndex >= 0 ? sourceMessages.slice(coveredUntilIndex + 1, boundaryIndex) : [];
 
-  return [boundaryMessage, ...preservedTailMessages, ...sourceMessages.slice(boundaryIndex + 1)];
+  return [recalledCompressionMessages, boundaryMessage, ...preservedTailMessages, ...sourceMessages.slice(boundaryIndex + 1)].flat();
 }
 
 // ─── convert —— 消息格式转换 ─────────────────────────────────────────────────

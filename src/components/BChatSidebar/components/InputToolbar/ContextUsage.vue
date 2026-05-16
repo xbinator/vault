@@ -3,52 +3,50 @@
   @description 上下文用量指示器，以环形图展示当前上下文 Token 使用比例，鼠标悬停显示详情。
 -->
 <template>
-  <div class="context-usage">
-    <BDropdown v-model:open="open" placement="topLeft">
-      <div class="context-usage__trigger">
-        <!-- 放大 viewBox 至 36×36（3倍），渲染更清晰，显示时缩放到 12×12 -->
-        <svg class="context-usage__ring" viewBox="0 0 36 36" width="12" height="12" xmlns="http://www.w3.org/2000/svg">
-          <!-- 背景圆 -->
-          <circle cx="18" cy="18" r="14" class="context-usage__ring-bg"></circle>
-          <!-- 进度弧：stroke-dasharray 方案，从 12 点钟方向开始 -->
-          <circle cx="18" cy="18" r="14" class="context-usage__ring-arc" :stroke-dasharray="`${arcLength} ${circumference}`"></circle>
-        </svg>
-      </div>
+  <BDropdown v-model:open="open" placement="topLeft">
+    <div class="context-usage__trigger">
+      <!-- 放大 viewBox 至 36×36（3倍），渲染更清晰，显示时缩放到 12×12 -->
+      <svg class="context-usage__ring" viewBox="0 0 36 36" width="12" height="12" xmlns="http://www.w3.org/2000/svg">
+        <!-- 背景圆 -->
+        <circle cx="18" cy="18" r="14" class="context-usage__ring-bg"></circle>
+        <!-- 进度弧：stroke-dasharray 方案，从 12 点钟方向开始 -->
+        <circle cx="18" cy="18" r="14" class="context-usage__ring-arc" :stroke-dasharray="`${arcLength} ${circumference}`"></circle>
+      </svg>
+    </div>
 
-      <template #overlay>
-        <div class="context-usage__panel">
-          <div class="context-usage__header">
-            <span class="context-usage__title">上下文用量</span>
-            <span class="context-usage__percent">{{ usagePercent }}%</span>
+    <template #overlay>
+      <div class="context-usage__panel">
+        <div class="context-usage__header">
+          <span class="context-usage__title">上下文用量</span>
+          <span class="context-usage__percent">{{ usagePercent }}%</span>
+        </div>
+
+        <div class="context-usage__body">
+          <div class="context-usage__summary">
+            <div class="context-usage__total">
+              <div class="context-usage__total-value">{{ formatTokens(usedTokens) }}</div>
+              <div class="context-usage__total-label">已使用</div>
+            </div>
+
+            <div class="context-usage__stats">
+              <div class="context-usage__stat">
+                <span class="context-usage__label">窗口上限</span>
+                <span class="context-usage__value">{{ formatTokens(contextWindow) }}</span>
+              </div>
+              <div class="context-usage__stat">
+                <span class="context-usage__label">剩余可用</span>
+                <span class="context-usage__value">{{ formatTokens(remainingTokens) }}</span>
+              </div>
+            </div>
           </div>
 
-          <div class="context-usage__body">
-            <div class="context-usage__summary">
-              <div class="context-usage__total">
-                <div class="context-usage__total-value">{{ formatTokens(usedTokens) }}</div>
-                <div class="context-usage__total-label">已使用</div>
-              </div>
-
-              <div class="context-usage__stats">
-                <div class="context-usage__stat">
-                  <span class="context-usage__label">窗口上限</span>
-                  <span class="context-usage__value">{{ formatTokens(contextWindow) }}</span>
-                </div>
-                <div class="context-usage__stat">
-                  <span class="context-usage__label">剩余可用</span>
-                  <span class="context-usage__value">{{ formatTokens(remainingTokens) }}</span>
-                </div>
-              </div>
-            </div>
-
-            <div class="context-usage__progress">
-              <div class="context-usage__progress-bar" :style="{ width: usagePercent + '%' }"></div>
-            </div>
+          <div class="context-usage__progress">
+            <div class="context-usage__progress-bar" :style="{ width: usagePercent + '%' }"></div>
           </div>
         </div>
-      </template>
-    </BDropdown>
-  </div>
+      </div>
+    </template>
+  </BDropdown>
 </template>
 
 <script setup lang="ts">
@@ -110,15 +108,12 @@ function formatTokens(value: number): string {
 </script>
 
 <style lang="less" scoped>
-.context-usage {
-  position: relative;
-  display: flex;
-  align-items: center;
-}
-
 .context-usage__trigger {
   display: flex;
   align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
   padding: 0;
 }
 

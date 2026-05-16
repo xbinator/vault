@@ -7,8 +7,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { create } from '@/components/BChatSidebar/utils/messageHelper';
 import type { Message } from '@/components/BChatSidebar/utils/types';
 
-const { compressSessionManuallyMock } = vi.hoisted(() => ({
-  compressSessionManuallyMock: vi.fn()
+const { compressSessionManuallyMock, showToastMock } = vi.hoisted(() => ({
+  compressSessionManuallyMock: vi.fn(),
+  showToastMock: vi.fn()
 }));
 
 let assistantMessageIndex = 0;
@@ -106,6 +107,7 @@ describe('useCompactContext', () => {
   beforeEach(() => {
     assistantMessageIndex = 0;
     compressSessionManuallyMock.mockReset();
+    showToastMock.mockReset();
   });
 
   it('compresses the conversation snapshot without the pending compression status message', async () => {
@@ -126,7 +128,8 @@ describe('useCompactContext', () => {
       finishCompactTask: vi.fn(),
       persistMessage: vi.fn(async () => undefined),
       persistMessages: vi.fn(async () => undefined),
-      scrollToBottom: vi.fn()
+      scrollToBottom: vi.fn(),
+      showToast: showToastMock
     });
 
     await handleCompactContext();
@@ -161,7 +164,8 @@ describe('useCompactContext', () => {
       finishCompactTask: vi.fn(),
       persistMessage: vi.fn(async () => undefined),
       persistMessages: vi.fn(async () => undefined),
-      scrollToBottom: vi.fn()
+      scrollToBottom: vi.fn(),
+      showToast: showToastMock
     });
 
     await handleCompactContext();
@@ -182,7 +186,8 @@ describe('useCompactContext', () => {
       finishCompactTask: vi.fn(),
       persistMessage: vi.fn(async () => undefined),
       persistMessages: vi.fn(async () => undefined),
-      scrollToBottom: vi.fn()
+      scrollToBottom: vi.fn(),
+      showToast: showToastMock
     });
 
     await handleCompactContext();
@@ -193,5 +198,119 @@ describe('useCompactContext', () => {
     expect(compressionMessage?.compression?.recordText).toContain('约束：不要把最近两轮也压进摘要');
     expect(compressionMessage?.compression?.recordText).toContain('待处理操作：补充结构化上下文注入');
     expect(compressionMessage?.compression?.recordText).toContain('文件：src/components/BChatSidebar/hooks/useCompactContext.ts');
+  });
+
+  it('keeps key tool results in the structured compression context', async () => {
+    const { useCompactContext } = await import('@/components/BChatSidebar/hooks/useCompactContext');
+    const toolMessage: Message = {
+      id: 'tool-message-1',
+      role: 'assistant',
+      content: '',
+      parts: [
+        {
+          type: 'tool-result',
+          toolCallId: 'tool-call-1',
+          toolName: 'read_file',
+          result: {
+            toolName: 'read_file',
+            status: 'success',
+            data: {
+              path: 'src/components/BEditor/components/Toc.vue',
+              summary: '读取了 Toc 组件内容'
+            }
+          }
+        }
+      ],
+      createdAt: '2026-05-16T00:00:00.000Z',
+      finished: true,
+      loading: false
+    };
+    const messages = ref<Message[]>([create.userMessage('old user'), toolMessage]);
+
+    compressSessionManuallyMock.mockResolvedValue(createDetailedCompressionRecord());
+
+    const { handleCompactContext } = useCompactContext({
+      messages,
+      getSessionId: () => 'session-1',
+      beginCompactTask: () => ({ ok: true }),
+      finishCompactTask: vi.fn(),
+      persistMessage: vi.fn(async () => undefined),
+      persistMessages: vi.fn(async () => undefined),
+      scrollToBottom: vi.fn(),
+      showToast: showToastMock
+    });
+
+    await handleCompactContext();
+
+    const compressionMessage = messages.value.find((message) => message.role === 'compression');
+    expect(compressionMessage?.compression?.recordText).toContain('KEY_TOOL_RESULTS');
+    expect(compressionMessage?.compression?.recordText).toContain('read_file');
+    expect(compressionMessage?.compression?.recordText).toContain('src/components/BEditor/components/Toc.vue');
+  });
+
+  it('skips repeated compression when no new model messages were added after the latest boundary', async () => {
+    const { createCompressionMessage, useCompactContext } = await import('@/components/BChatSidebar/hooks/useCompactContext');
+    const oldUser = { ...create.userMessage('old user'), id: 'old-user' };
+    const oldAssistant = { ...createAssistantMessage('old assistant'), id: 'old-assistant' };
+    const existingCompression = createCompressionMessage({
+      boundaryText: 'COMPRESSED_CONTEXT\n历史对话摘要',
+      status: 'success',
+      recordId: 'record-1',
+      coveredUntilMessageId: 'old-assistant',
+      sourceMessageIds: ['old-user', 'old-assistant']
+    });
+    const persistMessage = vi.fn(async () => undefined);
+    const beginCompactTask = vi.fn(() => ({ ok: true }));
+    const messages = ref<Message[]>([oldUser, oldAssistant, existingCompression]);
+
+    const { handleCompactContext } = useCompactContext({
+      messages,
+      getSessionId: () => 'session-1',
+      beginCompactTask,
+      finishCompactTask: vi.fn(),
+      persistMessage,
+      persistMessages: vi.fn(async () => undefined),
+      scrollToBottom: vi.fn(),
+      showToast: showToastMock
+    });
+
+    await handleCompactContext();
+
+    expect(compressSessionManuallyMock).not.toHaveBeenCalled();
+    expect(beginCompactTask).not.toHaveBeenCalled();
+    expect(persistMessage).not.toHaveBeenCalled();
+    expect(showToastMock).toHaveBeenCalledWith({ type: 'info', content: '当前上下文已经压缩过，暂无新增对话需要压缩' });
+    expect(messages.value).toHaveLength(3);
+  });
+
+  it('allows compression again when new model messages exist after the latest boundary', async () => {
+    const { createCompressionMessage, useCompactContext } = await import('@/components/BChatSidebar/hooks/useCompactContext');
+    const oldUser = { ...create.userMessage('old user'), id: 'old-user' };
+    const oldAssistant = { ...createAssistantMessage('old assistant'), id: 'old-assistant' };
+    const existingCompression = createCompressionMessage({
+      boundaryText: 'COMPRESSED_CONTEXT\n历史对话摘要',
+      status: 'success',
+      recordId: 'record-1',
+      coveredUntilMessageId: 'old-assistant',
+      sourceMessageIds: ['old-user', 'old-assistant']
+    });
+    const messages = ref<Message[]>([oldUser, oldAssistant, existingCompression, create.userMessage('new follow-up')]);
+
+    compressSessionManuallyMock.mockResolvedValue(createCompressionRecord());
+
+    const { handleCompactContext } = useCompactContext({
+      messages,
+      getSessionId: () => 'session-1',
+      beginCompactTask: () => ({ ok: true }),
+      finishCompactTask: vi.fn(),
+      persistMessage: vi.fn(async () => undefined),
+      persistMessages: vi.fn(async () => undefined),
+      scrollToBottom: vi.fn(),
+      showToast: showToastMock
+    });
+
+    await handleCompactContext();
+
+    expect(compressSessionManuallyMock).toHaveBeenCalledTimes(1);
   });
 });

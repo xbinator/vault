@@ -8,7 +8,7 @@ import type { Message } from '../utils/types';
 import type { ComputedRef, Ref } from 'vue';
 import { computed, ref, watch } from 'vue';
 import { createCharLevelEstimator, createTokenEstimator } from '../utils/compression/tokenEstimator';
-import { convert } from '../utils/messageHelper';
+import { convert, findLatestCompressionBoundaryIndex } from '../utils/messageHelper';
 
 /**
  * useContextUsage 配置项
@@ -52,6 +52,27 @@ function getApiReportedTokens(messages: Message[]): number {
     }
   }
   return 0;
+}
+
+/**
+ * 判断最近一次 API 上报的 usage 是否早于最新压缩边界。
+ * @param messages - 消息列表
+ * @returns usage 已无法代表当前压缩后上下文时返回 true
+ */
+function isApiReportedUsageStaleAfterCompression(messages: Message[]): boolean {
+  const boundaryIndex = findLatestCompressionBoundaryIndex(messages);
+  if (boundaryIndex === -1) {
+    return false;
+  }
+
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (message.role === 'assistant' && message.usage) {
+      return index < boundaryIndex;
+    }
+  }
+
+  return false;
 }
 
 /**
@@ -101,7 +122,7 @@ export function useContextUsage(options: UseContextUsageOptions): UseContextUsag
 
   /** 当前上下文已使用的 Token 数 */
   const usedTokens = computed<number>(() => {
-    if (!streaming.value) {
+    if (!streaming.value && !isApiReportedUsageStaleAfterCompression(messages.value)) {
       return getApiReportedTokens(messages.value);
     }
     return estimateFromMessages();
