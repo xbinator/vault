@@ -372,6 +372,12 @@ vi.mock('@/hooks/useNavigate', () => ({
   })
 }));
 
+vi.mock('@/hooks/useOpenDraft', () => ({
+  useOpenDraft: () => ({
+    openDraft: vi.fn()
+  })
+}));
+
 vi.mock('@/components/BChatSidebar/utils/confirmationController', () => ({
   createChatConfirmationController: () => ({
     createAdapter: vi.fn(),

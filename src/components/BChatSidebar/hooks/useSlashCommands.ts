@@ -9,15 +9,15 @@ import type { SlashCommandOption } from '@/components/BPromptEditor/types';
  */
 type CommandHandlers = {
   /** 打开模型选择器 */
-  openModelSelector: () => void;
+  openModelSelector: () => Promise<void> | void;
   /** 打开用量面板 */
-  openUsagePanel: () => void;
+  openUsagePanel: () => Promise<void> | void;
   /** 创建新会话 */
-  createNewSession: () => void;
+  createNewSession: () => Promise<void> | void;
   /** 清空输入 */
-  clearInput: () => void;
+  clearInput: () => Promise<void> | void;
   /** 压缩上下文 */
-  compactContext: () => void;
+  compactContext: () => Promise<void> | void;
   /** 当前是否有活跃任务 */
   isBusy: () => boolean;
   /** 命令因忙碌被拒绝时的回调 */
@@ -91,7 +91,7 @@ export function useSlashCommands(handlers: CommandHandlers) {
       return;
     }
 
-    handlers[handlerKey]?.();
+    await handlers[handlerKey]?.();
   }
 
   return { handleSlashCommand };

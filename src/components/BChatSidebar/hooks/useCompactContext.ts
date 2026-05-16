@@ -13,6 +13,9 @@ import { createCompressionCoordinator } from '../utils/compression/coordinator';
 import { CompressionCancelledError, CompressionError, getCompressionErrorMessage } from '../utils/compression/error';
 import { createBase } from '../utils/messageHelper';
 
+/** 手动压缩后保留的最近原文轮数，用于支持“继续”等依赖尾部上下文的指令。 */
+const MANUAL_COMPRESSION_PRESERVED_ROUNDS = 2;
+
 /**
  * 手动压缩执行结果。
  */
@@ -153,6 +156,76 @@ function createCancelledCompressionMessage(): Message {
 }
 
 /**
+ * 将字符串数组格式化为摘要字段。
+ * @param label - 字段标签
+ * @param values - 字段值列表
+ * @returns 可注入模型上下文的字段文本
+ */
+function formatSummaryList(label: string, values: string[]): string | undefined {
+  if (!values.length) {
+    return undefined;
+  }
+
+  return `${label}：${values.join('；')}`;
+}
+
+/**
+ * 格式化文件上下文，保留文件路径与用户意图，便于后续按需重读文件。
+ * @param fileContext - 结构化摘要中的文件上下文
+ * @returns 文件上下文字段列表
+ */
+function formatFileContext(fileContext: CompressionRecord['structuredSummary']['fileContext']): string[] {
+  return fileContext.map((item) => {
+    const lineRange = item.startLine ? `:${item.startLine}-${item.endLine ?? item.startLine}` : '';
+    const reloadHint = item.shouldReloadOnDemand ? '是' : '否';
+    return `文件：${item.filePath}${lineRange}；意图：${item.userIntent}；摘要：${item.keySnippetSummary}；需要时重读：${reloadHint}`;
+  });
+}
+
+/**
+ * 构建注入模型的结构化压缩上下文。
+ * @param record - 压缩记录
+ * @returns 更适合后续继续对话的上下文文本
+ */
+function buildStructuredCompressionContext(record: CompressionRecord): string {
+  const summary = record.structuredSummary;
+  const lines = [
+    'COMPRESSED_CONTEXT',
+    '以下是较早对话的压缩上下文。请把它当作历史事实和任务状态，不要向用户复述这段说明。',
+    record.recordText,
+    formatSummaryList('目标', [summary.goal].filter(Boolean)),
+    formatSummaryList('最近话题', [summary.recentTopic].filter(Boolean)),
+    formatSummaryList('用户偏好', summary.userPreferences),
+    formatSummaryList('约束', summary.constraints),
+    formatSummaryList('已做决策', summary.decisions),
+    formatSummaryList('重要事实', summary.importantFacts),
+    ...formatFileContext(summary.fileContext),
+    formatSummaryList('待解决问题', summary.openQuestions),
+    formatSummaryList('待处理操作', summary.pendingActions)
+  ].filter((line): line is string => Boolean(line));
+
+  return lines.join('\n');
+}
+
+/**
+ * 创建手动压缩使用的消息快照。
+ * 最近两轮 user/assistant 消息保留为原文，不进入摘要，避免后续“继续”丢失具体上下文。
+ * @param sourceMessages - 当前完整消息列表
+ * @returns 本次实际进入压缩协调器的消息列表
+ */
+function createManualCompressionSourceMessages(sourceMessages: Message[]): Message[] {
+  const preserveCount = MANUAL_COMPRESSION_PRESERVED_ROUNDS * 2;
+  const modelMessages = sourceMessages.filter((item) => item.role === 'user' || item.role === 'assistant');
+
+  if (modelMessages.length <= preserveCount) {
+    return [...sourceMessages];
+  }
+
+  const preservedIds = new Set(modelMessages.slice(-preserveCount).map((item) => item.id));
+  return sourceMessages.filter((item) => !preservedIds.has(item.id));
+}
+
+/**
  * 手动上下文压缩 hook。
  * @param options - hook 依赖项
  * @returns 手动压缩命令处理函数
@@ -183,16 +256,17 @@ export function useCompactContext(options: UseCompactContextOptions) {
   /**
    * 执行会话压缩。
    * @param signal - 压缩过程取消信号
+   * @param sourceMessages - 本次压缩使用的消息快照
    * @returns 压缩执行结果
    */
-  async function compress(signal?: AbortSignal): Promise<CompressionExecutionResult> {
+  async function compress(signal?: AbortSignal, sourceMessages: Message[] = messages.value): Promise<CompressionExecutionResult> {
     const sessionId = getSessionId();
     if (!sessionId) {
       error.value = '没有活跃的会话';
       return { success: false, errorMessage: error.value };
     }
 
-    if (messages.value.length === 0) {
+    if (sourceMessages.length === 0) {
       error.value = '没有可压缩的消息';
       return { success: false, errorMessage: error.value };
     }
@@ -201,7 +275,7 @@ export function useCompactContext(options: UseCompactContextOptions) {
     error.value = undefined;
 
     try {
-      const result = await coordinator.value.compressSessionManually({ sessionId, messages: messages.value, signal });
+      const result = await coordinator.value.compressSessionManually({ sessionId, messages: sourceMessages, signal });
 
       if (!result) {
         error.value = '没有可压缩的消息';
@@ -253,7 +327,7 @@ export function useCompactContext(options: UseCompactContextOptions) {
   function buildCompressionBoundaryMessage(result: CompressionExecutionResult): Message {
     if (result.success && result.record) {
       return createSuccessfulCompressionMessage({
-        boundaryText: result.record.recordText,
+        boundaryText: buildStructuredCompressionContext(result.record),
         recordId: result.record.id,
         coveredUntilMessageId: result.record.coveredUntilMessageId,
         sourceMessageIds: result.record.sourceMessageIds
@@ -282,6 +356,7 @@ export function useCompactContext(options: UseCompactContextOptions) {
       return;
     }
 
+    const compressionSourceMessages = createManualCompressionSourceMessages(messages.value);
     const pendingMessage = createPendingCompressionMessage();
     const task = beginCompactTask(() => {
       updateCompressionMessage(pendingMessage.id, createCancelledCompressionMessage()).catch(() => undefined);
@@ -295,7 +370,7 @@ export function useCompactContext(options: UseCompactContextOptions) {
       await persistMessage(sessionId, pendingMessage);
       scrollToBottom();
 
-      const result = await compress(task.signal);
+      const result = await compress(task.signal, compressionSourceMessages);
       await updateCompressionMessage(pendingMessage.id, buildCompressionBoundaryMessage(result));
     } finally {
       finishCompactTask();

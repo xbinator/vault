@@ -299,7 +299,12 @@ export function sliceMessagesFromCompressionBoundary(sourceMessages: Message[]):
     return sourceMessages;
   }
 
-  return sourceMessages.slice(boundaryIndex);
+  const boundaryMessage = sourceMessages[boundaryIndex];
+  const coveredUntilMessageId = boundaryMessage.compression?.coveredUntilMessageId;
+  const coveredUntilIndex = coveredUntilMessageId ? sourceMessages.findIndex((message) => message.id === coveredUntilMessageId) : -1;
+  const preservedTailMessages = coveredUntilIndex >= 0 ? sourceMessages.slice(coveredUntilIndex + 1, boundaryIndex) : [];
+
+  return [boundaryMessage, ...preservedTailMessages, ...sourceMessages.slice(boundaryIndex + 1)];
 }
 
 // ─── convert —— 消息格式转换 ─────────────────────────────────────────────────
