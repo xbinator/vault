@@ -34,14 +34,18 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * @file CurrentBlockMenu.vue
+ * @description 富文本编辑器当前块快捷菜单，负责根据所在块展示触发按钮与操作面板。
+ */
 import type { Editor } from '@tiptap/vue-3';
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { Icon } from '@iconify/vue';
 import { EditorState, TextSelection } from '@tiptap/pm/state';
 import { onClickOutside, useEventListener } from '@vueuse/core';
 import BScrollbar from '@/components/BScrollbar/index.vue';
-import { useScroller } from '@/hooks/useScroller';
 import { createNamespace } from '@/utils/namespace';
+import { scroll } from '@/utils/scroll';
 
 const [name] = createNamespace('', 'b-editor-blockmenu');
 
@@ -91,7 +95,6 @@ const hoveredBlockPos = ref<number | null>(null);
 const triggerSize = 28;
 const position = ref({ top: 0 });
 const placement = ref<'left-top' | 'left-bottom' | 'top-left' | 'bottom'>('left-bottom');
-const scroller = useScroller(rootRef);
 
 const hiddenBlockTypes = new Set(['codeBlock', 'table', 'tableRow', 'tableCell', 'tableHeader']);
 
@@ -327,13 +330,35 @@ function updatePosition(): void {
   position.value = { top: Math.max(0, nodeRect.top - rootRect.top + triggerTopOffset) };
 }
 
+/**
+ * 获取菜单展开方向判断所需的边界矩形。
+ * @returns 滚动容器的可视边界；若不存在则退回到当前视口
+ */
+function getPlacementBoundaryRect(): DOMRect {
+  if (!rootRef.value) {
+    return new DOMRect(0, 0, window.innerWidth, window.innerHeight);
+  }
+
+  const container = scroll.container(rootRef.value);
+  if (container instanceof HTMLElement) {
+    return container.getBoundingClientRect();
+  }
+
+  return new DOMRect(0, 0, window.innerWidth, window.innerHeight);
+}
+
+/**
+ * 根据触发按钮与可视边界的剩余空间更新菜单展开方向。
+ */
 function updatePlacement(): void {
-  if (!triggerRef.value) return;
+  if (!triggerRef.value) {
+    return;
+  }
 
   const triggerRect = triggerRef.value.getBoundingClientRect();
   const estimatedPanelWidth = 180;
   const estimatedPanelHeight = 400;
-  const boundaryRect = scroller.getBoundingClientRect();
+  const boundaryRect = getPlacementBoundaryRect();
 
   // 优先使用左侧展开；左侧放不下时，若上方空间足够则改为上方左对齐，否则回退到底部。
   const spaceLeft = triggerRect.left - boundaryRect.left;

@@ -6,15 +6,15 @@
 
 import type { VueWrapper } from '@vue/test-utils';
 import type { ComponentPublicInstance } from 'vue';
-import { mount } from '@vue/test-utils';
 import { nextTick } from 'vue';
+import { mount } from '@vue/test-utils';
 import { describe, expect, test, vi } from 'vitest';
 import CurrentBlockMenu from '@/components/BEditor/components/CurrentBlockMenu.vue';
 
 /**
  * CurrentBlockMenu 公开实例。
  */
-interface CurrentBlockMenuVm extends ComponentPublicInstance {}
+type CurrentBlockMenuVm = ComponentPublicInstance;
 
 /**
  * 最小编辑器事件名。
@@ -126,6 +126,14 @@ function createEditorStub(): { editor: TestEditor; blockElement: HTMLElement } {
 }
 
 /**
+ * 等待组件与文档事件稳定。
+ */
+async function flushUi(): Promise<void> {
+  await nextTick();
+  await Promise.resolve();
+}
+
+/**
  * 等待 block 菜单触发按钮出现。
  * @param wrapper - 组件包装器
  */
@@ -137,14 +145,6 @@ async function showBlockMenu(wrapper: VueWrapper<CurrentBlockMenuVm>, blockEleme
   });
   blockElement.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX: 80, clientY: 90 }));
   await flushUi();
-}
-
-/**
- * 等待组件与文档事件稳定。
- */
-async function flushUi(): Promise<void> {
-  await nextTick();
-  await Promise.resolve();
 }
 
 describe('CurrentBlockMenu stale position guard', () => {
