@@ -223,7 +223,7 @@ registerShortcut({
 <style scoped>
 .b-editor-findbar {
   position: absolute;
-  top: 60px;
+  top: 20px;
   right: 40px;
   z-index: 100;
   display: flex;
