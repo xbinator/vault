@@ -6,15 +6,20 @@
   <div class="context-usage">
     <BDropdown v-model:open="open" placement="topLeft">
       <div class="context-usage__trigger">
-        <div class="context-usage__ring" :style="ringStyle">
-          <span class="context-usage__percent">{{ usagePercent }}%</span>
-        </div>
+        <!-- 放大 viewBox 至 36×36（3倍），渲染更清晰，显示时缩放到 12×12 -->
+        <svg class="context-usage__ring" viewBox="0 0 36 36" width="12" height="12" xmlns="http://www.w3.org/2000/svg">
+          <!-- 背景圆 -->
+          <circle cx="18" cy="18" r="14" class="context-usage__ring-bg"></circle>
+          <!-- 进度弧：stroke-dasharray 方案，从 12 点钟方向开始 -->
+          <circle cx="18" cy="18" r="14" class="context-usage__ring-arc" :stroke-dasharray="`${arcLength} ${circumference}`"></circle>
+        </svg>
       </div>
 
       <template #overlay>
         <div class="context-usage__panel">
           <div class="context-usage__header">
             <span class="context-usage__title">上下文用量</span>
+            <span class="context-usage__percent">{{ usagePercent }}%</span>
           </div>
 
           <div class="context-usage__body">
@@ -48,6 +53,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue';
+
 /**
  * 上下文用量指示器属性。
  */
@@ -66,26 +72,29 @@ const props = withDefaults(defineProps<Props>(), {
 /** 下拉面板是否展开。 */
 const open = ref(false);
 
-/** 已使用百分比，最大 100。 */
-const usagePercent = computed<number>(() => {
-  console.log(props.usedTokens, props.contextWindow);
-  if (props.contextWindow <= 0) return 0;
+/** 圆半径，与 viewBox 内坐标对应。 */
+const RADIUS = 14;
 
+/** 圆周长。 */
+const circumference = 2 * Math.PI * RADIUS;
+
+/** 已使用百分比，范围 0–100。 */
+const usagePercent = computed<number>(() => {
+  if (props.contextWindow <= 0) return 0;
   return Math.min(100, Math.round((props.usedTokens / props.contextWindow) * 100));
+});
+
+/**
+ * 当前进度对应的弧长。
+ * 用于 stroke-dasharray，结合 transform rotate(-90deg) 从 12 点钟开始绘制。
+ */
+const arcLength = computed<number>(() => {
+  return (usagePercent.value / 100) * circumference;
 });
 
 /** 剩余可用 Token 数。 */
 const remainingTokens = computed<number>(() => {
   return Math.max(0, props.contextWindow - props.usedTokens);
-});
-
-/** 环形图 CSS 变量样式，根据百分比动态设置渐变角度。 */
-const ringStyle = computed(() => {
-  const pct = usagePercent.value;
-  const degrees = (pct / 100) * 360;
-  return {
-    '--ring-degrees': `${degrees}deg`
-  };
 });
 
 /**
@@ -94,61 +103,58 @@ const ringStyle = computed(() => {
  * @returns 格式化后的字符串。
  */
 function formatTokens(value: number): string {
-  if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M`;
-  if (value >= 1000) return `${(value / 1000).toFixed(1)}K`;
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
+  if (value >= 1_000) return `${(value / 1_000).toFixed(1)}K`;
   return `${value}`;
 }
 </script>
 
-<style scoped>
+<style lang="less" scoped>
 .context-usage {
   position: relative;
+  display: flex;
+  align-items: center;
 }
 
 .context-usage__trigger {
+  display: flex;
+  align-items: center;
   padding: 0;
 }
 
 .context-usage__ring {
-  position: relative;
-  width: 24px;
-  height: 24px;
-  background: conic-gradient(
-    var(--usage-context, #10b981) 0deg,
-    var(--usage-context, #10b981) var(--ring-degrees, 0deg),
-    var(--bg-disabled, #e5e7eb) var(--ring-degrees, 0deg),
-    var(--bg-disabled, #e5e7eb) 360deg
-  );
-  border-radius: 50%;
+  display: block;
+  cursor: pointer;
+
+  /* 强制整数像素渲染，避免缩放时的亚像素模糊 */
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: crisp-edges;
 }
 
-.context-usage__ring::after {
-  position: absolute;
-  top: 3px;
-  left: 3px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 18px;
-  height: 18px;
-  content: '';
-  background: var(--bg-primary);
-  border-radius: 50%;
+.context-usage__ring-bg {
+  fill: none;
+  stroke: var(--bg-disabled);
+  stroke-width: 6;
+  shape-rendering: geometricPrecision;
 }
 
-.context-usage__percent {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  z-index: 1;
-  font-size: 7px;
-  font-weight: 600;
-  color: var(--text-secondary);
-  transform: translate(-50%, -50%);
+.context-usage__ring-arc {
+  fill: none;
+  stroke: var(--color-success, #10b981);
+  stroke-width: 6;
+  stroke-linecap: round;
+  shape-rendering: geometricPrecision;
+
+  /* 从 12 点钟方向（顶部）开始顺时针绘制 */
+  transform: rotate(-90deg);
+  transform-origin: 18px 18px;
+  transition: stroke-dasharray 0.35s ease, stroke 0.3s ease;
 }
+
+/* ───── 面板 ───── */
 
 .context-usage__panel {
-  min-width: 180px;
+  min-width: 188px;
   padding: 8px 12px;
   background: var(--dropdown-bg);
   border: 1px solid var(--dropdown-border);
@@ -157,6 +163,9 @@ function formatTokens(value: number): string {
 }
 
 .context-usage__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   padding-bottom: 6px;
   margin-bottom: 8px;
   border-bottom: 1px solid var(--border-secondary);
@@ -167,6 +176,12 @@ function formatTokens(value: number): string {
   font-weight: 500;
   color: var(--text-secondary);
   letter-spacing: 0.05em;
+}
+
+.context-usage__percent {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-tertiary);
 }
 
 .context-usage__body {
@@ -236,6 +251,6 @@ function formatTokens(value: number): string {
   height: 100%;
   background: var(--usage-context, #10b981);
   border-radius: 2px;
-  transition: width 0.3s ease;
+  transition: width 0.35s ease;
 }
 </style>
