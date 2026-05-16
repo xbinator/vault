@@ -39,6 +39,56 @@ describe('compression boundary model context', () => {
     ]);
   });
 
+  test('keeps preserved recent messages after the compression boundary for continuation prompts', () => {
+    const recentUser = create.userMessage('继续前的具体要求：保留最后一段代码');
+    const recentAssistant: Message = {
+      id: 'recent-assistant',
+      role: 'assistant',
+      content: '我已经写到步骤 3，下一步要补测试。',
+      parts: [{ type: 'text', text: '我已经写到步骤 3，下一步要补测试。' }],
+      createdAt: '2026-05-16T00:00:00.000Z',
+      finished: true
+    };
+    const compressionMessage = createCompressionMessage({
+      boundaryText: '旧历史摘要：用户在实现聊天压缩。',
+      status: 'success',
+      recordId: 'record-1',
+      coveredUntilMessageId: 'old-assistant',
+      sourceMessageIds: ['old-user', 'old-assistant']
+    });
+    const sourceMessages: Message[] = [
+      create.userMessage('old user'),
+      {
+        id: 'old-assistant',
+        role: 'assistant',
+        content: 'old assistant',
+        parts: [{ type: 'text', text: 'old assistant' }],
+        createdAt: '2026-05-15T00:00:00.000Z',
+        finished: true
+      },
+      recentUser,
+      recentAssistant,
+      compressionMessage,
+      create.userMessage('继续')
+    ];
+
+    const slicedMessages = sliceMessagesFromCompressionBoundary(sourceMessages);
+    const modelMessages = convert.toModelMessages(sourceMessages);
+
+    expect(slicedMessages.map((message) => message.content)).toEqual([
+      '旧历史摘要：用户在实现聊天压缩。',
+      '继续前的具体要求：保留最后一段代码',
+      '我已经写到步骤 3，下一步要补测试。',
+      '继续'
+    ]);
+    expect(modelMessages).toEqual([
+      { role: 'assistant', content: '旧历史摘要：用户在实现聊天压缩。' },
+      { role: 'user', content: '继续前的具体要求：保留最后一段代码' },
+      { role: 'assistant', content: [{ type: 'text', text: '我已经写到步骤 3，下一步要补测试。' }] },
+      { role: 'user', content: '继续' }
+    ]);
+  });
+
   test('ignores cancelled compression messages when slicing model context from the latest boundary', () => {
     const sourceMessages: Message[] = [
       create.userMessage('old user'),

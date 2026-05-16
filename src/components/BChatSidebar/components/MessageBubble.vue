@@ -140,14 +140,7 @@ const showHeader = computed(() => isUserMessage.value && (imageFiles.value.lengt
 /** 是否显示气泡容器（用户消息且有文件时显示） */
 const showContainer = computed(() => isCompressionMessage.value || !!props.message.parts?.length);
 /** 是否显示助手工具栏 */
-// eslint-disable-next-line no-use-before-define
-const showAssistantToolbar = computed(() => {
-  if (props.message.finished !== true || !isAssistantMessage.value) {
-    return false;
-  }
-
-  return props.message.parts.some((part) => part.type !== 'error');
-});
+const showAssistantToolbar = computed(() => props.message.finished === true && isAssistantMessage.value);
 
 /** 图片预览器显示状态 */
 const showImageViewer = ref(false);
