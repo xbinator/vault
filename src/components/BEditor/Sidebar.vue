@@ -20,10 +20,6 @@
       <div v-if="items.length" class="sidebar__content">
         <AnchorContent :items="items" :active-id="activeId" @click="handleAnchorClick" />
       </div>
-      <div v-else class="empty-state">
-        <div class="empty-icon">📝</div>
-        <div class="empty-text">暂无目录大纲</div>
-      </div>
     </div>
   </BPanelSplitter>
 </template>
@@ -204,27 +200,5 @@ function handleTitleClick() {
 .sidebar__more {
   flex-shrink: 0;
   color: var(--text-secondary);
-}
-
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  padding: 24px;
-  color: var(--text-tertiary, #999);
-  text-align: center;
-}
-
-.empty-icon {
-  margin-bottom: 12px;
-  font-size: 32px;
-  opacity: 0.6;
-}
-
-.empty-text {
-  font-size: 14px;
-  color: var(--text-secondary, #666);
 }
 </style>
