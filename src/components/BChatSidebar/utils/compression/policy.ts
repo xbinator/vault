@@ -35,6 +35,17 @@ export function computeCompressionTokenThreshold(contextWindow: number, reserved
 }
 
 /**
+ * 判断发送前是否应该自动压缩当前上下文。
+ * 自动触发只看当前 token 用量，避免历史轮数在压缩后仍持续触发。
+ * @param usedTokens - 当前上下文已使用 token 数
+ * @param contextWindow - 模型上下文窗口大小
+ * @returns 是否应触发自动压缩
+ */
+export function shouldAutoCompactByContextUsage(usedTokens: number, contextWindow: number): boolean {
+  return usedTokens >= computeCompressionTokenThreshold(contextWindow);
+}
+
+/**
  * 估算单条 ModelMessage 的字符数。
  */
 function estimateMessageCharCount(msg: ModelMessage): number {

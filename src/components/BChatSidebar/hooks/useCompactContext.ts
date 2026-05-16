@@ -20,6 +20,9 @@ const MAX_KEY_TOOL_RESULT_CONTEXT_COUNT = 5;
 /** 对继续任务有高价值的工具结果名称片段。 */
 const KEY_TOOL_RESULT_NAME_PATTERNS = ['read', 'write', 'edit', 'file', 'reference', 'ask_user', 'choice', 'settings'];
 
+/** 压缩触发来源。 */
+type CompactTriggerSource = 'manual' | 'auto';
+
 /**
  * 手动压缩执行结果。
  */
@@ -115,9 +118,9 @@ export function createCompressionMessage(input: CreateCompressionMessageInput): 
  * 创建待处理中的压缩消息。
  * @returns pending 状态的压缩消息
  */
-function createPendingCompressionMessage(): Message {
+function createPendingCompressionMessage(triggerSource: CompactTriggerSource = 'manual'): Message {
   return createCompressionMessage({
-    boundaryText: '正在压缩上下文…',
+    boundaryText: triggerSource === 'auto' ? '正在自动压缩上下文…' : '正在压缩上下文…',
     status: 'pending'
   });
 }
@@ -430,33 +433,39 @@ export function useCompactContext(options: UseCompactContextOptions) {
   }
 
   /**
-   * 处理 slash command 触发的手动上下文压缩。
+   * 执行一次上下文压缩并回填压缩边界消息。
+   * @param triggerSource - 压缩触发来源
+   * @returns 是否实际创建并执行了压缩任务
    */
-  async function handleCompactContext(): Promise<void> {
+  async function runCompactContext(triggerSource: CompactTriggerSource): Promise<boolean> {
     const sessionId = getSessionId();
     if (!sessionId) {
       showToast({ type: 'error', content: '没有活跃的会话' });
-      return;
+      return false;
     }
 
     if (messages.value.length === 0) {
       showToast({ type: 'error', content: '没有可压缩的消息' });
-      return;
+      return false;
     }
 
     if (isAlreadyCompactWithoutNewModelMessages(messages.value)) {
-      showToast({ type: 'info', content: '当前上下文已经压缩过，暂无新增对话需要压缩' });
-      return;
+      if (triggerSource === 'manual') {
+        showToast({ type: 'info', content: '当前上下文已经压缩过，暂无新增对话需要压缩' });
+      }
+      return false;
     }
 
     const compressionSourceMessages = createManualCompressionSourceMessages(messages.value);
-    const pendingMessage = createPendingCompressionMessage();
+    const pendingMessage = createPendingCompressionMessage(triggerSource);
     const task = beginCompactTask(() => {
       updateCompressionMessage(pendingMessage.id, createCancelledCompressionMessage()).catch(() => undefined);
     });
     if (!task.ok) {
-      showToast({ type: 'info', content: '当前有任务正在执行，请先等待完成或停止当前任务' });
-      return;
+      if (triggerSource === 'manual') {
+        showToast({ type: 'info', content: '当前有任务正在执行，请先等待完成或停止当前任务' });
+      }
+      return false;
     }
     try {
       messages.value.push(pendingMessage);
@@ -465,15 +474,32 @@ export function useCompactContext(options: UseCompactContextOptions) {
 
       const result = await compress(task.signal, compressionSourceMessages);
       await updateCompressionMessage(pendingMessage.id, buildCompressionBoundaryMessage(result, compressionSourceMessages));
+      return result.success;
     } finally {
       finishCompactTask();
     }
+  }
+
+  /**
+   * 处理 slash command 触发的手动上下文压缩。
+   */
+  async function handleCompactContext(): Promise<void> {
+    await runCompactContext('manual');
+  }
+
+  /**
+   * 处理发送前触发的自动上下文压缩。
+   * @returns 是否成功完成自动压缩
+   */
+  async function handleAutoCompactContext(): Promise<boolean> {
+    return runCompactContext('auto');
   }
 
   return {
     compress,
     compressing,
     error,
+    handleAutoCompactContext,
     handleCompactContext
   };
 }

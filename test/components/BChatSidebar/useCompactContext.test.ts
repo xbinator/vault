@@ -313,4 +313,29 @@ describe('useCompactContext', () => {
 
     expect(compressSessionManuallyMock).toHaveBeenCalledTimes(1);
   });
+
+  it('creates an automatic compression boundary with an automatic pending message', async () => {
+    const { useCompactContext } = await import('@/components/BChatSidebar/hooks/useCompactContext');
+    const messages = ref<Message[]>([create.userMessage('old user'), createAssistantMessage('old assistant')]);
+
+    compressSessionManuallyMock.mockResolvedValue(createCompressionRecord());
+
+    const { handleAutoCompactContext } = useCompactContext({
+      messages,
+      getSessionId: () => 'session-1',
+      beginCompactTask: () => ({ ok: true }),
+      finishCompactTask: vi.fn(),
+      persistMessage: vi.fn(async () => undefined),
+      persistMessages: vi.fn(async () => undefined),
+      scrollToBottom: vi.fn(),
+      showToast: showToastMock
+    });
+
+    const compacted = await handleAutoCompactContext();
+
+    expect(compacted).toBe(true);
+    expect(messages.value.at(-1)?.role).toBe('compression');
+    expect(messages.value.at(-1)?.content).toContain('COMPRESSED_CONTEXT');
+    expect(compressSessionManuallyMock).toHaveBeenCalledTimes(1);
+  });
 });

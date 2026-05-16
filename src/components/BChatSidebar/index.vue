@@ -134,6 +134,7 @@ import { useSession } from './hooks/useSession';
 import { useSlashCommands, chatSlashCommands } from './hooks/useSlashCommands';
 import { useUsagePanel } from './hooks/useUsagePanel';
 import { createFileRefChipResolver } from './utils/chipResolver';
+import { shouldAutoCompactByContextUsage } from './utils/compression/policy';
 import { createChatConfirmationController } from './utils/confirmationController';
 import { create, userChoice, buildMessageReferences } from './utils/messageHelper';
 
@@ -504,6 +505,33 @@ async function handleChatUserChoiceSubmit(answer: AIUserChoiceAnswerData): Promi
   }
 }
 
+/** 手动上下文压缩命令 hook。 */
+const { handleAutoCompactContext, handleCompactContext } = useCompactContext({
+  messages,
+  getSessionId: () => settingStore.chatSidebarActiveSessionId ?? undefined,
+  beginCompactTask: (onAbort?: () => void) => taskRuntime.beginTask('compact', onAbort),
+  finishCompactTask: () => taskRuntime.finishTask('compact'),
+  persistMessage: (sessionId, nextMessage) => chatStore.addSessionMessage(sessionId, nextMessage),
+  persistMessages: (sessionId, nextMessages) => chatStore.setSessionMessages(sessionId, nextMessages),
+  scrollToBottom: () => conversationRef.value?.scrollToBottom({ behavior: 'auto' }),
+  showToast: interactionAPI.showToast
+});
+
+/**
+ * 在发送用户消息前按上下文用量自动压缩旧消息。
+ */
+async function compactBeforeSendIfNeeded(): Promise<void> {
+  if (!messages.value.length) {
+    return;
+  }
+
+  if (!shouldAutoCompactByContextUsage(usedTokens.value, contextWindow.value)) {
+    return;
+  }
+
+  await handleAutoCompactContext();
+}
+
 /**
  * 提交用户文本消息并启动新一轮流式对话。
  * @param content - 用户输入内容
@@ -513,6 +541,8 @@ async function handleChatUserChoiceSubmit(answer: AIUserChoiceAnswerData): Promi
 async function submitUserTextMessage(content: string, images: typeof inputImages.value = [], clearDraft = true): Promise<void> {
   const trimmedContent = content.trim();
   if (!trimmedContent && !images.length) return;
+
+  await compactBeforeSendIfNeeded();
 
   const startResult = taskRuntime.beginTask('chat');
   if (!startResult.ok) {
@@ -565,18 +595,6 @@ async function handleChatSubmit(): Promise<void> {
 
   await submitUserTextMessage(content, inputImages.value);
 }
-
-/** 手动上下文压缩命令 hook。 */
-const { handleCompactContext } = useCompactContext({
-  messages,
-  getSessionId: () => settingStore.chatSidebarActiveSessionId ?? undefined,
-  beginCompactTask: (onAbort?: () => void) => taskRuntime.beginTask('compact', onAbort),
-  finishCompactTask: () => taskRuntime.finishTask('compact'),
-  persistMessage: (sessionId, nextMessage) => chatStore.addSessionMessage(sessionId, nextMessage),
-  persistMessages: (sessionId, nextMessages) => chatStore.setSessionMessages(sessionId, nextMessages),
-  scrollToBottom: () => conversationRef.value?.scrollToBottom({ behavior: 'auto' }),
-  showToast: interactionAPI.showToast
-});
 
 /**
  * 处理中止流式输出。

@@ -133,6 +133,14 @@ describe('evaluateFromSnapshot threshold logic', () => {
     expect(computeCompressionTokenThreshold(4_000, 2_048)).toBeGreaterThan(0);
   });
 
+  it('shouldAutoCompactByContextUsage only triggers at or above the dynamic token threshold', async () => {
+    const { computeCompressionTokenThreshold, shouldAutoCompactByContextUsage } = await import('@/components/BChatSidebar/utils/compression/policy');
+    const threshold = computeCompressionTokenThreshold(16_000);
+
+    expect(shouldAutoCompactByContextUsage(threshold - 1, 16_000)).toBe(false);
+    expect(shouldAutoCompactByContextUsage(threshold, 16_000)).toBe(true);
+  });
+
   it('returns shouldCompress false when snapshot is under threshold', async () => {
     const { estimateContextSize, countMessageRounds, evaluateFromSnapshot } = await import('@/components/BChatSidebar/utils/compression/policy');
     const messages: Message[] = [makeMsg({ id: 'm1', role: 'user', content: 'short' }), makeMsg({ id: 'm2', role: 'assistant', content: 'ok' })];
