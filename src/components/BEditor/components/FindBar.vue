@@ -1,24 +1,24 @@
 <template>
   <Transition name="b-editor-findbar-flip">
     <div v-if="visible" :class="name">
-      <div class="b-editor-findbar__container" :class="{ 'no-match': isNoMatchFound }">
+      <div :class="bem('container', { 'no-match': isNoMatchFound })">
         <input
           ref="inputRef"
           v-model="keyword"
-          class="b-editor-findbar__input"
+          :class="bem('input')"
           placeholder="在文档中查找"
           @keydown.enter.prevent="handleEnter"
           @keydown.esc.prevent="closeFind"
         />
-        <span class="b-editor-findbar__result" :class="{ 'b-editor-findbar__result--empty': isNoMatchFound }">{{ findResultText }}</span>
-        <button type="button" class="b-editor-findbar__btn" :disabled="!hasMatches" @click="findPrevious">
+        <span :class="bem('result', { empty: isNoMatchFound })">{{ findResultText }}</span>
+        <button type="button" :class="bem('btn')" :disabled="!hasMatches" @click="findPrevious">
           <Icon icon="lucide:chevron-up" />
         </button>
-        <button type="button" class="b-editor-findbar__btn" :disabled="!hasMatches" @click="findNext">
+        <button type="button" :class="bem('btn')" :disabled="!hasMatches" @click="findNext">
           <Icon icon="lucide:chevron-down" />
         </button>
-        <span class="b-editor-findbar__divider"></span>
-        <button type="button" class="b-editor-findbar__btn" @click="closeFind">
+        <span :class="bem('divider')"></span>
+        <button type="button" :class="bem('btn')" @click="closeFind">
           <Icon icon="lucide:x" />
         </button>
       </div>
@@ -38,7 +38,7 @@ import { EditorShortcuts } from '@/constants/shortcuts';
 import { useShortcuts } from '@/hooks/useShortcuts';
 import { createNamespace } from '@/utils/namespace';
 
-const [name] = createNamespace('', 'b-editor-findbar');
+const [name, bem] = createNamespace('', 'b-editor-findbar');
 
 interface Props {
   editorInstance: BEditorPublicInstance | null;
@@ -207,6 +207,11 @@ const { registerShortcut } = useShortcuts();
 registerShortcut({
   key: EditorShortcuts.EDIT_FIND,
   handler: () => {
+    const selection = props.editorInstance?.getSelection();
+    if (selection?.text) {
+      keyword.value = selection.text;
+    }
+
     visible.value = true;
     focusInput(Boolean(keyword.value.trim()));
   },
@@ -258,7 +263,7 @@ registerShortcut({
   box-shadow: var(--shadow-sm);
 }
 
-.b-editor-findbar__container.no-match {
+.b-editor-findbar__container--no-match {
   border-color: var(--color-warning-border);
   box-shadow: 0 0 0 1px var(--color-warning-border);
 }
