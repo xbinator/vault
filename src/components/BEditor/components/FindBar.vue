@@ -27,6 +27,10 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * @file FindBar.vue
+ * @description 编辑器查找条组件，负责管理查找关键词、结果状态与快捷查找交互。
+ */
 import { computed, nextTick, ref, watch } from 'vue';
 import { Icon } from '@iconify/vue';
 import type { BEditorPublicInstance, EditorSearchState as SearchState } from '@/components/BEditor/types';
@@ -97,12 +101,42 @@ function applySearchTerm(value: string): void {
   syncSearchState();
 }
 
+/**
+ * 确保当前编辑器实例已同步查找词，避免模式切换后首次跳转时底层仍为空搜索态。
+ * @returns 是否存在可用的匹配结果
+ */
+function ensureSearchStateReady(): boolean {
+  const nextKeyword = trimmedKeyword.value;
+  const currentSearchState = getEditorSearchState();
+
+  if (!nextKeyword) {
+    searchState.value = currentSearchState;
+    return false;
+  }
+
+  if (currentSearchState.term !== nextKeyword || currentSearchState.matchCount === 0) {
+    applySearchTerm(nextKeyword);
+  } else {
+    searchState.value = currentSearchState;
+  }
+
+  return searchState.value.matchCount > 0;
+}
+
 function findNext(): void {
+  if (!ensureSearchStateReady()) {
+    return;
+  }
+
   props.editorInstance?.findNext();
   syncSearchState();
 }
 
 function findPrevious(): void {
+  if (!ensureSearchStateReady()) {
+    return;
+  }
+
   props.editorInstance?.findPrevious();
   syncSearchState();
 }
@@ -138,6 +172,26 @@ watch(keyword, (value) => {
   applySearchTerm(value);
 });
 
+/**
+ * 在编辑器模式切换后，将当前搜索词重新同步到新的编辑器实例。
+ */
+watch(
+  () => props.editorInstance,
+  () => {
+    if (!visible.value) {
+      syncSearchState();
+      return;
+    }
+
+    if (hasKeyword.value) {
+      applySearchTerm(keyword.value);
+      return;
+    }
+
+    syncSearchState();
+  }
+);
+
 watch(visible, (value) => {
   if (!value) {
     return;
@@ -166,6 +220,7 @@ registerShortcut({
   position: absolute;
   top: 60px;
   right: 40px;
+  z-index: 100;
   display: flex;
   align-items: center;
   transform-origin: top center;

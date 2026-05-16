@@ -313,8 +313,8 @@ defineExpose({
   gap: 6px;
   height: 100%;
 
-  --selection-color: #fff;
-  --selection-bg: #ff6b6b;
+  --selection-color: #000;
+  --selection-bg: #ffef5c;
   --native-selection-color: var(--selection-color);
   --native-selection-bg: var(--selection-bg);
 
