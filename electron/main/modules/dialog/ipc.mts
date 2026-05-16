@@ -1,7 +1,7 @@
 import * as path from 'node:path';
 import type { ElectronFileResult, ElectronOpenFileOptions, ElectronSaveFileOptions } from 'types/electron-api';
-import { dialog, ipcMain } from 'electron';
-import { getWindow } from '../../window.mjs';
+import { ipcMain } from 'electron';
+import { showOpenDialog, showSaveDialog } from './utils.mjs';
 
 /**
  * 单例运行器，确保同一时间只有一个异步操作在执行。
@@ -40,32 +40,13 @@ const openLock = new SingleRunner();
 /** 保存文件对话框锁 */
 const saveLock = new SingleRunner();
 
-/**
- * 显示对话框，优先使用父窗口作为模态。
- * @param withWindow - 有父窗口时的对话框调用函数
- * @param withoutWindow - 无父窗口时的对话框调用函数
- * @returns 对话框结果
- */
-async function showDialog<T>(withWindow: (win: Electron.BrowserWindow) => Promise<T>, withoutWindow: () => Promise<T>): Promise<T> {
-  const mainWindow = getWindow();
-  return mainWindow ? withWindow(mainWindow) : withoutWindow();
-}
-
 export function registerDialogHandlers(): void {
   ipcMain.handle('dialog:openFile', async (_event, options?: ElectronOpenFileOptions): Promise<ElectronFileResult> => {
     return openLock.run(async () => {
-      const result = await showDialog(
-        (win) =>
-          dialog.showOpenDialog(win, {
-            properties: ['openFile'],
-            filters: options?.filters || [{ name: 'Markdown', extensions: ['md', 'markdown'] }]
-          }),
-        () =>
-          dialog.showOpenDialog({
-            properties: ['openFile'],
-            filters: options?.filters || [{ name: 'Markdown', extensions: ['md', 'markdown'] }]
-          })
-      );
+      const result = await showOpenDialog({
+        properties: ['openFile'],
+        filters: options?.filters || [{ name: 'Markdown', extensions: ['md', 'markdown'] }]
+      });
 
       if (result.canceled || !result.filePaths.length) {
         return { canceled: true, filePath: null, content: '', fileName: '', ext: '' } satisfies ElectronFileResult;
@@ -89,18 +70,10 @@ export function registerDialogHandlers(): void {
     }
 
     return saveLock.run(async () => {
-      const result = await showDialog(
-        (win) =>
-          dialog.showSaveDialog(win, {
-            filters: options?.filters || [{ name: 'Markdown', extensions: ['md'] }],
-            defaultPath: options?.defaultPath || 'untitled.md'
-          }),
-        () =>
-          dialog.showSaveDialog({
-            filters: options?.filters || [{ name: 'Markdown', extensions: ['md'] }],
-            defaultPath: options?.defaultPath || 'untitled.md'
-          })
-      );
+      const result = await showSaveDialog({
+        filters: options?.filters || [{ name: 'Markdown', extensions: ['md'] }],
+        defaultPath: options?.defaultPath || 'untitled.md'
+      });
 
       if (result.canceled || !result.filePath) {
         return null;
