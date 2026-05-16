@@ -23,7 +23,7 @@
 
     <div class="action-buttons">
       <VoiceInput ref="voiceInputRef" @start="emit('voice-start')" @partial-text="handleVoicePartial" @complete="handleVoiceComplete" />
-
+      <ContextUsage :used-tokens="usedTokens" :context-window="contextWindow" />
       <BButton v-if="loading" size="small" tooltip="停止" square @click="$emit('abort')">
         <svg class="loading-icon" color="currentColor" viewBox="0 0 1000 1000" xmlns="http://www.w3.org/2000/svg">
           <title>Stop Loading</title>
@@ -44,6 +44,7 @@ import { computed, ref } from 'vue';
 import { Icon } from '@iconify/vue';
 import BButton from '@/components/BButton/index.vue';
 import type { SelectedModel } from '@/stores/serviceModel';
+import ContextUsage from './InputToolbar/ContextUsage.vue';
 import ModelSelector from './InputToolbar/ModelSelector.vue';
 import VoiceInput from './InputToolbar/VoiceInput.vue';
 import VoiceWaveform from './InputToolbar/VoiceWaveform.vue';
@@ -62,12 +63,18 @@ interface Props {
   supportsVision: boolean;
   /** 当前是否允许提交。 */
   canSubmit: boolean;
+  /** 当前上下文已使用的 Token 数。 */
+  usedTokens: number;
+  /** 模型最大上下文窗口 Token 数。 */
+  contextWindow: number;
 }
 
 withDefaults(defineProps<Props>(), {
   selectedModel: undefined,
   supportsVision: false,
-  canSubmit: false
+  canSubmit: false,
+  usedTokens: 0,
+  contextWindow: 200000
 });
 
 const emit = defineEmits<{

@@ -76,6 +76,8 @@
             :selected-model="selectedModel"
             :supports-vision="supportsVision"
             :can-submit="canSubmit"
+            :used-tokens="usedTokens"
+            :context-window="contextWindow"
             @submit="handleChatSubmit"
             @abort="handleAbort"
             @image-select="imageUpload.appendImages"
@@ -123,6 +125,7 @@ import { useChatInput } from './hooks/useChatInput';
 import { useChatStream } from './hooks/useChatStream';
 import { useChatTaskRuntime } from './hooks/useChatTaskRuntime';
 import { useCompactContext } from './hooks/useCompactContext';
+import { useContextUsage } from './hooks/useContextUsage';
 import { useFileReference } from './hooks/useFileReference';
 import { useImageUpload } from './hooks/useImageUpload';
 import { useInteractionState } from './hooks/useInteractionState';
@@ -282,7 +285,7 @@ const usagePanel = useUsagePanel();
 const { inputContent, inputImages, ...inputEvents } = useChatInput({ focusInput });
 
 /** 模型选择 hook */
-const { selectedModel, supportsVision, ...modelSelectionEvents } = useModelSelection();
+const { selectedModel, supportsVision, contextWindow, ...modelSelectionEvents } = useModelSelection();
 
 /** 图片上传 hook */
 const imageUpload = useImageUpload({ supportsVision, inputEvents: { ...inputEvents, inputImages } });
@@ -402,6 +405,9 @@ const taskRuntime = useChatTaskRuntime({
 
 /** 当前是否有活跃任务。 */
 const loading = computed<boolean>(() => taskRuntime.loading.value || streamLoading.value);
+
+/** 上下文窗口用量 hook（混合策略：空闲态用 API 上报值，流式中用估算器） */
+const { usedTokens } = useContextUsage({ messages, contextWindow, selectedModel, streaming: loading });
 
 /** 会话 hook */
 const { currentSession, createNewSession, switchSession, initializeActiveSession } = useSession({

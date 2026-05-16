@@ -18,13 +18,22 @@ export function useModelSelection() {
   /** 当前选中的模型标识，从 store 读取 */
   const selectedModel = computed(() => serviceModelStore.chatModel);
 
+  /** 当前选中的模型配置，从 providerStore 响应式派生 */
+  const currentModelConfig = computed(() => {
+    const model = selectedModel.value;
+    if (!model) return undefined;
+    const provider = providerStore.providers.find((p) => p.id === model.providerId);
+    return provider?.models?.find((m) => m.id === model.modelId);
+  });
+
   /** 当前模型是否支持视觉识别，从 providerStore 响应式派生 */
   const supportsVision = computed(() => {
-    const model = selectedModel.value;
-    if (!model) return false;
-    const provider = providerStore.providers.find((p) => p.id === model.providerId);
-    const foundModel = provider?.models?.find((m) => m.id === model.modelId);
-    return foundModel?.supportsVision === true;
+    return currentModelConfig.value?.supportsVision === true;
+  });
+
+  /** 当前模型的上下文窗口大小（Token 数） */
+  const contextWindow = computed(() => {
+    return currentModelConfig.value?.contextWindow ?? 200000;
   });
 
   /**
@@ -47,6 +56,7 @@ export function useModelSelection() {
   return {
     selectedModel,
     supportsVision,
+    contextWindow,
     loadSelectedModel,
     onModelChange
   };
