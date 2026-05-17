@@ -61,7 +61,6 @@ function isActive(key: SettingsMenuKey): boolean {
   overflow-y: auto;
   transition: width 0.3s ease;
   -webkit-user-drag: none;
-  user-drag: none;
 
   &--collapsed {
     width: var(--sidebar-width-small);
@@ -119,7 +118,6 @@ function isActive(key: SettingsMenuKey): boolean {
   cursor: pointer;
   user-select: none;
   -webkit-user-drag: none;
-  user-drag: none;
   border-radius: 6px;
   transition: all 0.15s;
 

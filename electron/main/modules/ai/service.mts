@@ -3,10 +3,12 @@
  * @description AI 服务核心类，封装文本生成和流式文本生成能力
  */
 import type { FlexibleSchema, ToolExecutionOptions, ToolSet } from 'ai';
-import type { AICreateOptions, AIRequestOptions, AIInvokeResult, AIStreamResult, AIServiceError } from 'types/ai';
+import type { AICreateOptions, AIRequestOptions, AIInvokeResult, AIStreamResult, AIServiceError, MCPDiscoveredToolSnapshot } from 'types/ai';
 import { tavilyExtract, tavilySearch } from '@tavily/ai-sdk';
 import { generateText, jsonSchema, Output, stepCountIs, streamText, tool } from 'ai';
 import { log } from '../logger/service.mjs';
+import { executeMcpTool, getMcpDiscoveryCache } from '../mcp/runtime.mjs';
+import { createMcpSdkTools, resolveMcpExposedTools } from '../mcp/tools.mjs';
 import { AI_ERROR_CODE } from './errors/codes.mjs';
 import { AIProviderRegistry } from './providers/_index.mjs';
 
@@ -99,16 +101,79 @@ function hasTavilySdkTools(tavily: AIRequestOptions['tavily']): boolean {
 }
 
 /**
+ * 判断当前请求是否启用了可由主进程执行的 MCP SDK 工具。
+ * @param mcp - MCP 请求配置
+ * @returns 是否存在可启用的 MCP server
+ */
+function hasMcpSdkTools(mcp: AIRequestOptions['mcp']): boolean {
+  return Boolean(mcp?.servers.some((server) => server.enabled && server.command.trim().length > 0 && mcp.enabledServerIds.includes(server.id)));
+}
+
+/**
+ * 读取单个 server 的 MCP discovery 工具，避开全部 cache 返回值的数组分支。
+ * @param serverId - MCP server ID
+ * @returns discovery 工具列表
+ */
+function getMcpDiscoveredToolsForServer(serverId: string): MCPDiscoveredToolSnapshot[] {
+  const cache = getMcpDiscoveryCache(serverId);
+  return cache && !Array.isArray(cache) ? cache.tools : [];
+}
+
+/**
+ * 将 MCP 工具说明词追加到系统提示。
+ * @param system - 原始系统提示
+ * @param mcp - MCP 请求配置
+ * @returns 追加后的系统提示
+ */
+function appendMcpToolInstructions(system: string | undefined, mcp: AIRequestOptions['mcp']): string | undefined {
+  const instructions = mcp?.toolInstructions.trim();
+  if (!instructions) return system;
+
+  const mcpSection = `MCP tool usage instructions:\n${instructions}`;
+  return system?.trim() ? `${system}\n\n${mcpSection}` : mcpSection;
+}
+
+/**
  * 将前端工具定义与 Tavily 工具合并为 AI SDK 兼容的工具集。
  * 合并结果为空时返回 undefined，避免向 SDK 传入空对象。
  */
-function toSdkTools(tools: AIRequestOptions['tools'], tavily: AIRequestOptions['tavily']): ToolSet | undefined {
-  const rendererTools: ToolSet = tools?.length
-    ? Object.fromEntries(tools.map((item) => [item.name, tool({ description: item.description, inputSchema: jsonSchema(item.parameters) })]))
-    : {};
+function toSdkTools(tools: AIRequestOptions['tools'], tavily: AIRequestOptions['tavily'], mcp: AIRequestOptions['mcp']): ToolSet | undefined {
+  let rendererTools: ToolSet = {};
+  if (tools?.length) {
+    rendererTools = Object.fromEntries(tools.map((item) => [item.name, tool({ description: item.description, inputSchema: jsonSchema(item.parameters) })]));
+  }
 
-  const merged: ToolSet = { ...rendererTools, ...createTavilySdkTools(tavily) };
-  return Object.keys(merged).length > 0 ? merged : undefined;
+  let mcpDiscoveredTools: MCPDiscoveredToolSnapshot[] = [];
+  if (mcp) {
+    mcpDiscoveredTools = mcp.enabledServerIds.flatMap((serverId) => getMcpDiscoveredToolsForServer(serverId));
+  }
+
+  let mcpTools: ToolSet = {};
+  if (mcp && mcpDiscoveredTools.length > 0) {
+    mcpTools = createMcpSdkTools(
+      resolveMcpExposedTools(
+        {
+          servers: mcp.servers
+        },
+        mcp,
+        mcpDiscoveredTools
+      ),
+      async ({ serverId, toolName, input }) => {
+        const server = mcp.servers.find((item) => item.id === serverId);
+        if (!server) {
+          throw new Error(`MCP server not found for tool execution: ${serverId}`);
+        }
+        return executeMcpTool(server, toolName, input);
+      }
+    );
+  }
+
+  const merged: ToolSet = { ...rendererTools, ...createTavilySdkTools(tavily), ...mcpTools };
+  if (Object.keys(merged).length === 0) {
+    return undefined;
+  }
+
+  return merged;
 }
 
 /**
@@ -176,11 +241,11 @@ class AIService {
   private buildBaseOptions(createOptions: AICreateOptions, request: AIRequestOptions) {
     return {
       model: this.createModel(createOptions, request.modelId),
-      system: request.system,
+      system: appendMcpToolInstructions(request.system, request.mcp),
       temperature: request.temperature,
       maxOutputTokens: request.maxOutputTokens,
-      tools: toSdkTools(request.tools, request.tavily),
-      ...(hasTavilySdkTools(request.tavily) ? { stopWhen: stepCountIs(5) } : {})
+      tools: toSdkTools(request.tools, request.tavily, request.mcp),
+      ...(hasTavilySdkTools(request.tavily) || hasMcpSdkTools(request.mcp) ? { stopWhen: stepCountIs(5) } : {})
     };
   }
 

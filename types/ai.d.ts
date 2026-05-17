@@ -346,6 +346,130 @@ export interface AITavilyRuntimeConfig {
   extractDefaults: AITavilyExtractDefaults;
 }
 
+/**
+ * MCP tool 的结构化选择器。
+ */
+export interface MCPToolSelector {
+  /** 所属 server ID。 */
+  serverId: string;
+  /** 原始 tool 名称。 */
+  toolName: string;
+}
+
+/**
+ * MCP discovery 工具快照。
+ */
+export interface MCPDiscoveredToolSnapshot {
+  /** 所属 server ID。 */
+  serverId: string;
+  /** 原始 tool 名称。 */
+  toolName: string;
+  /** 可选工具描述。 */
+  description?: string;
+  /** MCP tool inputSchema。 */
+  inputSchema?: Record<string, unknown>;
+}
+
+/**
+ * MCP server 运行配置。
+ */
+export interface MCPServerConfig {
+  /** 稳定 ID。 */
+  id: string;
+  /** 展示名称。 */
+  name: string;
+  /** 是否启用。 */
+  enabled: boolean;
+  /** transport 类型。 */
+  transport: 'stdio';
+  /** 启动命令。 */
+  command: string;
+  /** 启动参数。 */
+  args: string[];
+  /** 环境变量。 */
+  env: Record<string, string>;
+  /** server 级工具白名单。 */
+  toolAllowlist: string[];
+  /** 连接与握手超时。 */
+  connectTimeoutMs: number;
+  /** 单次工具调用超时。 */
+  toolCallTimeoutMs: number;
+}
+
+/**
+ * MCP 工具设置。
+ */
+export interface MCPToolSettings {
+  /** server 列表。 */
+  servers: MCPServerConfig[];
+}
+
+/**
+ * MCP sandbox 运行状态。
+ */
+export type MCPSandboxStatus = 'idle' | 'starting' | 'running' | 'failed';
+
+/**
+ * MCP discovery 运行状态。
+ */
+export type MCPDiscoveryStatus = 'idle' | 'refreshing' | 'ready' | 'failed';
+
+/**
+ * MCP server 运行态状态。
+ */
+export interface MCPStatusResponse {
+  /** server ID。 */
+  serverId: string;
+  /** sandbox 状态。 */
+  sandboxStatus: MCPSandboxStatus;
+  /** discovery 状态。 */
+  discoveryStatus: MCPDiscoveryStatus;
+  /** 最近一次状态说明。 */
+  message?: string;
+}
+
+/**
+ * 单个 MCP server 的 discovery cache。
+ */
+export interface MCPServerDiscoveryCache {
+  /** server ID。 */
+  serverId: string;
+  /** discovery 得到的工具快照。 */
+  tools: MCPDiscoveredToolSnapshot[];
+  /** discovery 时间戳。 */
+  discoveredAt: number;
+}
+
+/**
+ * MCP discovery 刷新结果。
+ */
+export interface MCPDiscoveryRefreshResult {
+  /** 是否成功。 */
+  ok: boolean;
+  /** server ID。 */
+  serverId: string;
+  /** 成功时的 discovery cache。 */
+  cache?: MCPServerDiscoveryCache;
+  /** 失败时的稳定错误码。 */
+  errorCode?: string;
+  /** 失败说明。 */
+  message?: string;
+}
+
+/**
+ * 发往主进程 AI 服务的 MCP 请求配置。
+ */
+export interface AIMCPRequestConfig {
+  /** 当前请求携带的 MCP server 配置快照。 */
+  servers: MCPServerConfig[];
+  /** 当前请求启用的 server ID。 */
+  enabledServerIds: string[];
+  /** 当前请求允许的 tool 标识。 */
+  enabledTools: MCPToolSelector[];
+  /** 当前请求附加的 MCP 工具说明词。 */
+  toolInstructions: string;
+}
+
 export interface AIRequestOptions {
   /** 请求标识符。 */
   requestId?: string;
@@ -367,6 +491,8 @@ export interface AIRequestOptions {
   tools?: AITransportTool[];
   /** Tavily 运行时配置。 */
   tavily?: AITavilyRuntimeConfig;
+  /** MCP 运行时请求配置。 */
+  mcp?: AIMCPRequestConfig;
   /** 上一次工具调用结果。 */
   toolResults?: AITransportToolResult[];
   /** 输出配置。 */

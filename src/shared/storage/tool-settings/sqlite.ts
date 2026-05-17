@@ -2,7 +2,6 @@
  * @file sqlite.ts
  * @description Tavily 工具设置的本地持久化与归一化实现。
  */
-import { local } from '@/shared/storage/base';
 import type {
   TavilyExtractDefaults,
   TavilyExtractDepth,
@@ -14,23 +13,15 @@ import type {
   TavilyToolSettings,
   ToolSettingsState,
   MCPToolSettings,
-  MCPInvocationDefaults,
-  MCPServerConfig,
-  MCPToolSelector,
-  MCPSandboxRuntime,
-  MCPSandboxNetworkPolicy,
-  MCPSandboxNetworkPolicyString
+  MCPServerConfig
 } from './types';
+import { local } from '@/shared/storage/base';
 import {
   DEFAULT_TOOL_SETTINGS,
   DEFAULT_MCP_TOOL_SETTINGS,
   TOOL_SETTINGS_STORAGE_KEY,
   DEFAULT_MCP_CONNECT_TIMEOUT_MS,
   DEFAULT_MCP_TOOL_CALL_TIMEOUT_MS,
-  DEFAULT_MCP_SANDBOX_TIMEOUT_MS,
-  VALID_SANDBOX_RUNTIMES,
-  MIN_SANDBOX_TIMEOUT_MS,
-  MAX_SANDBOX_TIMEOUT_MS,
   MIN_CONNECT_TIMEOUT_MS,
   MAX_CONNECT_TIMEOUT_MS,
   MIN_TOOL_CALL_TIMEOUT_MS,
@@ -96,6 +87,23 @@ function normalizeMaxResults(value: unknown): number {
 }
 
 /**
+ * 归一化时间范围。
+ * @param value - 原始值
+ * @returns 归一化后的时间范围
+ */
+function normalizeTimeRange(value: unknown): TavilyTimeRange {
+  if (value === null) {
+    return null;
+  }
+
+  if (isTimeRange(value)) {
+    return value;
+  }
+
+  return DEFAULT_TOOL_SETTINGS.tavily.searchDefaults.timeRange;
+}
+
+/**
  * 归一化国家名称。
  * @param value - 原始值
  * @returns 归一化后的国家名称
@@ -143,9 +151,7 @@ function normalizeDomains(value: unknown): string[] {
     return [];
   }
 
-  return value
-    .map((item: unknown) => normalizeDomain(item))
-    .filter((item: string | null): item is string => item !== null);
+  return value.map((item: unknown) => normalizeDomain(item)).filter((item: string | null): item is string => item !== null);
 }
 
 /**
@@ -161,7 +167,7 @@ function normalizeSearchDefaults(value: unknown): TavilySearchDefaults {
   return {
     searchDepth: isSearchDepth(source.searchDepth) ? source.searchDepth : DEFAULT_TOOL_SETTINGS.tavily.searchDefaults.searchDepth,
     topic: isSearchTopic(source.topic) ? source.topic : DEFAULT_TOOL_SETTINGS.tavily.searchDefaults.topic,
-    timeRange: source.timeRange === null ? null : isTimeRange(source.timeRange) ? source.timeRange : DEFAULT_TOOL_SETTINGS.tavily.searchDefaults.timeRange,
+    timeRange: normalizeTimeRange(source.timeRange),
     country: normalizeCountry(source.country),
     maxResults: normalizeMaxResults(source.maxResults),
     includeAnswer: typeof source.includeAnswer === 'boolean' ? source.includeAnswer : DEFAULT_TOOL_SETTINGS.tavily.searchDefaults.includeAnswer,
@@ -206,36 +212,6 @@ function normalizeTavilySettings(value: unknown): TavilyToolSettings {
 // ─── MCP Normalization Helpers ─────────────────────────────────────────────────
 
 /**
- * 判断字符串是否为合法的 sandbox 运行时。
- */
-function isValidSandboxRuntime(value: string): value is MCPSandboxRuntime {
-  return (VALID_SANDBOX_RUNTIMES as readonly string[]).includes(value);
-}
-
-/**
- * 判断是否为合法的 sandbox 网络策略字符串。
- */
-function isNetworkPolicyString(value: string): value is MCPSandboxNetworkPolicyString {
-  return value === 'allow-all' || value === 'deny-all';
-}
-
-/**
- * 归一化 sandbox 网络策略。
- */
-function normalizeNetworkPolicy(value: unknown): MCPSandboxNetworkPolicy {
-  if (typeof value === 'string' && isNetworkPolicyString(value)) {
-    return value;
-  }
-  if (value && typeof value === 'object' && !Array.isArray(value)) {
-    const obj = value as Record<string, unknown>;
-    if (Array.isArray(obj.allow) && obj.allow.every((item: unknown) => typeof item === 'string')) {
-      return { allow: obj.allow as string[] };
-    }
-  }
-  return 'deny-all';
-}
-
-/**
  * 归一化 timeout 值到合理范围。
  */
 function normalizeTimeoutMs(value: unknown, defaultMs: number, minMs: number, maxMs: number): number {
@@ -262,27 +238,6 @@ function normalizeEnv(value: unknown): Record<string, string> {
 }
 
 /**
- * 归一化 MCP tool selector 数组。
- */
-function normalizeMCPToolSelectors(value: unknown): MCPToolSelector[] {
-  if (!Array.isArray(value)) return [];
-  return value
-    .filter(
-      (item: unknown): item is MCPToolSelector =>
-        item !== null &&
-        typeof item === 'object' &&
-        typeof (item as MCPToolSelector).serverId === 'string' &&
-        (item as MCPToolSelector).serverId.trim().length > 0 &&
-        typeof (item as MCPToolSelector).toolName === 'string' &&
-        (item as MCPToolSelector).toolName.trim().length > 0
-    )
-    .map((item) => ({
-      serverId: item.serverId.trim(),
-      toolName: item.toolName.trim()
-    }));
-}
-
-/**
  * 归一化单个 MCP server 配置。
  */
 function normalizeMCPServerConfig(value: unknown): MCPServerConfig | null {
@@ -293,9 +248,7 @@ function normalizeMCPServerConfig(value: unknown): MCPServerConfig | null {
 
   if (!source.id?.trim()) return null;
 
-  const args = Array.isArray(source.args)
-    ? source.args.filter((a: unknown): a is string => typeof a === 'string')
-    : [];
+  const args = Array.isArray(source.args) ? source.args.filter((a: unknown): a is string => typeof a === 'string') : [];
 
   return {
     id: source.id.trim(),
@@ -305,51 +258,11 @@ function normalizeMCPServerConfig(value: unknown): MCPServerConfig | null {
     command: typeof source.command === 'string' ? source.command.trim() : '',
     args,
     env: normalizeEnv(source.env),
-    runtime: isValidSandboxRuntime(String(source.runtime ?? '')) ? String(source.runtime) : 'node22',
-    sandboxTimeoutMs: normalizeTimeoutMs(
-      source.sandboxTimeoutMs,
-      DEFAULT_MCP_SANDBOX_TIMEOUT_MS,
-      MIN_SANDBOX_TIMEOUT_MS,
-      MAX_SANDBOX_TIMEOUT_MS
-    ),
-    networkPolicy: normalizeNetworkPolicy(source.networkPolicy),
-    baseSnapshotId: source.baseSnapshotId?.trim() || null,
     toolAllowlist: Array.isArray(source.toolAllowlist)
-      ? [...new Set(
-          source.toolAllowlist
-            .filter((t: unknown): t is string => typeof t === 'string' && t.trim().length > 0)
-            .map((t: string) => t.trim())
-        )]
+      ? [...new Set(source.toolAllowlist.filter((t: unknown): t is string => typeof t === 'string' && t.trim().length > 0).map((t: string) => t.trim()))]
       : [],
-    connectTimeoutMs: normalizeTimeoutMs(
-      source.connectTimeoutMs,
-      DEFAULT_MCP_CONNECT_TIMEOUT_MS,
-      MIN_CONNECT_TIMEOUT_MS,
-      MAX_CONNECT_TIMEOUT_MS
-    ),
-    toolCallTimeoutMs: normalizeTimeoutMs(
-      source.toolCallTimeoutMs,
-      DEFAULT_MCP_TOOL_CALL_TIMEOUT_MS,
-      MIN_TOOL_CALL_TIMEOUT_MS,
-      MAX_TOOL_CALL_TIMEOUT_MS
-    )
-  };
-}
-
-/**
- * 归一化 MCP 默认调用配置。
- */
-function normalizeMCPInvocationDefaults(value: unknown): MCPInvocationDefaults {
-  const source = value && typeof value === 'object' && !Array.isArray(value)
-    ? (value as Partial<MCPInvocationDefaults>)
-    : {};
-
-  return {
-    enabledServerIds: Array.isArray(source.enabledServerIds)
-      ? source.enabledServerIds.filter((id: unknown): id is string => typeof id === 'string' && id.trim().length > 0)
-      : [],
-    enabledTools: normalizeMCPToolSelectors(source.enabledTools),
-    toolInstructions: typeof source.toolInstructions === 'string' ? source.toolInstructions : ''
+    connectTimeoutMs: normalizeTimeoutMs(source.connectTimeoutMs, DEFAULT_MCP_CONNECT_TIMEOUT_MS, MIN_CONNECT_TIMEOUT_MS, MAX_CONNECT_TIMEOUT_MS),
+    toolCallTimeoutMs: normalizeTimeoutMs(source.toolCallTimeoutMs, DEFAULT_MCP_TOOL_CALL_TIMEOUT_MS, MIN_TOOL_CALL_TIMEOUT_MS, MAX_TOOL_CALL_TIMEOUT_MS)
   };
 }
 
@@ -363,12 +276,7 @@ function normalizeMCPSettings(value: unknown): MCPToolSettings {
   const source = value as Partial<MCPToolSettings>;
 
   return {
-    servers: Array.isArray(source.servers)
-      ? source.servers
-          .map((s) => normalizeMCPServerConfig(s))
-          .filter((s): s is MCPServerConfig => s !== null)
-      : [],
-    invocationDefaults: normalizeMCPInvocationDefaults(source.invocationDefaults)
+    servers: Array.isArray(source.servers) ? source.servers.map((s) => normalizeMCPServerConfig(s)).filter((s): s is MCPServerConfig => s !== null) : []
   };
 }
 
@@ -406,7 +314,7 @@ export const toolSettingsStorage = {
    * @param settings - 待保存设置
    * @returns 归一化后的工具设置
    */
-  saveSettings(settings: ToolSettingsState): ToolSettingsState {
+  saveSettings(settings: Partial<ToolSettingsState>): ToolSettingsState {
     const normalized = normalizeToolSettings(settings);
     local.setItem(TOOL_SETTINGS_STORAGE_KEY, normalized);
     return normalized;

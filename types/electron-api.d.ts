@@ -8,7 +8,11 @@ import type {
   AIStreamToolInputDeltaChunk,
   AIStreamToolInputEndChunk,
   AIStreamToolInputStartChunk,
-  AIStreamToolResultChunk
+  AIStreamToolResultChunk,
+  MCPDiscoveryRefreshResult,
+  MCPServerConfig,
+  MCPServerDiscoveryCache,
+  MCPStatusResponse
 } from './ai';
 
 /**
@@ -302,6 +306,11 @@ export interface ElectronAPI {
   aiInvoke: (createOptions: AICreateOptions, request: AIRequestOptions) => Promise<AsyncResult<AIInvokeResult, AIServiceError>>;
   aiStream: (createOptions: AICreateOptions, request: AIRequestOptions) => Promise<void>;
   aiStreamAbort: (requestId: string) => Promise<void>;
+
+  // MCP runtime 操作
+  getMcpStatus: (serverIds: string[]) => Promise<MCPStatusResponse[]>;
+  getMcpDiscoveryCache: (serverId?: string) => Promise<MCPServerDiscoveryCache | MCPServerDiscoveryCache[] | undefined>;
+  refreshMcpDiscovery: (server: MCPServerConfig) => Promise<MCPDiscoveryRefreshResult>;
 
   // AI 流式事件监听
   onAiStreamText: (callback: (text: string) => void) => () => void;

@@ -85,30 +85,6 @@ export interface TavilyToolSettings {
  */
 export type MCPTransportType = 'stdio';
 
-// ─── MCP Sandbox 运行时 ───────────────────────────────────────────────────────
-
-/**
- * @vercel/sandbox 支持的运行时标识。
- */
-export type MCPSandboxRuntime = 'node22' | 'python3.13';
-
-/**
- * Sandbox 网络策略字符串模式。
- */
-export type MCPSandboxNetworkPolicyString = 'allow-all' | 'deny-all';
-
-/**
- * Sandbox 网络策略对象模式。
- */
-export interface MCPSandboxNetworkPolicyObject {
-  allow: string[];
-}
-
-/**
- * Sandbox 网络策略联合。
- */
-export type MCPSandboxNetworkPolicy = MCPSandboxNetworkPolicyString | MCPSandboxNetworkPolicyObject;
-
 // ─── MCP Server Config ───────────────────────────────────────────────────────
 
 /**
@@ -129,14 +105,6 @@ export interface MCPServerConfig {
   args: string[];
   /** 环境变量 */
   env: Record<string, string>;
-  /** Vercel Sandbox 运行时字符串 */
-  runtime: string;
-  /** Sandbox 生命周期超时 */
-  sandboxTimeoutMs: number;
-  /** Sandbox 网络策略 */
-  networkPolicy: MCPSandboxNetworkPolicy;
-  /** 可选的基础快照 ID */
-  baseSnapshotId?: string | null;
   /** 默认允许暴露的 tool 名称 */
   toolAllowlist: string[];
   /** 连接与握手超时 */
@@ -157,20 +125,6 @@ export interface MCPToolSelector {
   toolName: string;
 }
 
-// ─── MCP Invocation Defaults ─────────────────────────────────────────────────
-
-/**
- * MCP 默认调用配置。
- */
-export interface MCPInvocationDefaults {
-  /** 默认启用的 server ID */
-  enabledServerIds: string[];
-  /** 默认允许的 tool 标识 */
-  enabledTools: MCPToolSelector[];
-  /** 默认附加说明词 */
-  toolInstructions: string;
-}
-
 // ─── MCP Tool Settings ──────────────────────────────────────────────────────
 
 /**
@@ -179,8 +133,22 @@ export interface MCPInvocationDefaults {
 export interface MCPToolSettings {
   /** server 列表 */
   servers: MCPServerConfig[];
-  /** 默认调用配置 */
-  invocationDefaults: MCPInvocationDefaults;
+}
+
+// ─── MCP Request Config ─────────────────────────────────────────────────────
+
+/**
+ * 发往主进程 AI 服务的 MCP 请求配置。
+ */
+export interface AIMCPRequestConfig {
+  /** 当前请求携带的 MCP server 配置快照 */
+  servers: MCPServerConfig[];
+  /** 当前请求启用的 server ID */
+  enabledServerIds: string[];
+  /** 当前请求允许的 tool 标识 */
+  enabledTools: MCPToolSelector[];
+  /** 当前请求附加的 MCP 工具说明词 */
+  toolInstructions: string;
 }
 
 // ─── MCP Discovery Snapshot ─────────────────────────────────────────────────
@@ -189,9 +157,14 @@ export interface MCPToolSettings {
  * Discovery cache 中的工具快照。
  */
 export interface MCPDiscoveredToolSnapshot {
+  /** 所属 server ID */
   serverId: string;
+  /** 原始 tool 名称 */
   toolName: string;
+  /** 工具描述 */
   description?: string;
+  /** MCP tool inputSchema */
+  inputSchema?: Record<string, unknown>;
 }
 
 /**
@@ -207,23 +180,13 @@ export interface MCPServerDiscoveryCache {
 
 export const DEFAULT_MCP_CONNECT_TIMEOUT_MS = 20000;
 export const DEFAULT_MCP_TOOL_CALL_TIMEOUT_MS = 30000;
-export const DEFAULT_MCP_SANDBOX_TIMEOUT_MS = 300000;
-export const MIN_SANDBOX_TIMEOUT_MS = 60000;
-export const MAX_SANDBOX_TIMEOUT_MS = 3600000;
 export const MIN_CONNECT_TIMEOUT_MS = 1000;
 export const MAX_CONNECT_TIMEOUT_MS = 120000;
 export const MIN_TOOL_CALL_TIMEOUT_MS = 1000;
 export const MAX_TOOL_CALL_TIMEOUT_MS = 120000;
 
-export const VALID_SANDBOX_RUNTIMES: readonly MCPSandboxRuntime[] = ['node22', 'python3.13'] as const;
-
 export const DEFAULT_MCP_TOOL_SETTINGS: MCPToolSettings = {
-  servers: [],
-  invocationDefaults: {
-    enabledServerIds: [],
-    enabledTools: [],
-    toolInstructions: ''
-  }
+  servers: []
 };
 
 // ─── ToolSettingsState ───────────────────────────────────────────────────────

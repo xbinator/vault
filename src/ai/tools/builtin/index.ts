@@ -12,6 +12,14 @@ import { EDIT_FILE_TOOL_NAME, createBuiltinEditFileTool } from './FileEditTool';
 import { createBuiltinReadDirectoryTool, createBuiltinReadFileTool, READ_DIRECTORY_TOOL_NAME, READ_FILE_TOOL_NAME } from './FileReadTool';
 import { createBuiltinWriteFileTool, WRITE_FILE_TOOL_NAME } from './FileWriteTool';
 import { createBuiltinLogTools, QUERY_LOGS_TOOL_NAME } from './LogsTool';
+import {
+  ADD_MCP_SERVER_TOOL_NAME,
+  createBuiltinMCPSettingsTools,
+  GET_MCP_SETTINGS_TOOL_NAME,
+  REFRESH_MCP_DISCOVERY_TOOL_NAME,
+  REMOVE_MCP_SERVER_TOOL_NAME,
+  UPDATE_MCP_SERVER_TOOL_NAME
+} from './MCPSettingsTool';
 import { createBuiltinSettingsTools, GET_SETTINGS_TOOL_NAME, UPDATE_SETTINGS_TOOL_NAME } from './SettingsTool';
 
 // 重新导出工具名称
@@ -22,6 +30,13 @@ export { EDIT_FILE_TOOL_NAME } from './FileEditTool';
 export { READ_DIRECTORY_TOOL_NAME, READ_FILE_TOOL_NAME } from './FileReadTool';
 export { WRITE_FILE_TOOL_NAME } from './FileWriteTool';
 export { QUERY_LOGS_TOOL_NAME } from './LogsTool';
+export {
+  ADD_MCP_SERVER_TOOL_NAME,
+  GET_MCP_SETTINGS_TOOL_NAME,
+  REFRESH_MCP_DISCOVERY_TOOL_NAME,
+  REMOVE_MCP_SERVER_TOOL_NAME,
+  UPDATE_MCP_SERVER_TOOL_NAME
+} from './MCPSettingsTool';
 export { GET_SETTINGS_TOOL_NAME, UPDATE_SETTINGS_TOOL_NAME } from './SettingsTool';
 
 /**
@@ -49,13 +64,22 @@ export const DEFAULT_BUILTIN_READONLY_TOOL_NAMES = [
   READ_FILE_TOOL_NAME,
   READ_DIRECTORY_TOOL_NAME,
   GET_SETTINGS_TOOL_NAME,
+  GET_MCP_SETTINGS_TOOL_NAME,
   QUERY_LOGS_TOOL_NAME
 ] as const;
 
 /**
  * 默认开放的内置写工具名称列表。
  */
-export const DEFAULT_BUILTIN_WRITABLE_TOOL_NAMES = [EDIT_FILE_TOOL_NAME, WRITE_FILE_TOOL_NAME, UPDATE_SETTINGS_TOOL_NAME] as const;
+export const DEFAULT_BUILTIN_WRITABLE_TOOL_NAMES = [
+  EDIT_FILE_TOOL_NAME,
+  WRITE_FILE_TOOL_NAME,
+  UPDATE_SETTINGS_TOOL_NAME,
+  ADD_MCP_SERVER_TOOL_NAME,
+  UPDATE_MCP_SERVER_TOOL_NAME,
+  REMOVE_MCP_SERVER_TOOL_NAME,
+  REFRESH_MCP_DISCOVERY_TOOL_NAME
+] as const;
 
 /**
  * 获取默认聊天工具名称列表。
@@ -105,6 +129,8 @@ export function createBuiltinTools(options: CreateBuiltinToolsOptions = {}): AIT
   const environmentTools = createBuiltinEnvironmentTools();
   // 创建日志只读工具
   const logTools = createBuiltinLogTools();
+  // 创建 MCP 配置工具，读工具不需要真实确认，写工具仅在 options.confirm 存在时暴露。
+  const mcpSettingsTools = createBuiltinMCPSettingsTools(options.confirm ?? { confirm: async () => false });
   // 先汇总全部只读工具，再通过共享清单筛选默认暴露项。
   const allReadonlyTools: AIToolExecutor[] = [
     readTools.readCurrentDocument,
@@ -127,6 +153,7 @@ export function createBuiltinTools(options: CreateBuiltinToolsOptions = {}): AIT
       isFileInRecent: options.isFileInRecent
     }),
     createBuiltinSettingsTools(options.confirm ?? { confirm: async () => false }).getSettings,
+    mcpSettingsTools.getMcpSettings,
     logTools.queryLogs
   ];
   const readonlyTools = allReadonlyTools.filter((tool) => isDefaultBuiltinReadonlyToolName(tool.definition.name));
@@ -148,8 +175,18 @@ export function createBuiltinTools(options: CreateBuiltinToolsOptions = {}): AIT
   });
   // 创建设置修改工具
   const settingsTools = createBuiltinSettingsTools(options.confirm);
+  // 创建 MCP 配置写工具
+  const writableMcpSettingsTools = createBuiltinMCPSettingsTools(options.confirm);
   // 先汇总默认文件写工具，再通过共享清单筛选默认暴露项。
-  const allDefaultWritableTools: AIToolExecutor[] = [editFileTool, writeFileTool, settingsTools.updateSettings];
+  const allDefaultWritableTools: AIToolExecutor[] = [
+    editFileTool,
+    writeFileTool,
+    settingsTools.updateSettings,
+    writableMcpSettingsTools.addMcpServer,
+    writableMcpSettingsTools.updateMcpServer,
+    writableMcpSettingsTools.removeMcpServer,
+    writableMcpSettingsTools.refreshMcpDiscovery
+  ];
   const writableTools = allDefaultWritableTools.filter((tool) => isDefaultBuiltinWritableToolName(tool.definition.name));
 
   return [...readonlyTools, ...writableTools];

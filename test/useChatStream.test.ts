@@ -37,6 +37,31 @@ interface MockChatCallbacks {
 let capturedCallbacks: MockChatCallbacks | null = null;
 const streamSpy = vi.fn();
 const getAvailableServiceConfigMock = vi.fn();
+const toolSettingsStoreMock = {
+  tavily: {
+    enabled: false,
+    apiKey: '',
+    searchDefaults: {
+      searchDepth: 'basic' as const,
+      topic: 'general' as const,
+      timeRange: null,
+      country: 'china',
+      maxResults: 5,
+      includeAnswer: true,
+      includeImages: false,
+      includeDomains: [],
+      excludeDomains: []
+    },
+    extractDefaults: {
+      extractDepth: 'basic' as const,
+      format: 'markdown' as const,
+      includeImages: false
+    }
+  },
+  mcp: {
+    servers: []
+  }
+};
 
 /**
  * 底层流式中止桩函数，用于模拟 Electron 流结束时的完成回调。
@@ -80,10 +105,7 @@ vi.mock('@/stores/toolSettings', () => ({
   /**
    * 模拟工具设置 store，避免测试初始化时依赖真实 store。
    */
-  useToolSettingsStore: () => ({
-    getEnabledToolNames: () => [],
-    isToolEnabled: () => true
-  })
+  useToolSettingsStore: () => toolSettingsStoreMock
 }));
 
 /**
@@ -105,6 +127,7 @@ describe('useChatStream abort', () => {
     abortSpy.mockClear();
     streamSpy.mockClear();
     getAvailableServiceConfigMock.mockReset();
+    toolSettingsStoreMock.mcp.servers = [];
   });
 
   it('finalizes the current assistant message and calls onComplete once when the user aborts', () => {
@@ -151,6 +174,50 @@ describe('useChatStream abort', () => {
       expect.objectContaining({
         messages: [{ role: 'user', content: '需要压缩上下文' }],
         modelId: 'gpt-4o'
+      })
+    );
+  });
+
+  it('passes enabled MCP servers to the AI stream request', async () => {
+    const messages = ref<Message[]>([]);
+    const { stream } = useChatStream({
+      messages,
+      getSessionId: () => 'session-1'
+    });
+    const sourceMessages = [create.userMessage('列出仓库文件')];
+    const config: ServiceConfig = {
+      providerId: 'openai',
+      modelId: 'gpt-4o',
+      toolSupport: {
+        supported: false
+      }
+    };
+
+    toolSettingsStoreMock.mcp.servers = [
+      {
+        id: 'filesystem',
+        name: 'Filesystem',
+        enabled: true,
+        transport: 'stdio',
+        command: 'npx',
+        args: ['-y', '@modelcontextprotocol/server-filesystem'],
+        env: {},
+        toolAllowlist: ['list_directory'],
+        connectTimeoutMs: 20000,
+        toolCallTimeoutMs: 30000
+      }
+    ];
+
+    await stream.streamMessages(sourceMessages, config);
+
+    expect(streamSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        mcp: {
+          servers: [expect.objectContaining({ id: 'filesystem', command: 'npx' })],
+          enabledServerIds: ['filesystem'],
+          enabledTools: [],
+          toolInstructions: ''
+        }
       })
     );
   });
