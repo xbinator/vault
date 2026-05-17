@@ -187,10 +187,22 @@ function onCodeMirrorSelectionUpdate(update: ViewUpdate) {
 
 **Level 1 — PoC 默认：重新布局，接受轻微位移**
 
-1. 维护 `collapsedPaths: Set<string>` 状态，记录当前被折叠的节点路径
-2. `useGraphLayout` 在生成 Vue Flow 节点/边时，跳过 `collapsedPaths` 中所有折叠节点的子树
-3. 折叠/展开后 dagre 重新布局，所有节点坐标重新计算
-4. 接受轻微位移，使用 `VueFlow.fitView()` 自适应视口
+1. 维护两个独立的折叠状态集合：
+   - `autoCollapsedPaths: Set<string>` — 自动折叠的节点路径（由超大文件策略写入）
+   - `userCollapsedPaths: Set<string>` — 用户手动折叠的节点路径
+   - `userExpandedPaths: Set<string>` — 用户手动展开的节点路径（覆盖自动折叠）
+2. 最终可见性判断：节点被折叠 = `(autoCollapsedPaths.has(path) || userCollapsedPaths.has(path)) && !userExpandedPaths.has(path)`
+3. `useGraphLayout` 在生成 Vue Flow 节点/边时，根据上述合并逻辑跳过折叠节点的子树
+4. 折叠/展开后 dagre 重新布局，所有节点坐标重新计算
+5. 接受轻微位移，使用 `VueFlow.fitView()` 自适应视口
+
+**自动折叠与用户操作的优先级**：
+
+自动折叠仅在以下时机重算 `autoCollapsedPaths`：
+- 首次加载（`nodeMap` 首次构建完成时）
+- 源码变更导致节点总数跨过阈值（从 ≤500 变为 >500，或反向）
+
+用户手动展开一个被自动折叠的节点时，该路径加入 `userExpandedPaths`，后续自动折叠重算不会将其重新折叠。用户手动折叠一个节点时，该路径加入 `userCollapsedPaths`。源码变更导致节点路径消失时，对应的 `userExpandedPaths` / `userCollapsedPaths` 条目自动清理。
 
 **Level 2 — 优化方案：缓存历史坐标，优先复用**
 
@@ -397,6 +409,22 @@ const editorRef = ref<EditorController | null>(null);
 // BJsonGraph 或 BEditor 都赋值给同一个 ref
 // BJsonGraph 的 defineExpose 返回 EditorController 兼容对象
 ```
+
+**类型迁移范围**：
+
+`editorRef` 类型变更后，以下消费方需同步修改参数类型：
+
+| 文件 | 现有类型 | 迁移后类型 | 说明 |
+|------|---------|-----------|------|
+| `src/views/editor/index.vue` | `Ref<BEditorPublicInstance \| null>` | `Ref<EditorController \| null>` | 页面层 ref 定义 |
+| `src/views/editor/hooks/useBindings.ts` | `editorInstance?: Ref<BEditorPublicInstance \| null>` | `editorInstance?: Ref<EditorController \| null>` | 仅使用 `undo()`/`redo()` |
+| `src/views/editor/hooks/useFileSelection.ts` | `editorInstance: Ref<BEditorPublicInstance \| null>` | `editorInstance: Ref<EditorController \| null>` | 仅使用 `selectLineRange()` |
+
+迁移原则：
+- `useBindings` 和 `useFileSelection` 只依赖 `EditorController` 的方法子集（`undo/redo` 和 `selectLineRange`），不依赖 `BEditorPublicInstance` 的任何特有方法
+- `BEditorPublicInstance` 本身就是 `Omit<EditorController, 'focusEditorAtStart' | 'scrollToAnchor' | 'getActiveAnchorId'>`，是 `EditorController` 的子集
+- 因此类型提升是安全的：`BEditorPublicInstance` 可以赋值给 `EditorController`（缺失的方法由 BEditor 内部实现补齐），`BJsonGraphPublicInstance` 继承 `EditorController` 也可以赋值
+- BEditor 组件需同步补齐 `focusEditorAtStart`、`scrollToAnchor`、`getActiveAnchorId` 三个方法的 `defineExpose`，使其完全兼容 `EditorController`
 
 **selectLineRange 适配**：
 
@@ -632,10 +660,11 @@ const context = activeDriver.createToolContext({
 - **超大 JSON 文件**：解析后先统计节点总数，若超过阈值（500），在布局前裁剪可见节点，避免首次布局卡顿。策略为 BFS 遍历，优先折叠深度 ≥ 3 的对象/数组节点：
   1. `useJsonParse` 解析完成后统计 `nodeMap.size`
   2. 若 `nodeMap.size > 500`，BFS 遍历所有节点，记录每个节点的深度
-  3. 从最深层的对象/数组节点开始加入 `collapsedPaths`，直到可见节点数 ≤ 500
+  3. 从最深层的对象/数组节点开始加入 `autoCollapsedPaths`（不是 `collapsedPaths`），直到可见节点数 ≤ 500
   4. 同深度节点按路径字母序折叠（保证折叠结果确定性）
-  5. `useGraphLayout` 仅对可见节点生成 Vue Flow 节点/边并布局
-  6. 右上角显示提示"节点过多，已自动折叠 N 个节点"
+  5. 自动折叠仅在首次加载或节点数跨过阈值时重算，不会覆盖 `userExpandedPaths` 中用户已手动展开的节点
+  6. `useGraphLayout` 根据 `(autoCollapsedPaths ∪ userCollapsedPaths) \ userExpandedPaths` 合并逻辑判断可见性
+  7. 右上角显示提示"节点过多，已自动折叠 N 个节点"
 - **解析性能**：源码变更时使用 debounce（300ms）延迟重新解析和布局，避免频繁重绘
 
 ## PoC 验证项
