@@ -255,6 +255,10 @@ function focusEditor(): void {
   editorController.value.focusEditor();
 }
 
+function focusEditorAtStart(): void {
+  editorController.value.focusEditorAtStart();
+}
+
 function getSearchState(): EditorSearchState {
   return editorController.value.getSearchState();
 }
@@ -293,6 +297,7 @@ defineExpose({
   redo,
   canUndo,
   canRedo,
+  focusEditorAtStart,
   setSearchTerm,
   findNext,
   findPrevious,
@@ -303,7 +308,13 @@ defineExpose({
   replaceSelection,
   replaceDocument,
   selectLineRange,
-  getSearchState
+  getSearchState,
+  scrollToAnchor(anchorId: string): boolean {
+    return editorController.value.scrollToAnchor(anchorId);
+  },
+  getActiveAnchorId(scrollContainer: HTMLElement, thresholdPx: number): string {
+    return editorController.value.getActiveAnchorId(scrollContainer, thresholdPx);
+  }
 });
 </script>
 

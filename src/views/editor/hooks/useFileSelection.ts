@@ -6,7 +6,7 @@
 import type { EditorFile } from '../types';
 import type { Ref } from 'vue';
 import { nextTick, watch } from 'vue';
-import type { BEditorPublicInstance } from '@/components/BEditor/types';
+import type { EditorController } from '@/components/BEditor/types';
 import { useFileSelectionIntentStore } from '@/stores/fileSelectionIntent';
 
 /**
@@ -18,7 +18,7 @@ interface UseFileSelectionOptions {
   /** editor 是否已就绪 */
   isEditorReady: Ref<boolean>;
   /** 当前 editor 对外暴露的公共实例 */
-  editorInstance: Ref<BEditorPublicInstance | null>;
+  editorInstance: Ref<Pick<EditorController, 'selectLineRange'> | null>;
 }
 
 /**
