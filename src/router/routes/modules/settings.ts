@@ -53,6 +53,12 @@ const routes: AppRouteRecordRaw[] = [
             name: 'search-tools-settings',
             component: () => import('@/views/settings/tools/search/index.vue'),
             meta: { title: '搜索' }
+          },
+          {
+            path: 'mcp',
+            name: 'mcp-tools-settings',
+            component: () => import('@/views/settings/tools/mcp/index.vue'),
+            meta: { title: 'MCP' }
           }
         ]
       },

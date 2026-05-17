@@ -16,6 +16,8 @@ const stepCountIsMock = vi.fn();
 const tavilySearchMock = vi.fn();
 const tavilyExtractMock = vi.fn();
 const tavilyExtractExecuteMock = vi.fn();
+const getMcpDiscoveryCacheMock = vi.fn();
+const executeMcpToolMock = vi.fn();
 
 vi.mock('ai', () => ({
   Output: {
@@ -61,6 +63,11 @@ vi.mock('../../electron/main/modules/ai/providers/_index.mjs', () => ({
   }
 }));
 
+vi.mock('../../electron/main/modules/ai/mcp-runtime.mjs', () => ({
+  getMcpDiscoveryCache: getMcpDiscoveryCacheMock,
+  executeMcpTool: executeMcpToolMock
+}));
+
 describe('aiService', () => {
   beforeEach(() => {
     vi.resetModules();
@@ -75,6 +82,8 @@ describe('aiService', () => {
     tavilySearchMock.mockReset();
     tavilyExtractMock.mockReset();
     tavilyExtractExecuteMock.mockReset();
+    getMcpDiscoveryCacheMock.mockReset();
+    executeMcpToolMock.mockReset();
     toolMock.mockImplementation((definition) => definition);
   });
 
@@ -291,11 +300,14 @@ describe('aiService', () => {
     tavilyExtractMock.mockReturnValue({ kind: 'tavily-extract-tool', execute: tavilyExtractExecuteMock });
     stepCountIsMock.mockReturnValue({ kind: 'stop-when-5' });
     generateTextMock.mockImplementation(async (options) => {
-      await options.tools.tavily_extract.execute({
-        url: 'https://example.com/post',
-        extractDepth: 'advanced',
-        query: 'Summarize the article'
-      }, {});
+      await options.tools.tavily_extract.execute(
+        {
+          url: 'https://example.com/post',
+          extractDepth: 'advanced',
+          query: 'Summarize the article'
+        },
+        {}
+      );
       return {
         text: 'ok',
         output: undefined,
@@ -305,11 +317,14 @@ describe('aiService', () => {
 
     await aiService.generateText(createOptions, request);
 
-    expect(tavilyExtractExecuteMock).toHaveBeenCalledWith({
-      urls: ['https://example.com/post'],
-      extractDepth: 'advanced',
-      query: 'Summarize the article'
-    }, expect.any(Object));
+    expect(tavilyExtractExecuteMock).toHaveBeenCalledWith(
+      {
+        urls: ['https://example.com/post'],
+        extractDepth: 'advanced',
+        query: 'Summarize the article'
+      },
+      expect.any(Object)
+    );
   });
 
   it('does not register Tavily server tools when disabled', async () => {
@@ -350,5 +365,88 @@ describe('aiService', () => {
 
     expect(tavilySearchMock).not.toHaveBeenCalled();
     expect(tavilyExtractMock).not.toHaveBeenCalled();
+  });
+
+  it('appends MCP tool instructions to the system prompt in AI service', async () => {
+    const { aiService } = await import('../../electron/main/modules/ai/service.mjs');
+    const createOptions: AICreateOptions = { providerType: 'openai', providerId: 'provider-1', providerName: 'OpenAI' };
+    const request: AIRequestOptions = {
+      modelId: 'model-1',
+      prompt: '列出文件',
+      system: '你是本地写作助手。',
+      mcp: {
+        servers: [],
+        enabledServerIds: ['filesystem'],
+        enabledTools: [{ serverId: 'filesystem', toolName: 'list_directory' }],
+        toolInstructions: '只读取用户当前工作区，不要访问系统目录。'
+      }
+    };
+
+    generateTextMock.mockResolvedValue({
+      text: 'ok',
+      output: undefined,
+      usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 }
+    });
+
+    await aiService.generateText(createOptions, request);
+
+    expect(generateTextMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        system: '你是本地写作助手。\n\nMCP tool usage instructions:\n只读取用户当前工作区，不要访问系统目录。'
+      })
+    );
+  });
+
+  it('registers discovered MCP tools and executes them through the local runtime', async () => {
+    const { aiService } = await import('../../electron/main/modules/ai/service.mjs');
+    const createOptions: AICreateOptions = { providerType: 'openai', providerId: 'provider-1', providerName: 'OpenAI' };
+    const server = {
+      id: 'filesystem',
+      name: 'Filesystem',
+      enabled: true,
+      transport: 'stdio' as const,
+      command: 'node',
+      args: ['server.mjs'],
+      env: {},
+      toolAllowlist: ['list_directory'],
+      connectTimeoutMs: 20000,
+      toolCallTimeoutMs: 30000
+    };
+    const request: AIRequestOptions = {
+      modelId: 'model-1',
+      prompt: '列出文件',
+      mcp: {
+        servers: [server],
+        enabledServerIds: ['filesystem'],
+        enabledTools: [],
+        toolInstructions: ''
+      }
+    };
+
+    jsonSchemaMock.mockImplementation((schema) => schema);
+    getMcpDiscoveryCacheMock.mockReturnValue({
+      serverId: 'filesystem',
+      discoveredAt: 1710000000000,
+      tools: [{ serverId: 'filesystem', toolName: 'list_directory', description: 'List files', inputSchema: { type: 'object' } }]
+    });
+    executeMcpToolMock.mockResolvedValue({ content: [{ type: 'text', text: 'README.md' }] });
+    generateTextMock.mockImplementation(async (options) => {
+      const toolName = Object.keys(options.tools)[0];
+      await options.tools[toolName].execute({ path: '.' }, {});
+      return {
+        text: 'ok',
+        output: undefined,
+        usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 }
+      };
+    });
+
+    await aiService.generateText(createOptions, request);
+
+    expect(generateTextMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tools: expect.objectContaining({})
+      })
+    );
+    expect(executeMcpToolMock).toHaveBeenCalledWith(server, 'list_directory', { path: '.' });
   });
 });

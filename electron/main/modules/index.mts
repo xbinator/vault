@@ -1,4 +1,5 @@
 import { registerAIHandlers } from './ai/ipc.mjs';
+import { registerMcpHandlers } from './ai/mcp-ipc.mjs';
 import { registerDatabaseHandlers } from './database/ipc.mjs';
 import { registerDialogHandlers } from './dialog/ipc.mjs';
 import { registerFileHandlers } from './file/ipc.mjs';
@@ -20,6 +21,7 @@ export function registerAllIpcHandlers() {
   registerStoreHandlers();
   registerShellHandlers();
   registerAIHandlers();
+  registerMcpHandlers();
   registerLoggerHandlers();
   registerLogFileHandlers();
   registerMenuHandlers();
@@ -37,6 +39,7 @@ export {
   registerStoreHandlers,
   registerShellHandlers,
   registerAIHandlers,
+  registerMcpHandlers,
   registerLoggerHandlers,
   registerPlatformShortcutHandlers,
   registerWebviewHandlers,

@@ -78,4 +78,40 @@ describe('useToolSettingsStore', () => {
     store.setTavilyApiKey('tvly-dev-key');
     expect(store.isTavilyAvailable).toBe(true);
   });
+
+  it('loads MCP defaults and derives enabled server availability', async () => {
+    const { useToolSettingsStore } = await import('@/stores/toolSettings');
+    const store = useToolSettingsStore();
+
+    expect(store.mcp.servers).toEqual([]);
+    expect(store.hasEnabledMcpServers).toBe(false);
+  });
+
+  it('updates MCP servers through normalized persistence', async () => {
+    const { useToolSettingsStore } = await import('@/stores/toolSettings');
+    const store = useToolSettingsStore();
+
+    store.addMcpServer({
+      id: 'server-1',
+      name: 'Filesystem',
+      enabled: true,
+      transport: 'stdio',
+      command: 'npx',
+      args: ['-y', '@modelcontextprotocol/server-filesystem'],
+      env: { API_KEY: 'secret' },
+      toolAllowlist: ['read_file', 'read_file', 'write_file'],
+      connectTimeoutMs: 20000,
+      toolCallTimeoutMs: 30000
+    });
+
+    expect(store.hasEnabledMcpServers).toBe(true);
+    expect(store.getMcpServerById('server-1')?.toolAllowlist).toEqual(['read_file', 'write_file']);
+
+    store.updateMcpServer('server-1', { enabled: false, toolAllowlist: ['list_directory'] });
+    expect(store.hasEnabledMcpServers).toBe(false);
+    expect(store.getMcpServerById('server-1')?.toolAllowlist).toEqual(['list_directory']);
+
+    store.removeMcpServer('server-1');
+    expect(store.mcp.servers).toEqual([]);
+  });
 });

@@ -10,9 +10,6 @@ describe('MCP normalization', () => {
     it('returns default MCP settings when mcp field is missing', () => {
       const result = normalizeToolSettings({ tavily: {} });
       expect(result.mcp.servers).toEqual([]);
-      expect(result.mcp.invocationDefaults.enabledServerIds).toEqual([]);
-      expect(result.mcp.invocationDefaults.enabledTools).toEqual([]);
-      expect(result.mcp.invocationDefaults.toolInstructions).toBe('');
     });
 
     it('returns default MCP settings when mcp is null', () => {
@@ -48,9 +45,7 @@ describe('MCP normalization', () => {
       const result = normalizeToolSettings({
         tavily: {},
         mcp: {
-          servers: [
-            { name: 'no-id', command: 'npx' }
-          ]
+          servers: [{ name: 'no-id', command: 'npx' }]
         }
       });
       expect(result.mcp.servers).toHaveLength(0);
@@ -60,9 +55,7 @@ describe('MCP normalization', () => {
       const result = normalizeToolSettings({
         tavily: {},
         mcp: {
-          servers: [
-            { id: 's1', name: '', command: 'npx' }
-          ]
+          servers: [{ id: 's1', name: '', command: 'npx' }]
         }
       });
       expect(result.mcp.servers[0].name).toBe('npx');
@@ -72,9 +65,7 @@ describe('MCP normalization', () => {
       const result = normalizeToolSettings({
         tavily: {},
         mcp: {
-          servers: [
-            { id: 's1', name: '', command: '' }
-          ]
+          servers: [{ id: 's1', name: '', command: '' }]
         }
       });
       expect(result.mcp.servers[0].name).toBe('Unnamed MCP Server');
@@ -84,9 +75,7 @@ describe('MCP normalization', () => {
       const result = normalizeToolSettings({
         tavily: {},
         mcp: {
-          servers: [
-            { id: 's1', command: 'npx' }
-          ]
+          servers: [{ id: 's1', command: 'npx' }]
         }
       });
       expect(result.mcp.servers[0].enabled).toBe(false);
@@ -96,9 +85,7 @@ describe('MCP normalization', () => {
       const result = normalizeToolSettings({
         tavily: {},
         mcp: {
-          servers: [
-            { id: 's1', command: 'npx', transport: 'http' }
-          ]
+          servers: [{ id: 's1', command: 'npx', transport: 'http' }]
         }
       });
       expect(result.mcp.servers[0].transport).toBe('stdio');
@@ -108,9 +95,7 @@ describe('MCP normalization', () => {
       const result = normalizeToolSettings({
         tavily: {},
         mcp: {
-          servers: [
-            { id: 's1', command: 'npx', args: ['-y', 123, null, '@scope/pkg'] }
-          ]
+          servers: [{ id: 's1', command: 'npx', args: ['-y', 123, null, '@scope/pkg'] }]
         }
       });
       expect(result.mcp.servers[0].args).toEqual(['-y', '@scope/pkg']);
@@ -120,9 +105,7 @@ describe('MCP normalization', () => {
       const result = normalizeToolSettings({
         tavily: {},
         mcp: {
-          servers: [
-            { id: 's1', command: 'npx', env: { API_KEY: 'secret', '': 'empty-key', 'VALID': 'yes' } }
-          ]
+          servers: [{ id: 's1', command: 'npx', env: { API_KEY: 'secret', '': 'empty-key', VALID: 'yes' } }]
         }
       });
       expect(result.mcp.servers[0].env).toEqual({ API_KEY: 'secret', VALID: 'yes' });
@@ -132,38 +115,10 @@ describe('MCP normalization', () => {
       const result = normalizeToolSettings({
         tavily: {},
         mcp: {
-          servers: [
-            { id: 's1', command: 'npx', env: { KEY: 'val', NUM: 123, BOOL: true } }
-          ]
+          servers: [{ id: 's1', command: 'npx', env: { KEY: 'val', NUM: 123, BOOL: true } }]
         }
       });
       expect(result.mcp.servers[0].env).toEqual({ KEY: 'val' });
-    });
-
-    it('defaults runtime to node22 when invalid', () => {
-      const result = normalizeToolSettings({
-        tavily: {},
-        mcp: {
-          servers: [
-            { id: 's1', command: 'npx', runtime: 'deno' }
-          ]
-        }
-      });
-      expect(result.mcp.servers[0].runtime).toBe('node22');
-    });
-
-    it('clamps sandboxTimeoutMs to valid range', () => {
-      const tooLow = normalizeToolSettings({
-        tavily: {},
-        mcp: { servers: [{ id: 's1', command: 'npx', sandboxTimeoutMs: 1000 }] }
-      });
-      expect(tooLow.mcp.servers[0].sandboxTimeoutMs).toBe(60000);
-
-      const tooHigh = normalizeToolSettings({
-        tavily: {},
-        mcp: { servers: [{ id: 's1', command: 'npx', sandboxTimeoutMs: 9999999 }] }
-      });
-      expect(tooHigh.mcp.servers[0].sandboxTimeoutMs).toBe(3600000);
     });
 
     it('clamps connectTimeoutMs to valid range', () => {
@@ -182,42 +137,27 @@ describe('MCP normalization', () => {
       expect(tooHigh.mcp.servers[0].toolCallTimeoutMs).toBe(120000);
     });
 
-    it('normalizes networkPolicy string mode', () => {
+    it('drops cloud-only MCP server fields during normalization', () => {
       const result = normalizeToolSettings({
         tavily: {},
-        mcp: { servers: [{ id: 's1', command: 'npx', networkPolicy: 'allow-all' }] }
+        mcp: {
+          servers: [
+            {
+              id: 's1',
+              command: 'npx',
+              runtime: 'node22',
+              sandboxTimeoutMs: 300000,
+              networkPolicy: 'allow-all',
+              baseSnapshotId: 'snap_123'
+            }
+          ]
+        }
       });
-      expect(result.mcp.servers[0].networkPolicy).toBe('allow-all');
-    });
 
-    it('normalizes networkPolicy object mode', () => {
-      const result = normalizeToolSettings({
-        tavily: {},
-        mcp: { servers: [{ id: 's1', command: 'npx', networkPolicy: { allow: ['api.example.com'] } }] }
-      });
-      expect(result.mcp.servers[0].networkPolicy).toEqual({ allow: ['api.example.com'] });
-    });
-
-    it('defaults networkPolicy to deny-all when invalid', () => {
-      const result = normalizeToolSettings({
-        tavily: {},
-        mcp: { servers: [{ id: 's1', command: 'npx', networkPolicy: 'invalid' }] }
-      });
-      expect(result.mcp.servers[0].networkPolicy).toBe('deny-all');
-    });
-
-    it('normalizes baseSnapshotId to string or null', () => {
-      const withId = normalizeToolSettings({
-        tavily: {},
-        mcp: { servers: [{ id: 's1', command: 'npx', baseSnapshotId: 'snap_123' }] }
-      });
-      expect(withId.mcp.servers[0].baseSnapshotId).toBe('snap_123');
-
-      const withNull = normalizeToolSettings({
-        tavily: {},
-        mcp: { servers: [{ id: 's1', command: 'npx', baseSnapshotId: null }] }
-      });
-      expect(withNull.mcp.servers[0].baseSnapshotId).toBeNull();
+      expect(result.mcp.servers[0]).not.toHaveProperty('runtime');
+      expect(result.mcp.servers[0]).not.toHaveProperty('sandboxTimeoutMs');
+      expect(result.mcp.servers[0]).not.toHaveProperty('networkPolicy');
+      expect(result.mcp.servers[0]).not.toHaveProperty('baseSnapshotId');
     });
 
     it('deduplicates toolAllowlist', () => {
@@ -234,35 +174,6 @@ describe('MCP normalization', () => {
         mcp: { servers: [{ id: 's1', command: 'npx', toolAllowlist: ['a', '', 'b', '  '] }] }
       });
       expect(result.mcp.servers[0].toolAllowlist).toEqual(['a', 'b']);
-    });
-
-    it('normalizes invocationDefaults when missing', () => {
-      const result = normalizeToolSettings({
-        tavily: {},
-        mcp: { servers: [] }
-      });
-      expect(result.mcp.invocationDefaults.enabledServerIds).toEqual([]);
-      expect(result.mcp.invocationDefaults.enabledTools).toEqual([]);
-      expect(result.mcp.invocationDefaults.toolInstructions).toBe('');
-    });
-
-    it('normalizes enabledTools selectors', () => {
-      const result = normalizeToolSettings({
-        tavily: {},
-        mcp: {
-          invocationDefaults: {
-            enabledTools: [
-              { serverId: 's1', toolName: 'tool_a' },
-              { serverId: '', toolName: 'tool_b' },
-              { serverId: 's2' },
-              null
-            ]
-          }
-        }
-      });
-      expect(result.mcp.invocationDefaults.enabledTools).toEqual([
-        { serverId: 's1', toolName: 'tool_a' }
-      ]);
     });
   });
 });

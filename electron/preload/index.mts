@@ -280,6 +280,26 @@ const electronAPI: ElectronAPI = {
    */
   aiStreamAbort: (requestId) => ipcRenderer.invoke('ai:stream:abort', requestId),
 
+  // ==================== MCP runtime 操作 ====================
+
+  /**
+   * 查询 MCP server 运行态状态
+   * @param serverIds server ID 列表
+   */
+  getMcpStatus: (serverIds) => ipcRenderer.invoke('tools:mcp:get-status', serverIds),
+
+  /**
+   * 读取 MCP discovery cache
+   * @param serverId 可选 server ID
+   */
+  getMcpDiscoveryCache: (serverId) => ipcRenderer.invoke('tools:mcp:get-discovery-cache', serverId),
+
+  /**
+   * 刷新 MCP discovery
+   * @param server MCP server 配置
+   */
+  refreshMcpDiscovery: (server) => ipcRenderer.invoke('tools:mcp:refresh-discovery', server),
+
   // ==================== AI 流式事件监听 ====================
   onAiStreamText: (callback) => {
     const handler = (_event: Electron.IpcRendererEvent, text: string) => callback(text);

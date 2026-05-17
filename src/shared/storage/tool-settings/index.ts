@@ -15,13 +15,9 @@ export type {
   TavilyToolSettings,
   ToolSettingsState,
   MCPTransportType,
-  MCPSandboxRuntime,
-  MCPSandboxNetworkPolicyString,
-  MCPSandboxNetworkPolicyObject,
-  MCPSandboxNetworkPolicy,
   MCPServerConfig,
   MCPToolSelector,
-  MCPInvocationDefaults,
+  AIMCPRequestConfig,
   MCPToolSettings,
   MCPDiscoveredToolSnapshot,
   MCPServerDiscoveryCache
@@ -32,13 +28,9 @@ export {
   TOOL_SETTINGS_STORAGE_KEY,
   DEFAULT_MCP_CONNECT_TIMEOUT_MS,
   DEFAULT_MCP_TOOL_CALL_TIMEOUT_MS,
-  DEFAULT_MCP_SANDBOX_TIMEOUT_MS,
-  MIN_SANDBOX_TIMEOUT_MS,
-  MAX_SANDBOX_TIMEOUT_MS,
   MIN_CONNECT_TIMEOUT_MS,
   MAX_CONNECT_TIMEOUT_MS,
   MIN_TOOL_CALL_TIMEOUT_MS,
   MAX_TOOL_CALL_TIMEOUT_MS,
-  VALID_SANDBOX_RUNTIMES,
   DEFAULT_MCP_TOOL_SETTINGS
 } from './types';

@@ -7,6 +7,7 @@ import type { CachedModelMessagesResult } from '../utils/messageHelper';
 import type { Message, ServiceConfig, ToolLoopGuardConfig } from '../utils/types';
 import type { ModelMessage } from 'ai';
 import type {
+  AIMCPRequestConfig,
   AIToolExecutor,
   AIToolContext,
   AIServiceError,
@@ -496,6 +497,26 @@ export function useChatStream(options: UseChatStreamOptions): UseChatStreamRetur
   }
 
   /**
+   * 根据已启用的 MCP server 生成主进程请求配置。
+   * @returns 发往主进程的 MCP 请求配置
+   */
+  function resolveMcpRequestConfig(): AIMCPRequestConfig {
+    const servers = toolSettingsStore.mcp.servers.map((server) => ({
+      ...server,
+      args: [...server.args],
+      env: { ...server.env },
+      toolAllowlist: [...server.toolAllowlist]
+    }));
+
+    return {
+      servers,
+      enabledServerIds: servers.filter((server) => server.enabled && server.command.trim().length > 0).map((server) => server.id),
+      enabledTools: [],
+      toolInstructions: ''
+    };
+  }
+
+  /**
    * 流式传输消息
    */
   async function handleStreamMessages(sourceMessages: Message[], config: ServiceConfig, reuseLastAssistant = false): Promise<void> {
@@ -520,7 +541,8 @@ export function useChatStream(options: UseChatStreamOptions): UseChatStreamRetur
       modelId: config.modelId,
       providerId: config.providerId,
       tools: transportTools,
-      tavily: toolSettingsStore.tavily
+      tavily: toolSettingsStore.tavily,
+      mcp: resolveMcpRequestConfig()
     });
   }
 
