@@ -152,7 +152,12 @@ g.setGraph({ rankdir: 'LR', nodesep: 40, ranksep: 80 });
 1. CodeMirror `updateListener` 监听选区变化
 2. 检查 `syncOrigin` 标记：如果当前选区变更来源是 `'graph'`（节点图点击触发），跳过反向定位，避免循环
 3. 根据偏移量在解析树中查找对应节点 ID
-4. Vue Flow 设置该节点为选中状态 + `fitView({ nodes: [targetNode], padding: 0.2 })` 聚焦
+4. Vue Flow 设置该节点为选中状态
+5. **fitView 触发策略**：仅在以下场景触发 `fitView`，避免频繁重置视口导致抖动：
+   - 首次加载（`onMounted` 或首次解析成功时）
+   - 用户显式点击"定位当前节点"按钮
+   - 目标节点完全不在当前视口内时（通过 `getNodesInViewport` 判断）
+   - 普通光标移动仅高亮节点，不触发 `fitView`
 
 **防循环机制**：
 
@@ -289,11 +294,57 @@ interface DocumentStructureSummary {
 }
 ```
 
-**生命周期安全**：
+**生命周期与注册归属**：
+
+AI 上下文的注册/注销由**页面层**（`src/views/editor/index.vue`）统一管理，与 keep-alive 的 `activated/deactivated` 生命周期绑定。BJsonGraph 组件**不自行注册/注销** `editorToolContextRegistry`，仅通过 `defineExpose` 暴露 `structured` 数据供页面层拼装。
+
+原因：当前上下文生命周期由页面层统一管理，和 keep-alive 的 `activated/deactivated` 绑定在一起；如果内部组件也接管注册，容易出现重复注册、切换组件时把当前活动上下文误删、`activeEditorId` 漂移等问题。
+
+页面层注册示例：
+
+```typescript
+// src/views/editor/index.vue
+const jsonGraphRef = ref<InstanceType<typeof BJsonGraph> | null>(null);
+
+function registerEditorContext(): void {
+  const documentId = fileState.value.id;
+  if (!isActive.value || !documentId) return;
+
+  const editorInstance = fileState.value.ext === 'json'
+    ? jsonGraphRef.value
+    : editorRef.value;
+
+  if (!editorInstance) return;
+
+  editorToolContextRegistry.register(documentId, {
+    document: { id, title, path, locator, getContent: () => fileState.value.content },
+    editor: {
+      getSelection: () => editorInstance.getSelection(),
+      insertAtCursor: (content) => editorInstance.insertAtCursor(content),
+      replaceSelection: (content) => editorInstance.replaceSelection(content),
+      replaceDocument: (content) => editorInstance.replaceDocument(content),
+    },
+    // JSON 模式时拼装 structured 字段
+    ...(fileState.value.ext === 'json' && jsonGraphRef.value
+      ? {
+          structured: {
+            documentType: 'json',
+            getCurrentPath: () => jsonGraphRef.value?.getCurrentPath() ?? null,
+            getCurrentNodeType: () => jsonGraphRef.value?.getCurrentNodeType() ?? null,
+            getValueAtPath: (path: string) => jsonGraphRef.value?.getValueAtPath(path) ?? undefined,
+            getStructureSummary: () => jsonGraphRef.value?.getStructureSummary() ?? defaultSummary,
+          }
+        }
+      : {}),
+  });
+}
+```
+
+BJsonGraph 组件通过 `defineExpose` 暴露 `structured` 相关方法，不直接操作 `editorToolContextRegistry`。
 
 `StructuredDocumentContext` 的方法可能被 AI 工具在组件卸载后调用，产生悬空引用。防护措施：
 
-1. BJsonGraph 组件 `onUnmounted` 时调用 `editorToolContextRegistry.unregister(documentId)` 清除注册
+1. 页面层 `onBeforeUnmount` 时调用 `editorToolContextRegistry.unregister(documentId)` 清除注册
 2. 每个方法内部增加防御性检查：引用的 `jsonGraphRef` 为空时返回 `null` / 默认值
 3. `editorToolContextRegistry.unregister` 实现中确保清除对应 documentId 的全部上下文（含 `structured`）
 
@@ -306,29 +357,56 @@ interface DocumentStructureSummary {
 3. 源码变更 debounce 触发重新解析时，更新 `parsedValue` 缓存
 4. JSON 语法错误时 `parsedValue` 为 `null`，`getValueAtPath` 返回 `undefined`
 
-```typescript
-// 注册示例（含防御性检查）
-editorToolContextRegistry.register(documentId, {
-  document: { id, title, path, locator, getContent: () => fileState.value.content },
-  editor: { getSelection, insertAtCursor, replaceSelection, replaceDocument },
-  structured: {
-    documentType: 'json',
-    getCurrentPath: () => jsonGraphRef.value?.getCurrentPath() ?? null,
-    getCurrentNodeType: () => jsonGraphRef.value?.getCurrentNodeType() ?? null,
-    getValueAtPath: (path) => jsonGraphRef.value?.getValueAtPath(path) ?? undefined,
-    getStructureSummary: () => jsonGraphRef.value?.getStructureSummary() ?? defaultSummary
-  }
-});
-
-// 注销示例
-onUnmounted(() => {
-  editorToolContextRegistry.unregister(documentId);
-});
-```
-
 BEditor 注册时无 `structured` 字段，现有逻辑不变。
 
-### 7. Vue Flow 交互边界
+### 7. 编辑器公共协议
+
+BJsonGraph 必须实现与 BEditor 相同的 `EditorController` 接口，确保页面层（`useBindings`、`useFileSelection`、`registerEditorContext`）在 JSON 模式下无需区分编辑器类型。
+
+**接口映射**：
+
+| EditorController 方法 | BJsonGraph 实现 | 说明 |
+|----------------------|----------------|------|
+| `undo()` | 委托 CodeMirror `undo()` | |
+| `redo()` | 委托 CodeMirror `redo()` | |
+| `canUndo()` | 委托 CodeMirror `history` facet | |
+| `canRedo()` | 委托 CodeMirror `history` facet | |
+| `focusEditor()` | 委托 CodeMirror `focus()` | |
+| `focusEditorAtStart()` | 委托 CodeMirror `dispatch({ selection: { anchor: 0 } })` | |
+| `setSearchTerm(term)` | 委托 CodeMirror `openSearchPanel` | |
+| `findNext()` | 委托 CodeMirror `search` 扩展 | |
+| `findPrevious()` | 委托 CodeMirror `search` 扩展 | |
+| `clearSearch()` | 委托 CodeMirror `closeSearchPanel` | |
+| `getSelection()` | 委托 CodeMirror `state.selection.main` | |
+| `insertAtCursor(content)` | 委托 CodeMirror `dispatch` | |
+| `replaceSelection(content)` | 委托 CodeMirror `dispatch` | |
+| `replaceDocument(content)` | 委托 CodeMirror `dispatch` | |
+| `selectLineRange(start, end)` | 将行号转换为偏移量后 `dispatch` | JSON 模式下按行选中 |
+| `getSearchState()` | 从 CodeMirror search 扩展读取 | |
+| `scrollToAnchor(anchorId)` | 返回 `false` | JSON 无锚点 |
+| `getActiveAnchorId()` | 返回 `''` | JSON 无锚点 |
+
+**实现方式**：
+
+BJsonGraph 的 `defineExpose` 暴露完整的 `EditorController` 接口，内部委托给 `JsonSourceEditor` 的 CodeMirror 实例。页面层将 `editorRef` 的类型从 `BEditorPublicInstance` 改为 `EditorController`，通过条件渲染赋值：
+
+```typescript
+// src/views/editor/index.vue
+const editorRef = ref<EditorController | null>(null);
+
+// BJsonGraph 或 BEditor 都赋值给同一个 ref
+// BJsonGraph 的 defineExpose 返回 EditorController 兼容对象
+```
+
+**selectLineRange 适配**：
+
+`useFileSelection` 调用 `selectLineRange(startLine, endLine)` 定位到指定行范围。BJsonGraph 需要将行号转换为字符偏移量：
+
+1. 通过 `editorView.state.doc.line(startLine).from` 获取起始偏移
+2. 通过 `editorView.state.doc.line(endLine).to` 获取结束偏移
+3. `dispatch({ selection: { anchor: from, head: to } })` + `scrollIntoView`
+
+### 8. Vue Flow 交互边界
 
 右侧节点图为只读查看模式，Vue Flow 的交互配置如下：
 
@@ -375,8 +453,8 @@ BJsonGraph 左侧 CodeMirror 编辑器需要将编辑内容同步回 `fileState.
 
 1. CodeMirror `updateListener` 监听文档变更
 2. 变更时将 `editor.state.doc.toString()` 同步到 `fileState.content`（通过 `v-model:value` 的 `update:value` 事件）
-3. dirty state 判断复用编辑器页面现有逻辑（`fileState.content !== fileState.savedContent`）
-4. 保存流程不变：`Ctrl+S` → `electronAPI.writeFile` → 更新 `savedContent`
+3. dirty state 判断复用 `useSession/useFileState` 的 `savedContent` 基线（`fileState.content !== savedContent`），**不直接读取 `fileState.savedContent`**（该字段不存在于 `EditorFile` 上，`savedContent` 由 `useFileState` 内部维护）
+4. 保存流程不变：`Ctrl+S` → `useSession.onSave` → `native.writeFile` → `fileStateActions.markCurrentContentSaved()` → 更新 `savedContent` 基线
 
 ### 9. 样式与主题适配
 
