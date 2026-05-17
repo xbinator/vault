@@ -34,11 +34,11 @@
 
 <script setup lang="ts">
 /**
- * @file JsonNodeGraph.vue
+ * @file NodeGraph.vue
  * @description JSON 节点图渲染组件。
  */
 
-import type { JsonFlowNodeData } from './hooks/useGraphLayout';
+import type { JsonFlowNodeData } from '../hooks/useGraphLayout';
 import type { Edge, Node, NodeTypesObject } from '@vue-flow/core';
 import { computed, markRaw } from 'vue';
 import { Background } from '@vue-flow/background';
@@ -47,9 +47,9 @@ import { VueFlow } from '@vue-flow/core';
 import { MiniMap } from '@vue-flow/minimap';
 import '@vue-flow/core/dist/style.css';
 import '@vue-flow/core/dist/theme-default.css';
-import ArrayNode from './nodes/ArrayNode.vue';
-import ObjectNode from './nodes/ObjectNode.vue';
-import ValueNode from './nodes/ValueNode.vue';
+import ArrayNode from '../nodes/ArrayNode.vue';
+import ObjectNode from '../nodes/ObjectNode.vue';
+import ValueNode from '../nodes/ValueNode.vue';
 
 interface Props {
   /** 节点列表。 */

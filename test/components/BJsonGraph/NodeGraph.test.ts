@@ -1,6 +1,6 @@
 /**
- * @file JsonNodeGraph.test.ts
- * @description JsonNodeGraph 根节点映射测试。
+ * @file NodeGraph.test.ts
+ * @description NodeGraph 根节点映射测试。
  * @vitest-environment jsdom
  */
 
@@ -8,12 +8,12 @@ import type { Edge, Node } from '@vue-flow/core';
 import { defineComponent, h } from 'vue';
 import { mount } from '@vue/test-utils';
 import { describe, expect, it, vi } from 'vitest';
+import NodeGraph from '@/components/BJsonGraph/components/NodeGraph.vue';
 import type { JsonFlowNodeData } from '@/components/BJsonGraph/hooks/useGraphLayout';
-import JsonNodeGraph from '@/components/BJsonGraph/JsonNodeGraph.vue';
 
 const vueFlowPropsSpy = vi.hoisted(() => vi.fn());
 
-describe('JsonNodeGraph', () => {
+describe('NodeGraph', () => {
   it('remaps root node and root edges to the internal vue-flow id', () => {
     const nodes: Node<JsonFlowNodeData>[] = [
       {
@@ -43,7 +43,7 @@ describe('JsonNodeGraph', () => {
       }
     ];
 
-    mount(JsonNodeGraph, {
+    mount(NodeGraph, {
       props: {
         nodes,
         edges,

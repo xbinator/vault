@@ -1,14 +1,14 @@
 /**
- * @file JsonSourceEditor.test.ts
- * @description JsonSourceEditor 事件行为测试。
+ * @file SourceEditor.test.ts
+ * @description SourceEditor 事件行为测试。
  * @vitest-environment jsdom
  */
 
 import { mount } from '@vue/test-utils';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import JsonSourceEditor from '@/components/BJsonGraph/JsonSourceEditor.vue';
+import SourceEditor from '@/components/BJsonGraph/components/SourceEditor.vue';
 
-describe('JsonSourceEditor', () => {
+describe('SourceEditor', () => {
   beforeEach(() => {
     Object.defineProperty(Range.prototype, 'getClientRects', {
       configurable: true,
@@ -27,7 +27,7 @@ describe('JsonSourceEditor', () => {
   });
 
   it('emits update:value once for a document replacement', async () => {
-    const wrapper = mount(JsonSourceEditor, {
+    const wrapper = mount(SourceEditor, {
       props: {
         value: '{"a":1}'
       }

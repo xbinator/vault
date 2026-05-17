@@ -35,11 +35,11 @@ import type { BJsonGraphPublicInstance } from './types';
 import { computed, ref, watch } from 'vue';
 import type { EditorController } from '@/components/BEditor/adapters/types';
 import type { EditorState } from '@/components/BEditor/types';
+import JsonNodeGraph from './components/NodeGraph.vue';
+import JsonSourceEditor from './components/SourceEditor.vue';
 import { buildJsonGraphLayout, createJsonGraphState } from './hooks/useGraphLayout';
 import { parseJsonDocument } from './hooks/useJsonParse';
 import { createSourceSync } from './hooks/useSourceSync';
-import JsonNodeGraph from './JsonNodeGraph.vue';
-import JsonSourceEditor from './JsonSourceEditor.vue';
 
 interface Props {
   /** 是否可编辑。 */

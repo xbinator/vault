@@ -6,7 +6,7 @@
 
 <script setup lang="ts">
 /**
- * @file JsonSourceEditor.vue
+ * @file SourceEditor.vue
  * @description JSON 源码编辑器，提供 EditorController 所需能力。
  */
 
