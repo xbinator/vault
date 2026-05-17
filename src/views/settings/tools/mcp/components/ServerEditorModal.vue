@@ -98,22 +98,35 @@ function createEditorExtensions(): Extension[] {
     EditorView.contentAttributes.of({ spellcheck: 'false', 'aria-label': 'MCP Server JSON Editor' }),
     EditorView.theme({
       '&': {
-        height: '320px',
-        fontSize: '12px',
-        border: '1px solid var(--border-tertiary)',
-        borderRadius: '8px',
-        backgroundColor: 'var(--bg-primary)'
+        minHeight: '320px',
+        fontSize: '12px'
       },
       '.cm-scroller': {
+        minHeight: '320px',
         overflow: 'auto',
-        fontFamily: 'var(--font-family-mono, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace)'
+        fontFamily: 'var(--font-family-mono, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace)',
+        lineHeight: '1.6'
       },
       '.cm-content': {
-        minHeight: '320px',
-        padding: '12px 0'
+        padding: '12px 0',
+        caretColor: 'var(--text-primary)'
+      },
+      '.cm-line': {
+        padding: '0'
       },
       '.cm-focused': {
         outline: 'none'
+      },
+      '.cm-cursor': {
+        borderLeft: '1.2px solid var(--color-primary, #4080ff)',
+        marginLeft: '-0.6px',
+        pointerEvents: 'none',
+        position: 'relative',
+        height: '1.2em'
+      },
+      '.cm-placeholder': {
+        color: 'var(--text-placeholder)',
+        fontStyle: 'normal'
       },
       '.cm-gutters': {
         borderTopLeftRadius: '8px',
@@ -235,7 +248,51 @@ watch(
 }
 
 .server-editor-modal__editor {
+  position: relative;
   min-height: 320px;
+  padding: 1px;
+  overflow: hidden;
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
+  border-radius: 6px;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.server-editor-modal__editor:hover {
+  border-color: var(--border-hover);
+}
+
+.server-editor-modal__editor:focus-within {
+  border-color: var(--input-focus-border);
+  box-shadow: 0 0 0 2px var(--input-focus-shadow);
+}
+
+.server-editor-modal__editor :deep(.cm-editor) {
+  min-height: 320px;
+  background: var(--input-bg);
+  outline: none;
+}
+
+.server-editor-modal__editor :deep(.cm-scroller) {
+  font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+}
+
+.server-editor-modal__editor :deep(.cm-gutters) {
+  color: var(--text-tertiary);
+  background: transparent;
+  border-right: 1px solid var(--border-secondary);
+}
+
+.server-editor-modal__editor :deep(.cm-content) {
+  padding: 12px 0;
+}
+
+.server-editor-modal__editor :deep(.cm-line) {
+  white-space: pre-wrap;
+}
+
+.server-editor-modal__editor :deep(.cm-focused) {
+  outline: none;
 }
 
 .server-editor-modal__error {
