@@ -22,6 +22,11 @@ const clearMissingMock = vi.fn();
 const isMissingMock = vi.fn();
 
 /**
+ * 模拟添加标签页。
+ */
+const addTabMock = vi.fn();
+
+/**
  * 模拟路由跳转。
  */
 const pushMock = vi.fn();
@@ -120,7 +125,7 @@ vi.mock('@/stores/files', () => ({
 
 vi.mock('@/stores/tabs', () => ({
   useTabsStore: () => ({
-    addTab: vi.fn(),
+    addTab: addTabMock,
     removeTab: vi.fn(),
     markMissing: markMissingMock,
     clearMissing: clearMissingMock,
@@ -167,6 +172,7 @@ vi.mock('@/views/editor/hooks/useFileWatcher', () => ({
 
 describe('useSession external file deletion', () => {
   beforeEach(() => {
+    addTabMock.mockReset();
     markMissingMock.mockClear();
     clearMissingMock.mockClear();
     isMissingMock.mockReset();
@@ -199,6 +205,22 @@ describe('useSession external file deletion', () => {
 
     expect(registerWatchMock).toHaveBeenCalledWith('doc_1', '/tmp/note.md');
     expect(pushMock).not.toHaveBeenCalled();
+  });
+
+  it('uses the file name with extension as the tab title when loading a file', async () => {
+    const { useSession } = await import('@/views/editor/hooks/useSession');
+
+    useSession(ref('doc_1'));
+
+    await nextTick();
+    await flushAsyncTasks();
+
+    expect(addTabMock).toHaveBeenCalledWith({
+      id: 'doc_1',
+      path: '/editor/doc_1',
+      title: 'note.md',
+      cacheKey: 'editor:doc_1'
+    });
   });
 
   it('restores the deleted file at its original path when saving a missing tab', async () => {

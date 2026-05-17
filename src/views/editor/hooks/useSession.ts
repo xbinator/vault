@@ -23,6 +23,26 @@ type ViewMode = 'rich' | 'source';
 
 const nanoid = customAlphabet('0123456789abcdefghijklmnopqrstuvwxyz_', 8);
 
+/**
+ * 计算编辑器标签页展示标题，优先展示“文件名.扩展名”。
+ * @param file - 当前文件状态
+ * @returns 用于标签页展示的标题
+ */
+function resolveSessionTitle(file: EditorFile): string {
+  const normalizedName = file.name.trim();
+  const normalizedExt = file.ext.trim();
+
+  if (normalizedName && normalizedExt) {
+    return `${normalizedName}.${normalizedExt}`;
+  }
+
+  if (normalizedName) {
+    return normalizedName;
+  }
+
+  return normalizedExt ? `Untitled.${normalizedExt}` : 'Untitled';
+}
+
 export function useSession(fileId: Ref<string>) {
   const route = useRoute();
   const router = useRouter();
@@ -42,7 +62,7 @@ export function useSession(fileId: Ref<string>) {
 
   const autoSave = useAutoSave(fileState);
 
-  const currentTitle = computed(() => fileState.value.name || 'Untitled');
+  const currentTitle = computed(() => resolveSessionTitle(fileState.value));
   // 文件状态相关的存储同步、保存收尾和外部文件回填都收口到这里，useSession 只做流程编排。
   const fileStateActions = useFileState({
     fileId,
@@ -443,7 +463,7 @@ export function useSession(fileId: Ref<string>) {
 
   watch(fileId, () => loadFileState(), { immediate: true });
 
-  watch([fileId, () => fileState.value.name], updateTab);
+  watch([fileId, () => fileState.value.name, () => fileState.value.ext], updateTab);
 
   watch(
     () => fileState.value.content,
