@@ -2,7 +2,7 @@ import type { EditorFile } from '../types';
 import type { Ref } from 'vue';
 import { onUnmounted } from 'vue';
 import { marked } from 'marked';
-import type { BEditorPublicInstance } from '@/components/BEditor/types';
+import type { EditorController } from '@/components/BEditor/types';
 import { useClipboard } from '@/hooks/useClipboard';
 import { emitter } from '@/utils/emitter';
 
@@ -22,7 +22,7 @@ interface UseBindingsOptions {
     // 复制文件
     onDuplicate: () => Promise<void>;
   };
-  editorInstance?: Ref<BEditorPublicInstance | null>;
+  editorInstance?: Ref<Pick<EditorController, 'undo' | 'redo'> | null>;
 }
 
 export function useBindings(fileId: Ref<string>, options: UseBindingsOptions) {

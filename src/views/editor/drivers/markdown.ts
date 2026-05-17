@@ -1,0 +1,60 @@
+/**
+ * @file markdown.ts
+ * @description Markdown 编辑器驱动。
+ */
+
+import type { EditorDriver } from './types';
+import type { AIToolContext } from 'types/ai';
+import BEditor from '@/components/BEditor/index.vue';
+import type { EditorController } from '@/components/BEditor/types';
+import { buildUnsavedPath } from '@/utils/fileReference/unsavedPath';
+
+/**
+ * 创建通用文档上下文。
+ * @param fileState - 当前文件
+ * @param editorInstance - 编辑器实例
+ * @returns 工具上下文
+ */
+export function createBaseToolContext(
+  fileState: Parameters<EditorDriver['createToolContext']>[0]['fileState'],
+  editorInstance: EditorController | Record<string, unknown> | null
+): AIToolContext {
+  const safeEditor = editorInstance as EditorController | null;
+
+  return {
+    document: {
+      id: fileState.id,
+      title: fileState.name,
+      path: fileState.path,
+      locator: fileState.path ?? buildUnsavedPath({ id: fileState.id, fileName: `${fileState.name}.${fileState.ext}` }),
+      getContent: () => fileState.content
+    },
+    editor: {
+      getSelection: () => safeEditor?.getSelection() ?? null,
+      insertAtCursor: async (content: string): Promise<void> => safeEditor?.insertAtCursor(content),
+      replaceSelection: async (content: string): Promise<void> => safeEditor?.replaceSelection(content),
+      replaceDocument: async (content: string): Promise<void> => safeEditor?.replaceDocument(content)
+    }
+  };
+}
+
+/**
+ * Markdown 驱动。
+ */
+export const markdownDriver: EditorDriver = {
+  id: 'markdown',
+  match(file): boolean {
+    return !file.ext || file.ext === 'md';
+  },
+  component: BEditor,
+  createToolContext({ fileState, editorInstance }) {
+    return createBaseToolContext(fileState, editorInstance);
+  },
+  toolbar: {
+    showViewModeToggle: true,
+    showOutlineToggle: true,
+    showStructuredViewToggle: false,
+    showSearch: true
+  },
+  supportsOutline: true
+};

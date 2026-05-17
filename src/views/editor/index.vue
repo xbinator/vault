@@ -2,12 +2,13 @@
   <div class="editor-layout editor-content">
     <div class="editor-main-container">
       <div class="editor-content-wrapper">
-        <BEditor
+        <component
+          :is="activeDriver.component"
           ref="editorRef"
           :key="fileState.id"
           v-model:value="fileState"
           :view-mode="editorPreferencesStore.viewMode"
-          :show-outline="editorPreferencesStore.showOutline"
+          :show-outline="activeDriver.supportsOutline ? editorPreferencesStore.showOutline : false"
           @editor-blur="actions.onEditorBlur"
           @rename-file="actions.onRename"
           @save="actions.onSave"
@@ -26,10 +27,9 @@
 import { computed, onActivated, onBeforeUnmount, onDeactivated, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { editorToolContextRegistry } from '@/ai/tools/editor-context';
-import BEditor from '@/components/BEditor/index.vue';
-import type { BEditorPublicInstance } from '@/components/BEditor/types';
+import type { EditorController } from '@/components/BEditor/types';
 import { useEditorPreferencesStore } from '@/stores/editorPreferences';
-import { buildUnsavedPath } from '@/utils/fileReference/unsavedPath';
+import { resolveEditorDriver } from './drivers';
 import { useBindings } from './hooks/useBindings';
 import { useFileSelection } from './hooks/useFileSelection';
 import { useSession } from './hooks/useSession';
@@ -41,9 +41,10 @@ const fileId = ref(String(route.params.id || ''));
 
 const { fileState, actions } = useSession(fileId);
 
-const editorRef = ref<BEditorPublicInstance | null>(null);
+const editorRef = ref<EditorController | null>(null);
 const isActive = ref(true);
 const isEditorReady = computed<boolean>(() => editorRef.value !== null);
+const activeDriver = computed(() => resolveEditorDriver(fileState.value));
 
 useBindings(fileId, { fileState, actions, editorInstance: editorRef });
 useFileSelection({
@@ -73,24 +74,20 @@ function registerEditorContext(): void {
     return;
   }
 
-  editorToolContextRegistry.register(documentId, {
-    document: {
-      id: documentId,
-      title: fileState.value.name,
-      path: fileState.value.path,
-      locator: fileState.value.path ?? buildUnsavedPath({ id: documentId, fileName: `${fileState.value.name}.${fileState.value.ext}` }),
-      getContent: () => fileState.value.content
-    },
-    editor: {
-      getSelection: () => editorInstance.getSelection(),
-      insertAtCursor: (content: string) => editorInstance.insertAtCursor(content),
-      replaceSelection: (content: string) => editorInstance.replaceSelection(content),
-      replaceDocument: (content: string) => editorInstance.replaceDocument(content)
-    }
-  });
+  editorToolContextRegistry.register(
+    documentId,
+    activeDriver.value.createToolContext({
+      fileState: fileState.value,
+      editorInstance,
+      isActive: isActive.value
+    })
+  );
 }
 
-watch([editorRef, () => fileState.value.id], registerEditorContext);
+watch(
+  [editorRef, () => fileState.value.id, () => fileState.value.name, () => fileState.value.path, () => fileState.value.ext, activeDriver],
+  registerEditorContext
+);
 
 onActivated(() => {
   isActive.value = true;
