@@ -6,16 +6,24 @@
 
 import { nextTick } from 'vue';
 import { mount, type VueWrapper } from '@vue/test-utils';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { BEditorPublicInstance, EditorSearchState } from '@/components/BEditor/adapters/types';
 import FindBar from '@/components/BEditor/components/FindBar.vue';
+import { EditorShortcuts } from '@/constants/shortcuts';
+
+/**
+ * 捕获 registerShortcut 调用，以便在测试中直接触发快捷键 handler。
+ */
+const capturedShortcutHandlers: Map<string, () => void> = new Map();
 
 /**
  * 快捷键 hook mock，避免测试依赖全局注册行为。
  */
 vi.mock('@/hooks/useShortcuts', () => ({
   useShortcuts: () => ({
-    registerShortcut: vi.fn()
+    registerShortcut: vi.fn((options: { key: string; handler: () => void }) => {
+      capturedShortcutHandlers.set(options.key, options.handler);
+    })
   })
 }));
 
@@ -133,6 +141,10 @@ function mountFindBar(editorInstance: BEditorPublicInstance): VueWrapper<Instanc
 }
 
 describe('FindBar', () => {
+  beforeEach(() => {
+    capturedShortcutHandlers.clear();
+  });
+
   it('re-applies the current keyword after the editor instance changes so Enter keeps working', async () => {
     const firstEditorInstance = createEditorInstance();
     const wrapper = mountFindBar(firstEditorInstance);
@@ -175,5 +187,59 @@ describe('FindBar', () => {
     expect(secondEditorInstance.setSearchTerm).toHaveBeenCalledWith('hello');
     expect(secondEditorInstance.findNext).toHaveBeenCalledTimes(1);
     expect(wrapper.find('.b-editor-findbar__result').text()).toBe('2/2');
+  });
+
+  describe('Ctrl+F with selected text', () => {
+    it('pre-fills the keyword with the selected text when Ctrl+F is triggered', async () => {
+      const editorInstance = createEditorInstance();
+      (editorInstance.getSelection as ReturnType<typeof vi.fn>).mockReturnValue({
+        from: 0,
+        to: 5,
+        text: 'hello'
+      });
+
+      mount(FindBar, {
+        props: {
+          visible: false,
+          editorInstance
+        },
+        global: {
+          stubs: {
+            Icon: { template: '<i class="icon-stub"></i>' }
+          }
+        }
+      });
+
+      const handler = capturedShortcutHandlers.get(EditorShortcuts.EDIT_FIND);
+      expect(handler).toBeDefined();
+
+      handler!();
+      await nextTick();
+
+      expect(editorInstance.setSearchTerm).toHaveBeenCalledWith('hello');
+    });
+
+    it('does not overwrite the keyword when there is no selection', async () => {
+      const editorInstance = createEditorInstance();
+      (editorInstance.getSelection as ReturnType<typeof vi.fn>).mockReturnValue(null);
+
+      mount(FindBar, {
+        props: {
+          visible: false,
+          editorInstance
+        },
+        global: {
+          stubs: {
+            Icon: { template: '<i class="icon-stub"></i>' }
+          }
+        }
+      });
+
+      const handler = capturedShortcutHandlers.get(EditorShortcuts.EDIT_FIND);
+      handler!();
+      await nextTick();
+
+      expect(editorInstance.setSearchTerm).not.toHaveBeenCalled();
+    });
   });
 });
