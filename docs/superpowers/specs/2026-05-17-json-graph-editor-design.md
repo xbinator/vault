@@ -513,6 +513,119 @@ json-source-map                 — JSON 源码位置映射
 
 `@vue-flow/minimap` 和 `@vue-flow/controls` 体积较大，使用 `defineAsyncComponent` 懒加载，减少初始 bundle 体积。
 
+## 可维护性与扩展性
+
+为避免 `src/views/editor/index.vue` 随文件类型增加而不断膨胀，本次设计将编辑器页面定位为**壳层（shell）**，具体文件类型能力通过“编辑器驱动注册表”扩展。
+
+### 1. 编辑器驱动接口
+
+新增 `EditorDriver` 概念，每种文件类型对应一个驱动对象，负责声明“何时匹配、渲染什么组件、提供哪些页面能力”：
+
+```typescript
+interface EditorDriver {
+  /** 驱动唯一标识 */
+  id: string;
+  /** 是否匹配当前文件 */
+  match: (file: EditorFile) => boolean;
+  /** 要渲染的编辑器组件 */
+  component: Component;
+  /** 生成页面层工具上下文 */
+  createToolContext: (input: CreateToolContextInput) => AIToolContext;
+  /** 工具栏能力配置 */
+  toolbar: EditorToolbarConfig;
+  /** 是否显示大纲 */
+  supportsOutline: boolean;
+}
+```
+
+其中：
+- `markdownDriver` 负责 `.md` 文件，渲染 `BEditor`
+- `jsonDriver` 负责 `.json` 文件，渲染 `BJsonGraph`
+- 后续新增 `yamlDriver`、`csvDriver`、`tomlDriver` 时，仅新增驱动模块，不在页面层继续堆 `if/else`
+
+### 2. 驱动注册表
+
+在 `src/views/editor/drivers/` 下维护驱动注册表：
+
+```
+src/views/editor/drivers/
+├── index.ts              # 导出 drivers 列表与 resolveEditorDriver()
+├── markdown.ts           # Markdown 驱动
+├── json.ts               # JSON 驱动
+└── types.ts              # EditorDriver / toolbar 配置类型
+```
+
+`resolveEditorDriver(fileState)` 按顺序查找首个匹配驱动，未命中时回退到 `markdownDriver` 的源码模式或 `plainTextDriver`。
+
+### 3. 页面层职责收敛
+
+`src/views/editor/index.vue` 只保留以下职责：
+
+1. 读取 `fileState`
+2. 调用 `resolveEditorDriver(fileState)` 获取当前驱动
+3. 使用动态组件渲染驱动声明的编辑器组件
+4. 将公共生命周期（`activated` / `deactivated` / `beforeUnmount`）接到统一的工具上下文注册逻辑
+5. 根据驱动提供的 `toolbar` 配置渲染工具栏
+
+页面层**不直接按扩展名分支业务行为**，即不出现持续膨胀的：
+
+```typescript
+if (ext === 'json') { ... }
+else if (ext === 'yaml') { ... }
+else if (ext === 'csv') { ... }
+```
+
+### 4. 工具栏配置下沉
+
+工具栏显示/隐藏规则由驱动声明，而不是写死在页面组件中：
+
+```typescript
+interface EditorToolbarConfig {
+  showViewModeToggle: boolean;
+  showOutlineToggle: boolean;
+  showStructuredViewToggle: boolean;
+  showSearch: boolean;
+}
+```
+
+示例：
+- `markdownDriver.toolbar`：显示 rich/source 切换、显示大纲、不显示 structured toggle
+- `jsonDriver.toolbar`：隐藏 rich/source、隐藏大纲、显示 JSON 图视图 toggle
+
+这样新增文件类型时，只需在驱动内调整能力描述，不需要继续修改页面模板条件分支。
+
+### 5. AI 上下文扩展点
+
+AI 工具上下文也由驱动负责拼装：
+
+- Markdown 驱动只返回基础 `document` / `editor`
+- JSON 驱动在基础字段之上附加 `structured`
+- 后续 YAML / TOML 驱动可复用相同的 `StructuredDocumentContext` 接口
+
+页面层只调用：
+
+```typescript
+const context = activeDriver.createToolContext({
+  fileState,
+  editorInstance,
+  isActive,
+});
+```
+
+避免 `registerEditorContext()` 自己了解每种文件类型的上下文差异。
+
+### 6. 新增文件类型的接入流程
+
+以后新增一个文件类型时，接入步骤固定为：
+
+1. 新建对应编辑器组件，如 `BYamlGraph`
+2. 实现 `EditorController` 兼容接口
+3. 新增 `yamlDriver.ts`，声明 `match/component/createToolContext/toolbar`
+4. 在 `drivers/index.ts` 注册驱动
+5. 补充该驱动对应的测试
+
+`src/views/editor/index.vue` 无需再增加新的扩展名分支。
+
 ## 错误处理
 
 - **JSON 语法错误**：右侧节点图显示错误提示卡片（含错误行号和消息），不崩溃。源码编辑器通过 CodeMirror lint 实时标注错误位置
