@@ -15,7 +15,7 @@ let actionSender: ((action: string) => void) | null = null;
  * 注册系统快捷入口点击后的动作发送器。
  * @param sender - 向渲染进程发送动作的函数
  */
-export function setPlatformShortcutActionSender(sender: (action: string) => void): void {
+export function setShortcutActionSender(sender: (action: string) => void): void {
   actionSender = sender;
 }
 
@@ -23,9 +23,9 @@ export function setPlatformShortcutActionSender(sender: (action: string) => void
  * 更新最近文件列表并刷新系统快捷入口。
  * @param files - 最近文件摘要
  */
-export function updatePlatformShortcuts(files: RecentFileShortcutInput[]): void {
+export function updateShortcuts(files: RecentFileShortcutInput[]): void {
   recentFiles = files;
-  refreshPlatformShortcuts();
+  refreshShortcuts();
 }
 
 /**
@@ -41,14 +41,14 @@ export function getShortcutActionFromArgv(argv: string[]): string | null {
  * 发送系统快捷入口动作。
  * @param action - 需要转发到渲染进程的动作
  */
-export function sendPlatformShortcutAction(action: string): void {
+export function sendShortcutAction(action: string): void {
   actionSender?.(action);
 }
 
 /**
  * 刷新当前平台支持的快捷入口。
  */
-export function refreshPlatformShortcuts(): void {
+export function refreshShortcuts(): void {
   const recentShortcuts = buildRecentFileShortcuts(recentFiles, RECENT_FILE_LIMIT);
 
   if (process.platform === 'darwin' && app.dock) {
@@ -72,8 +72,8 @@ function setupDockMenu(recentShortcuts: ReturnType<typeof buildRecentFileShortcu
   if (!dock) return;
 
   const template: MenuItemConstructorOptions[] = [
-    { label: '新建', click: () => sendPlatformShortcutAction('file:new') },
-    { label: '打开最近的文件', click: () => sendPlatformShortcutAction('file:recent') }
+    { label: '新建', click: () => sendShortcutAction('file:new') },
+    { label: '打开最近的文件', click: () => sendShortcutAction('file:recent') }
   ];
 
   if (recentShortcuts.length > 0) {
@@ -82,7 +82,7 @@ function setupDockMenu(recentShortcuts: ReturnType<typeof buildRecentFileShortcu
       ...recentShortcuts.map((file) => ({
         label: file.title,
         sublabel: file.subtitle,
-        click: (): void => sendPlatformShortcutAction(file.action)
+        click: (): void => sendShortcutAction(file.action)
       }))
     );
   }

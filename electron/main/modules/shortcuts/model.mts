@@ -11,6 +11,8 @@ export interface RecentFileShortcutInput {
   id: string;
   /** 文件名 */
   name: string;
+  /** 文件扩展名 */
+  ext: string;
   /** 文件路径，未保存文件为空 */
   path: string | null;
 }
@@ -45,6 +47,44 @@ const SUPPORTED_ACTION_PATTERN = /^file:(new|recent|openRecent:[A-Za-z0-9_-]+)$/
 const MAX_TITLE_LENGTH = 27;
 
 /**
+ * 判断文件名是否已经携带扩展名。
+ * @param fileName - 待判断的文件名
+ * @returns 是否已包含扩展名
+ */
+function hasFileExtension(fileName: string): boolean {
+  return /\.[A-Za-z0-9_-]+$/.test(fileName);
+}
+
+/**
+ * 生成系统快捷入口使用的最近文件标题，优先展示“文件名.扩展名”。
+ * @param file - 最近文件摘要
+ * @returns 规范化后的文件标题
+ */
+function resolveRecentFileTitle(file: RecentFileShortcutInput): string {
+  const normalizedName = file.name.trim();
+  const normalizedExt = file.ext.trim();
+  const fallbackTitle = file.path ? file.path.split(/[\\/]/).pop() || file.id : file.id;
+
+  if (normalizedName && hasFileExtension(normalizedName)) {
+    return normalizedName;
+  }
+
+  if (normalizedName && normalizedExt) {
+    return `${normalizedName}.${normalizedExt}`;
+  }
+
+  if (normalizedName) {
+    return normalizedName;
+  }
+
+  if (normalizedExt) {
+    return `Untitled.${normalizedExt}`;
+  }
+
+  return fallbackTitle;
+}
+
+/**
  * 裁剪系统菜单标题，避免 Dock 菜单和 Jump List 出现过长文本。
  * @param title - 原始标题
  * @returns 适合系统快捷入口展示的标题
@@ -63,8 +103,7 @@ function clipTitle(title: string): string {
  */
 export function buildRecentFileShortcuts(files: RecentFileShortcutInput[], limit: number): RecentFileShortcut[] {
   return files.slice(0, limit).map((file) => {
-    const fallbackTitle = file.path ? file.path.split(/[\\/]/).pop() || file.id : file.id;
-    const title = clipTitle(file.name.trim() || fallbackTitle);
+    const title = clipTitle(resolveRecentFileTitle(file));
 
     return {
       id: file.id,
