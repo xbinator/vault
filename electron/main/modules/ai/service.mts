@@ -7,9 +7,9 @@ import type { AICreateOptions, AIRequestOptions, AIInvokeResult, AIStreamResult,
 import { tavilyExtract, tavilySearch } from '@tavily/ai-sdk';
 import { generateText, jsonSchema, Output, stepCountIs, streamText, tool } from 'ai';
 import { log } from '../logger/service.mjs';
+import { executeMcpTool, getMcpDiscoveryCache } from '../mcp/runtime.mjs';
+import { createMcpSdkTools, resolveMcpExposedTools } from '../mcp/tools.mjs';
 import { AI_ERROR_CODE } from './errors/codes.mjs';
-import { executeMcpTool, getMcpDiscoveryCache } from './mcp-runtime.mjs';
-import { createMcpSdkTools, resolveMcpExposedTools } from './mcp-tools.mjs';
 import { AIProviderRegistry } from './providers/_index.mjs';
 
 // ─── 纯工具函数 ──────────────────────────────────────────────────────────────

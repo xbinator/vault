@@ -79,7 +79,7 @@ describe('resolveMcpExposedTools', () => {
   });
 
   it('returns no tools when the server is disabled or incomplete', async () => {
-    const { resolveMcpExposedTools } = await import('../../electron/main/modules/ai/mcp-tools.mjs');
+    const { resolveMcpExposedTools } = await import('../../electron/main/modules/mcp/tools.mjs');
     const tools = [createTool('server-1', 'read_file')];
 
     expect(resolveMcpExposedTools(createSettings([createServer({ enabled: false })]), createRequest(), tools)).toEqual([]);
@@ -87,7 +87,7 @@ describe('resolveMcpExposedTools', () => {
   });
 
   it('uses server allowlist as the static upper bound', async () => {
-    const { resolveMcpExposedTools } = await import('../../electron/main/modules/ai/mcp-tools.mjs');
+    const { resolveMcpExposedTools } = await import('../../electron/main/modules/mcp/tools.mjs');
     const settings = createSettings([createServer({ toolAllowlist: ['read_file'] })]);
     const tools = [createTool('server-1', 'read_file'), createTool('server-1', 'write_file')];
 
@@ -95,7 +95,7 @@ describe('resolveMcpExposedTools', () => {
   });
 
   it('intersects request enabledTools with server allowlist', async () => {
-    const { resolveMcpExposedTools } = await import('../../electron/main/modules/ai/mcp-tools.mjs');
+    const { resolveMcpExposedTools } = await import('../../electron/main/modules/mcp/tools.mjs');
     const settings = createSettings([createServer({ toolAllowlist: ['read_file', 'write_file'] })]);
     const request = createRequest({
       enabledTools: [{ serverId: 'server-1', toolName: 'write_file' }]
@@ -106,7 +106,7 @@ describe('resolveMcpExposedTools', () => {
   });
 
   it('keeps same-name tools scoped to their server id', async () => {
-    const { resolveMcpExposedTools } = await import('../../electron/main/modules/ai/mcp-tools.mjs');
+    const { resolveMcpExposedTools } = await import('../../electron/main/modules/mcp/tools.mjs');
     const settings = createSettings([createServer({ id: 'server-1' }), createServer({ id: 'server-2', name: 'Git' })]);
     const request = createRequest({
       enabledServerIds: ['server-2'],
@@ -118,7 +118,7 @@ describe('resolveMcpExposedTools', () => {
   });
 
   it('creates server-scoped AI SDK tools that execute original MCP tool names', async () => {
-    const { createMcpSdkTools, toMcpSdkToolName } = await import('../../electron/main/modules/ai/mcp-tools.mjs');
+    const { createMcpSdkTools, toMcpSdkToolName } = await import('../../electron/main/modules/mcp/tools.mjs');
     const executeTool = vi.fn(async () => ({ ok: true }));
     const exposedTools: MCPDiscoveredToolSnapshot[] = [createTool('filesystem', 'status'), createTool('git', 'status')];
 

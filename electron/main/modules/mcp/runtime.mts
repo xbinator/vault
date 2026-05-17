@@ -1,9 +1,9 @@
 /**
- * @file mcp-runtime.mts
+ * @file runtime.mts
  * @description MCP server 本地执行状态与 discovery cache 管理。
  */
 import type { MCPDiscoveredToolSnapshot, MCPDiscoveryRefreshResult, MCPServerConfig, MCPServerDiscoveryCache, MCPStatusResponse } from 'types/ai';
-import { discoverMcpToolsLocally, executeMcpToolLocally, type MCPLocalSpawn } from './mcp-local-stdio.mjs';
+import { discoverMcpToolsLocally, executeMcpToolLocally, type MCPLocalSpawn } from './local-stdio.mjs';
 
 /**
  * MCP discovery provider。

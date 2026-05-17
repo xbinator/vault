@@ -1,10 +1,10 @@
 /**
- * @file mcp-ipc.mts
+ * @file ipc.mts
  * @description MCP runtime IPC 处理器。
  */
 import type { MCPServerConfig } from 'types/ai';
 import { ipcMain } from 'electron';
-import { getMcpDiscoveryCache, getMcpStatus, refreshMcpDiscovery } from './mcp-runtime.mjs';
+import { getMcpDiscoveryCache, getMcpStatus, refreshMcpDiscovery } from './runtime.mjs';
 
 /**
  * 注册 MCP runtime IPC 通道。

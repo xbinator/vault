@@ -28,12 +28,12 @@ function createServer(patch: Partial<MCPServerConfig> = {}): MCPServerConfig {
 
 describe('mcp runtime', () => {
   beforeEach(async () => {
-    const { resetMcpRuntimeState } = await import('../../electron/main/modules/ai/mcp-runtime.mjs');
+    const { resetMcpRuntimeState } = await import('../../electron/main/modules/mcp/runtime.mjs');
     resetMcpRuntimeState();
   });
 
   it('returns idle status before a server is refreshed', async () => {
-    const { getMcpStatus } = await import('../../electron/main/modules/ai/mcp-runtime.mjs');
+    const { getMcpStatus } = await import('../../electron/main/modules/mcp/runtime.mjs');
 
     expect(getMcpStatus(['server-1'])).toEqual([
       {
@@ -45,7 +45,7 @@ describe('mcp runtime', () => {
   });
 
   it('refreshes discovery and stores a cache when provider succeeds', async () => {
-    const { getMcpDiscoveryCache, getMcpStatus, refreshMcpDiscovery } = await import('../../electron/main/modules/ai/mcp-runtime.mjs');
+    const { getMcpDiscoveryCache, getMcpStatus, refreshMcpDiscovery } = await import('../../electron/main/modules/mcp/runtime.mjs');
     const tools: MCPDiscoveredToolSnapshot[] = [{ serverId: 'server-1', toolName: 'read_file', description: 'Read file' }];
     const discoverTools = vi.fn(async () => tools);
 
@@ -68,7 +68,7 @@ describe('mcp runtime', () => {
   });
 
   it('marks status as failed when local discovery fails', async () => {
-    const { getMcpStatus, refreshMcpDiscovery } = await import('../../electron/main/modules/ai/mcp-runtime.mjs');
+    const { getMcpStatus, refreshMcpDiscovery } = await import('../../electron/main/modules/mcp/runtime.mjs');
 
     const result = await refreshMcpDiscovery(createServer(), {
       discoverTools: vi.fn(async () => {
@@ -86,7 +86,7 @@ describe('mcp runtime', () => {
   });
 
   it('executes MCP tools with the matching local server config', async () => {
-    const { executeMcpTool } = await import('../../electron/main/modules/ai/mcp-runtime.mjs');
+    const { executeMcpTool } = await import('../../electron/main/modules/mcp/runtime.mjs');
     const executeTool = vi.fn(async () => ({ content: [{ type: 'text', text: 'ok' }] }));
 
     const result = await executeMcpTool(createServer(), 'read_file', { path: 'README.md' }, { executeTool });

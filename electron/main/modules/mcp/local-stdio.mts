@@ -1,5 +1,5 @@
 /**
- * @file mcp-local-stdio.mts
+ * @file local-stdio.mts
  * @description 在本机通过受控 stdio 子进程执行 MCP server discovery 与 tool 调用。
  */
 import { spawn } from 'node:child_process';

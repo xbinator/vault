@@ -1,5 +1,5 @@
 /**
- * @file mcp-tools.mts
+ * @file tools.mts
  * @description MCP 工具发现结果的主进程过滤边界。
  */
 import type { ToolExecutionOptions, ToolSet } from 'ai';

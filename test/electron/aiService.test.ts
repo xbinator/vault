@@ -63,7 +63,7 @@ vi.mock('../../electron/main/modules/ai/providers/_index.mjs', () => ({
   }
 }));
 
-vi.mock('../../electron/main/modules/ai/mcp-runtime.mjs', () => ({
+vi.mock('../../electron/main/modules/mcp/runtime.mjs', () => ({
   getMcpDiscoveryCache: getMcpDiscoveryCacheMock,
   executeMcpTool: executeMcpToolMock
 }));

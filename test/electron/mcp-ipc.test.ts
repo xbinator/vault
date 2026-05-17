@@ -19,7 +19,7 @@ describe('registerMcpHandlers', () => {
   });
 
   it('registers MCP status, cache and refresh channels', async () => {
-    const { registerMcpHandlers } = await import('../../electron/main/modules/ai/mcp-ipc.mjs');
+    const { registerMcpHandlers } = await import('../../electron/main/modules/mcp/ipc.mjs');
 
     registerMcpHandlers();
 

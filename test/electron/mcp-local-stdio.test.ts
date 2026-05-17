@@ -94,7 +94,7 @@ function createMockProcess(): {
 
 describe('mcp local stdio runner', () => {
   it('discovers tools by spawning the configured local command without shell', async () => {
-    const { discoverMcpToolsLocally } = await import('../../electron/main/modules/ai/mcp-local-stdio.mjs');
+    const { discoverMcpToolsLocally } = await import('../../electron/main/modules/mcp/local-stdio.mjs');
     const { child, requests, killMock } = createMockProcess();
     const spawnProcess = vi.fn((command: string, args: string[], options: SpawnOptionsWithoutStdio) => {
       expect(command).toBe('node');
@@ -119,7 +119,7 @@ describe('mcp local stdio runner', () => {
   });
 
   it('executes a tool over the local stdio session', async () => {
-    const { executeMcpToolLocally } = await import('../../electron/main/modules/ai/mcp-local-stdio.mjs');
+    const { executeMcpToolLocally } = await import('../../electron/main/modules/mcp/local-stdio.mjs');
     const { child, requests } = createMockProcess();
 
     const result = await executeMcpToolLocally(
@@ -140,7 +140,7 @@ describe('mcp local stdio runner', () => {
   });
 
   it('rejects disabled servers before spawning a process', async () => {
-    const { discoverMcpToolsLocally } = await import('../../electron/main/modules/ai/mcp-local-stdio.mjs');
+    const { discoverMcpToolsLocally } = await import('../../electron/main/modules/mcp/local-stdio.mjs');
     const spawnProcess = vi.fn();
 
     await expect(discoverMcpToolsLocally(createServer({ enabled: false }), spawnProcess)).rejects.toThrow('MCP server is disabled: server-1');
