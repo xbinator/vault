@@ -26,9 +26,9 @@ import type { CSSProperties } from 'vue';
 import { computed, nextTick, onBeforeUnmount, ref, shallowRef, watch } from 'vue';
 import { useEventListener, useResizeObserver } from '@vueuse/core';
 import { createNamespace } from '@/utils/namespace';
+import { resolveToolbarContainerRect, resolveToolbarLeft } from '../utils/selectionToolbarPosition';
 import LinkPopover from './LinkPopover.vue';
 import SelectionToolbar from './SelectionToolbar.vue';
-import { resolveToolbarContainerRect, resolveToolbarLeft } from '../utils/selectionToolbarPosition';
 
 const [name] = createNamespace('', 'b-editor-selrich');
 

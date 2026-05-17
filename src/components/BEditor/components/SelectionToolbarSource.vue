@@ -16,8 +16,8 @@ import type { CSSProperties } from 'vue';
 import { nextTick, onBeforeUnmount, ref, shallowRef, watch } from 'vue';
 import { useEventListener, useResizeObserver } from '@vueuse/core';
 import { createNamespace } from '@/utils/namespace';
-import SelectionToolbar from './SelectionToolbar.vue';
 import { resolveToolbarContainerRect, resolveToolbarLeft } from '../utils/selectionToolbarPosition';
+import SelectionToolbar from './SelectionToolbar.vue';
 
 const [name] = createNamespace('', 'b-editor-selsource');
 

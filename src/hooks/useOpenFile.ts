@@ -16,13 +16,7 @@ const createFileId = customAlphabet('0123456789abcdefghijklmnopqrstuvwxyz_', 8);
  * 提供统一的文件打开与新建行为。
  * @returns 文件打开相关操作
  */
-export function useOpenFile(): {
-  openFile: (file: StoredFile) => Promise<StoredFile>;
-  openFileById: (id: string) => Promise<StoredFile | null>;
-  openFileByPath: (path: string) => Promise<StoredFile | null>;
-  openNativeFile: () => Promise<StoredFile | null>;
-  createNewFile: () => Promise<StoredFile>;
-} {
+export function useOpenFile() {
   const router = useRouter();
   const filesStore = useFilesStore();
   const tabsStore = useTabsStore();

@@ -13,6 +13,7 @@ import type {
   ReadWorkspaceDirectoryResult
 } from './types';
 import type { PlatformRecentFile } from 'types/electron-api';
+import { OPEN_FILE_FILTER } from '@/constants/extensions';
 
 export class WebNative implements Native {
   async readFile(): Promise<ReadFileResult> {
@@ -45,7 +46,7 @@ export class WebNative implements Native {
     return new Promise<File>((resolve) => {
       const input = document.createElement('input');
       input.type = 'file';
-      const filters = options?.filters || [{ name: 'Markdown', extensions: ['md', 'markdown'] }];
+      const filters = options?.filters || [OPEN_FILE_FILTER];
       input.accept = filters.map((filter) => filter.extensions.map((extension) => `.${extension}`).join(',')).join(',');
       input.onchange = async (event) => {
         const file = (event.target as HTMLInputElement).files?.[0];

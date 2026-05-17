@@ -12,6 +12,7 @@ import type {
   ReadWorkspaceDirectoryResult
 } from './types';
 import type { PlatformRecentFile } from 'types/electron-api';
+import { OPEN_FILE_FILTER, SAVE_FILE_FILTER } from '@/constants/extensions';
 import { getElectronAPI } from '../electron-api';
 
 export class ElectronNative implements Native {
@@ -43,7 +44,7 @@ export class ElectronNative implements Native {
   }
 
   async openFile(options?: OpenFileOptions) {
-    const filters = options?.filters || [{ name: 'Markdown', extensions: ['md', 'markdown'] }];
+    const filters = options?.filters || [OPEN_FILE_FILTER];
     const result = await getElectronAPI().openFile({ filters });
 
     if (result.canceled || !result.filePath) {
@@ -57,7 +58,7 @@ export class ElectronNative implements Native {
   }
 
   async saveFile(content: string, path?: string, options?: SaveFileOptions) {
-    const filters = options?.filters || [{ name: 'Markdown', extensions: ['md'] }];
+    const filters = options?.filters || [SAVE_FILE_FILTER];
     const defaultPath = options?.defaultPath || 'untitled.md';
 
     return getElectronAPI().saveFile(content, path, { filters, defaultPath });

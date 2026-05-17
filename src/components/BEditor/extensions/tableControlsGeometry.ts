@@ -193,8 +193,16 @@ export function findHoveredDividers({ clientX: x, clientY: y, columnRects, rowRe
   const colDividers = buildDividers('column', columnRects, rowRects[0].top, rowRects[rowRects.length - 1].bottom);
   const rowDividers = buildDividers('row', rowRects, columnRects[0].left, columnRects[columnRects.length - 1].right);
 
-  const column = findClosestDivider(colDividers.filter((hit) => matchesDivider(hit, x, y, threshold)), x, y);
-  const row = findClosestDivider(rowDividers.filter((hit) => matchesDivider(hit, x, y, threshold)), x, y);
+  const column = findClosestDivider(
+    colDividers.filter((hit) => matchesDivider(hit, x, y, threshold)),
+    x,
+    y
+  );
+  const row = findClosestDivider(
+    rowDividers.filter((hit) => matchesDivider(hit, x, y, threshold)),
+    x,
+    y
+  );
 
   return row || column ? { row, column } : null;
 }

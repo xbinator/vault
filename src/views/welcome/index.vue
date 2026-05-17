@@ -56,6 +56,7 @@ import { useRouter } from 'vue-router';
 import { Icon } from '@iconify/vue';
 import { customAlphabet } from 'nanoid';
 import BSearchRecent from '@/components/BSearchRecent/index.vue';
+import { OPEN_FILE_EXTENSIONS } from '@/constants/extensions';
 import { useOpenFile } from '@/hooks/useOpenFile';
 import type { StoredFile } from '@/shared/storage/files/types';
 import { useFilesStore } from '@/stores/files';
@@ -68,9 +69,6 @@ const filesStore = useFilesStore();
 const { createNewFile, openFileById, openNativeFile } = useOpenFile();
 const isDragging = ref(false);
 const visibleSearchRecent = ref(false);
-
-/** 支持的文本文件扩展名列表 */
-const SUPPORTED_TEXT_EXTENSIONS = ['md', 'markdown', 'txt', 'text', 'js', 'ts', 'html', 'css', 'json'];
 
 const topRecentFiles = computed(() => filesStore.recentFiles?.slice(0, 3) ?? []);
 
@@ -156,7 +154,7 @@ async function handleDrop(e: DragEvent): Promise<void> {
 
   // 检查文件类型，只处理文本文件
   const ext = file.name.split('.').pop()?.toLowerCase();
-  if (!ext || !SUPPORTED_TEXT_EXTENSIONS.includes(ext)) {
+  if (!ext || !OPEN_FILE_EXTENSIONS.includes(ext)) {
     return;
   }
 

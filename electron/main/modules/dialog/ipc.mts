@@ -45,7 +45,7 @@ export function registerDialogHandlers(): void {
     return openLock.run(async () => {
       const result = await showOpenDialog({
         properties: ['openFile'],
-        filters: options?.filters || [{ name: 'Markdown', extensions: ['md', 'markdown'] }]
+        filters: options?.filters
       });
 
       if (result.canceled || !result.filePaths.length) {
@@ -71,7 +71,7 @@ export function registerDialogHandlers(): void {
 
     return saveLock.run(async () => {
       const result = await showSaveDialog({
-        filters: options?.filters || [{ name: 'Markdown', extensions: ['md'] }],
+        filters: options?.filters,
         defaultPath: options?.defaultPath || 'untitled.md'
       });
 
