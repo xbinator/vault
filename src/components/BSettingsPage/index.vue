@@ -2,6 +2,9 @@
   <div :class="bem()">
     <div :class="bem('header')">
       <div :class="bem('title')">{{ title }}</div>
+      <div :class="bem('header-extra')">
+        <slot name="headerExtra"></slot>
+      </div>
     </div>
     <div :class="bem('body')">
       <slot></slot>
@@ -48,6 +51,13 @@ const [, bem] = createNamespace('settings-page');
   font-size: 16px;
   font-weight: 600;
   color: var(--text-primary);
+}
+
+.b-settings-page__header-extra {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-left: auto;
 }
 
 .b-settings-page__body {
