@@ -177,7 +177,7 @@ describe('BSearchRecent absolute path search', () => {
     await nextTick();
     await nextTick();
 
-    expect(wrapper.text()).toContain('按路径打开');
+    expect(wrapper.text()).toContain('demo.md');
     expect(wrapper.text()).toContain('/tmp/demo.md');
   });
 
@@ -197,5 +197,16 @@ describe('BSearchRecent absolute path search', () => {
     await wrapper.find('input').trigger('keydown.enter');
 
     expect(openFileByPathMock).toHaveBeenCalledWith('/tmp/demo.md');
+  });
+
+  it('renders recent file titles with file extensions', async () => {
+    filesStoreMock.recentFiles = [createStoredFile({ name: 'demo', ext: 'md', content: '# Custom Title' })];
+
+    const wrapper = mountSearchRecent();
+
+    await nextTick();
+
+    expect(wrapper.text()).toContain('demo.md');
+    expect(wrapper.text()).not.toContain('Custom Title');
   });
 });

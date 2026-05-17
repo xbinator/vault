@@ -34,6 +34,11 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * @file index.vue
+ * @description 渲染最近文件搜索弹窗，并支持按路径直接打开文件。
+ */
+
 import type { BSearchRecentProps, AbsolutePathSearchResult, NormalizedItem } from './types';
 import { computed, nextTick, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
@@ -82,7 +87,8 @@ const filteredFiles = computed<StoredFile[]>(() => {
 
   const re = new RegExp(term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
   return files.filter((file) => {
-    const searchable = [getRecentFileLabel(file), file.name, file.path, file.content].filter(Boolean).join('\0');
+    // 同时保留扩展名与路径关键字，确保用户按文件名或类型都能搜到目标文件。
+    const searchable = [getRecentFileLabel(file), file.name, file.ext, file.path, file.content].filter(Boolean).join('\0');
     return re.test(searchable);
   });
 });
